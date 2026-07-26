@@ -77,17 +77,29 @@ jobs:
         run: xdrun ci
 
   test:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} with ${{ matrix.shell_name }}
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     needs: quality
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            shell_name: Bash
+          - os: macos-latest
+            shell: bash
+            shell_name: Bash
+          - os: windows-latest
+            shell: pwsh
+            shell_name: PowerShell
+          - os: windows-latest
+            shell: bash
+            shell_name: Git Bash
+          - os: windows-latest
+            shell: cmd
+            shell_name: Command Prompt
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -99,6 +111,7 @@ jobs:
           cache: true
 
       - name: Download dependencies
+        shell: ${{ matrix.shell }}
         run: go mod download
 
       - name: Set up xdrun
@@ -132,9 +145,11 @@ jobs:
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Run tests
+        shell: ${{ matrix.shell }}
         run: xdrun test
 
       - name: Build packages
+        shell: ${{ matrix.shell }}
         run: xdrun build
 
       - name: Build and smoke-test native binary
