@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestAddInstallAndListEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	binary := filepath.Join(t.TempDir(), "repertoire")
+	binary := testBinaryPath(t)
 	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
 	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
 	runCommand(t, project, binary, "catalog", "add", catalogRoot, "--name", "local")
@@ -67,6 +68,15 @@ func TestAddInstallAndListEndToEnd(t *testing.T) {
 	if strings.TrimSpace(output) != "" {
 		t.Fatalf("expected empty installed list, got %q", output)
 	}
+}
+
+func testBinaryPath(t *testing.T) string {
+	t.Helper()
+	name := "repertoire"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(t.TempDir(), name)
 }
 
 func runCommand(t *testing.T, directory, name string, arguments ...string) string {

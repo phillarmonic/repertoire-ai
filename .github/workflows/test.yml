@@ -130,10 +130,11 @@ jobs:
         shell: bash
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Run tests and build
-        run: |
-          xdrun test
-          xdrun build
+      - name: Run tests
+        run: xdrun test
+
+      - name: Build packages
+        run: xdrun build
 
       - name: Build and smoke-test native binary
         shell: bash

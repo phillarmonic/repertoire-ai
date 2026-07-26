@@ -13,7 +13,7 @@ func TestSiblingCatalogProjectAndGlobalWorkflows(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(siblingCatalog, "repertoire.yaml")); err != nil {
 		t.Skipf("sibling catalog unavailable: %v", err)
 	}
-	binary := filepath.Join(t.TempDir(), "repertoire")
+	binary := testBinaryPath(t)
 	runCommand(t, filepath.Clean(filepath.Join("..", "..")), "go", "build", "-o", binary, "./cmd/repertoire")
 
 	project := t.TempDir()

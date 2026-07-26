@@ -10,7 +10,7 @@ import (
 )
 
 func TestBootstrapAndSyncEndToEnd(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "repertoire")
+	binary := testBinaryPath(t)
 	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
 	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
 
