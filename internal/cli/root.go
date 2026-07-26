@@ -116,6 +116,7 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 	}
 	add.Flags().StringVar(&name, "name", "", "catalog name")
 	add.Flags().StringVar(&ref, "ref", "", "branch, tag, or commit")
+	add.ValidArgsFunction = completeCatalogSources(globalScope, projectScope)
 
 	remove := &cobra.Command{
 		Use:   "remove <name>",

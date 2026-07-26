@@ -42,10 +42,7 @@ func newCompletionCommand() *cobra.Command {
 
 func completeAvailableSkills(globalScope, projectScope *bool, catalogName *string) cobra.CompletionFunc {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		_, manifest, err := loadScope(*globalScope, *projectScope)
-		if err != nil {
-			return nil, completionDirective
-		}
+		manifest := knownManifest(*globalScope, *projectScope, "")
 		completions := availableSkillCompletions(manifest, *catalogName, toComplete, "")
 		return completions, completionDirective
 	}
@@ -56,7 +53,12 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 	if err != nil {
 		return nil
 	}
-	byName := map[string][]string{}
+	type skillMatch struct {
+		catalogs []string
+		source   string
+	}
+	byName := map[string]skillMatch{}
+	wantNamespaced := strings.Contains(toComplete, "/") || strings.Contains(toComplete, ".")
 	for _, source := range catalog.Sources(manifest) {
 		if catalogName != "" && source.Name != catalogName {
 			continue
@@ -66,8 +68,21 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 			continue
 		}
 		for name := range resolved.Manifest.Catalog.Skills {
+			id := catalog.SkillID(source.Registration.Source, name)
+			if wantNamespaced {
+				if strings.HasPrefix(id, toComplete) {
+					match := byName[id]
+					match.catalogs = append(match.catalogs, source.Name)
+					match.source = source.Registration.Source
+					byName[id] = match
+				}
+				continue
+			}
 			if strings.HasPrefix(name, toComplete) {
-				byName[name] = append(byName[name], source.Name)
+				match := byName[name]
+				match.catalogs = append(match.catalogs, source.Name)
+				match.source = source.Registration.Source
+				byName[name] = match
 			}
 		}
 	}
@@ -78,7 +93,8 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 	sort.Strings(names)
 	completions := make([]string, 0, len(names))
 	for _, name := range names {
-		catalogs := byName[name]
+		match := byName[name]
+		catalogs := append([]string(nil), match.catalogs...)
 		sort.Strings(catalogs)
 		completions = append(completions, name+"\t[available] "+strings.Join(catalogs, ", "))
 	}
@@ -113,17 +129,17 @@ func completeInstalledSkills(globalScope, projectScope *bool) cobra.CompletionFu
 
 func completeCatalogs(globalScope, projectScope *bool, registeredOnly bool) cobra.CompletionFunc {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		_, manifest, err := loadScope(*globalScope, *projectScope)
-		if err != nil {
-			return nil, completionDirective
-		}
-		var completions []string
 		if registeredOnly {
+			_, manifest, err := loadScope(*globalScope, *projectScope)
+			if err != nil {
+				return nil, completionDirective
+			}
 			names := make([]string, 0, len(manifest.Catalogs))
 			for name := range manifest.Catalogs {
 				names = append(names, name)
 			}
 			sort.Strings(names)
+			completions := make([]string, 0, len(names))
 			for _, name := range names {
 				if strings.HasPrefix(name, toComplete) {
 					completions = append(completions, name+"\t[registered] "+catalog.RedactSource(manifest.Catalogs[name].Source))
@@ -131,16 +147,49 @@ func completeCatalogs(globalScope, projectScope *bool, registeredOnly bool) cobr
 			}
 			return completions, completionDirective
 		}
-		for _, source := range catalog.Sources(manifest) {
-			if strings.HasPrefix(source.Name, toComplete) {
-				kind := "[catalog] "
-				if source.Builtin {
-					kind = "[built-in] "
+
+		completions := make([]string, 0)
+		for _, known := range knownCatalogs(*globalScope, *projectScope, "") {
+			if !strings.HasPrefix(known.Name, toComplete) {
+				continue
+			}
+			completions = append(completions, known.Name+"\t["+known.Kind+"] "+known.Source)
+		}
+		return completions, completionDirective
+	}
+}
+
+func completeCatalogSources(globalScope, projectScope *bool) cobra.CompletionFunc {
+	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		seen := map[string]string{}
+		add := func(source, detail string) {
+			source = catalog.RedactSource(catalog.NormalizeSource(source))
+			compact := strings.TrimSuffix(strings.TrimPrefix(source, "https://"), ".git")
+			for _, candidate := range []string{compact, source} {
+				if candidate == "" || !strings.HasPrefix(candidate, toComplete) {
+					continue
 				}
-				completions = append(completions, source.Name+"\t"+kind+catalog.RedactSource(source.Registration.Source))
+				if _, exists := seen[candidate]; exists {
+					continue
+				}
+				seen[candidate] = detail
 			}
 		}
-		sort.Strings(completions)
+
+		add(catalog.BuiltinSource, "[built-in]")
+		for _, known := range knownCatalogs(*globalScope, *projectScope, "") {
+			add(known.Source, "["+known.Kind+"] "+known.Name)
+		}
+
+		candidates := make([]string, 0, len(seen))
+		for candidate := range seen {
+			candidates = append(candidates, candidate)
+		}
+		sort.Strings(candidates)
+		completions := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			completions = append(completions, candidate+"\t"+seen[candidate])
+		}
 		return completions, completionDirective
 	}
 }

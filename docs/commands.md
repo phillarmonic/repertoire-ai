@@ -116,8 +116,12 @@ default explicit.
 
 Repertoire generates context-aware completion scripts for Bash, Zsh, Fish, and
 PowerShell. Completions suggest installed skills, available skills from local or
-already-cached catalogs, catalog names, and agent targets. Completion never
-clones or refreshes a catalog.
+already-cached catalogs, agent targets, and registries Repertoire already knows
+about: the built-in catalog, registrations in global and project scope,
+`.repertoire.yaml` bootstrap catalogs, lock-file sources, and cached remotes.
+`catalog add` also completes those known source URLs. Typing a namespaced skill
+prefix (with `/` or `.`) switches skill completion to namespaced IDs.
+Completion never clones or refreshes a catalog.
 
 Enable completion for the current shell session:
 
