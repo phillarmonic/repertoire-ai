@@ -44,13 +44,14 @@ manually cloning a skill and duplicating it into every client-specific directory
 at once:
 
 ```shell
-repertoire add code-reviewer --target all
+repertoire add zensical --target all
 ```
 
-Repertoire validates the portable `SKILL.md` package, installs it into each agent's native project or global skills
-directory, and records the exact catalog source and content digest. Unlike automatic target detection,
+Repertoire validates the portable `SKILL.md` package, installs it into each agent's native home-directory skills
+root by default, and records the exact catalog source and content digest. Unlike automatic target detection,
 `--target all` includes every supported target even when its configuration directory does not exist yet. Repeat
-`--target` with individual names when only a subset is needed.
+`--target` with individual names when only a subset is needed. Use `--project` to install into a Git worktree
+instead.
 
 For repeatable developer onboarding and CI-managed environments, commit a
 `.repertoire.yaml` manifest and run:
@@ -126,11 +127,11 @@ repertoire add zensical --target all
 repertoire list
 ```
 
-Inside a Git worktree, commands use project scope and install below directories such as `.codex/skills` or
-`.agents/skills`. Outside a worktree, they use your user-global configuration. Choose explicitly when needed:
+By default, commands use user-global configuration and install into home-directory skill roots such as
+`~/.codex/skills` or `~/.agents/skills`. Use `--project` when a skill should live in the Git worktree instead:
 
 ```shell
-repertoire add zensical --global --target codex
+repertoire add zensical --target codex
 repertoire add zensical --project --target agents
 ```
 
@@ -148,7 +149,11 @@ repertoire update --target all
 
 ## Set up a project in one command
 
-Check a `.repertoire.yaml` file into the project root when contributors need a known set of skills:
+Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, Repertoire creates one that lists
+built-in catalog skills with namespaced IDs and `scope: global`—so the small manifest stays in the repo while skills
+install under home-directory agent roots.
+
+You can also commit a custom `.repertoire.yaml`:
 
 ```yaml
 schema: 1
@@ -159,14 +164,14 @@ catalogs:
     ref: main
 
 skills:
-  zensical:
-    scope: project
+  github.com/phillarmonic/ai-skills/zensical:
+    scope: global
     targets: [ codex ]
 
-  code-reviewer:
+  shared-helpers:
     catalog: company
-    scope: global
-    targets: [ codex, claude ]
+    scope: project
+    targets: [ agents ]
 ```
 
 Then install everything declared by the project:

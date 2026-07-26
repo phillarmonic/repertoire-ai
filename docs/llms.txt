@@ -1,7 +1,8 @@
 # Repertoire
 
 Repertoire automates installation and lifecycle management for portable
-SKILL.md packages across AI coding agents.
+SKILL.md packages across AI coding agents. Skills install to home-directory
+agent roots by default; use --project for Git worktree installs.
 
 Documentation: https://phillarmonic.github.io/repertoire-ai/
 Automation guide: https://phillarmonic.github.io/repertoire-ai/automation/

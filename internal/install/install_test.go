@@ -254,7 +254,7 @@ func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) 
 		`skill "demo" is defined in multiple catalogs:`,
 		"  - phillarmonic (" + manifest.Catalogs[catalog.BuiltinName].Source + ")",
 		"  - two (" + manifest.Catalogs["two"].Source + ")",
-		"specify a catalog with --catalog <name>",
+		"specify a catalog with --catalog <name> or a namespaced skill id",
 	} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("ambiguity error %q does not contain %q", err, expected)
@@ -263,6 +263,11 @@ func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) 
 	resolved, err := Resolve(manager, manifest, "demo", "two", false)
 	if err != nil || resolved.Catalog.Name != "two" {
 		t.Fatalf("qualified resolution: %+v, %v", resolved, err)
+	}
+	namespaced := catalog.SkillID(manifest.Catalogs["two"].Source, "demo")
+	resolved, err = Resolve(manager, manifest, namespaced, "", false)
+	if err != nil || resolved.Catalog.Name != "two" || resolved.Name != "demo" {
+		t.Fatalf("namespaced resolution: %+v, %v", resolved, err)
 	}
 }
 

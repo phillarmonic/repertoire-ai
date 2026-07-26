@@ -21,12 +21,15 @@ or post-install verification restores the backup automatically.
 
 ```bash
 repertoire add code-reviewer
+repertoire add github.com/phillarmonic/ai-skills/zensical
 repertoire add code-reviewer --catalog company --target codex --target claude
 ```
 
-An unqualified name resolves when exactly one visible catalog defines it. If
-several catalogs define the name, Repertoire lists every definition and
-requires `--catalog`.
+An unqualified short name resolves when exactly one visible catalog defines it.
+Namespaced IDs such as `github.com/phillarmonic/ai-skills/zensical` select the
+catalog source and short skill name together. If several catalogs define a short
+name, Repertoire lists every definition (with namespaced IDs) and requires
+`--catalog` or a namespaced ID.
 
 ## Synchronize
 
@@ -46,12 +49,17 @@ install form above.
 
 ## Bootstrap and synchronize a project
 
-From a Git worktree containing `.repertoire.yaml`, install every declared skill
-into its configured project or global scope:
+From a Git worktree, install every skill declared in `.repertoire.yaml` into its
+configured project or global scope:
 
 ```bash
 repertoire bootstrap
 ```
+
+If `.repertoire.yaml` is missing, `bootstrap` creates one that lists every skill
+from the built-in `phillarmonic` catalog using namespaced IDs and
+`scope: global` (manifest stays in the repo; skills install under home-directory
+agent roots). `sync` does not create a missing file.
 
 `bootstrap` uses local catalogs and the current catalog cache without fetching.
 It skips intact installations and repairs missing managed copies. Use `sync`
@@ -100,15 +108,20 @@ The update command also accepts `--target all` (or repeated individual
 Updates and removals refuse locally modified targets. Review the changes before
 using `--force` to replace or delete them.
 
-All commands use project scope inside a Git worktree and global scope
-elsewhere. Use `--project` or `--global` to make the choice explicit.
+All commands default to user-global scope (home-directory skill roots). Use
+`--project` to install into the current Git worktree, or `--global` to make the
+default explicit.
 
 ## Shell completion
 
 Repertoire generates context-aware completion scripts for Bash, Zsh, Fish, and
 PowerShell. Completions suggest installed skills, available skills from local or
-already-cached catalogs, catalog names, and agent targets. Completion never
-clones or refreshes a catalog.
+already-cached catalogs, agent targets, and registries Repertoire already knows
+about: the built-in catalog, registrations in global and project scope,
+`.repertoire.yaml` bootstrap catalogs, lock-file sources, and cached remotes.
+`catalog add` also completes those known source URLs. Typing a namespaced skill
+prefix (with `/` or `.`) switches skill completion to namespaced IDs.
+Completion never clones or refreshes a catalog.
 
 Enable completion for the current shell session:
 

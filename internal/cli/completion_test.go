@@ -67,6 +67,11 @@ func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 }
 
 func TestContextCompletionsUseProjectState(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "cache"))
+
 	project := t.TempDir()
 	if err := exec.Command("git", "-C", project, "init", "-q").Run(); err != nil {
 		t.Fatalf("git init: %v", err)
@@ -93,7 +98,7 @@ func TestContextCompletionsUseProjectState(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
-	global, projectFlag := false, false
+	global, projectFlag := false, true
 	installed, directive := completeInstalledSkills(&global, &projectFlag)(nil, nil, "rev")
 	if directive != completionDirective {
 		t.Fatalf("installed directive = %v", directive)
@@ -106,7 +111,8 @@ func TestContextCompletionsUseProjectState(t *testing.T) {
 		t.Fatalf("registered completions = %#v", registered)
 	}
 	visible, _ := completeCatalogs(&global, &projectFlag, false)(nil, nil, "")
-	if len(visible) != 2 || !strings.HasPrefix(visible[0], "company\t") || !strings.HasPrefix(visible[1], "phillarmonic\t") {
+	if len(visible) != 2 || !strings.HasPrefix(visible[0], "company\t[registered]") ||
+		!strings.HasPrefix(visible[1], "phillarmonic\t[built-in]") {
 		t.Fatalf("visible completions = %#v", visible)
 	}
 }
@@ -174,8 +180,12 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 			}
 		}
 	}
+	catalogAdd, _, _ := command.Find([]string{"catalog", "add"})
 	catalogUpdate, _, _ := command.Find([]string{"catalog", "update"})
 	catalogRemove, _, _ := command.Find([]string{"catalog", "remove"})
+	if catalogAdd.ValidArgsFunction == nil {
+		t.Fatal("catalog add argument completion is not wired")
+	}
 	if catalogUpdate.ValidArgsFunction == nil || catalogRemove.ValidArgsFunction == nil {
 		t.Fatal("catalog update/remove argument completion is not wired")
 	}

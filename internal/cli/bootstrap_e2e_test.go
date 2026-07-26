@@ -27,10 +27,10 @@ catalogs:
 skills:
   global-demo:
     catalog: local
-    scope: global
     targets: [agents]
   project-demo:
     catalog: local
+    scope: project
     targets: [agents]
 `)
 		output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
@@ -45,15 +45,15 @@ skills:
 				t.Fatalf("installed skill %s: %v", path, err)
 			}
 		}
-		if output := runCommandWithEnv(t, project, environment, binary, "list"); !strings.Contains(output, "project-demo\tlocal\tbootstrap\tagents") {
+		if output := runCommandWithEnv(t, project, environment, binary, "--project", "list"); !strings.Contains(output, "project-demo\tlocal\tbootstrap\tagents") {
 			t.Fatalf("project list:\n%s", output)
 		}
-		if output := runCommandWithEnv(t, project, environment, binary, "--global", "list"); !strings.Contains(output, "global-demo\tlocal\tbootstrap\tagents") {
+		if output := runCommandWithEnv(t, project, environment, binary, "list"); !strings.Contains(output, "global-demo\tlocal\tbootstrap\tagents") {
 			t.Fatalf("global list:\n%s", output)
 		}
 
-		runCommandWithEnv(t, project, environment, binary, "remove", "project-demo")
-		runCommandWithEnv(t, project, environment, binary, "--global", "remove", "global-demo")
+		runCommandWithEnv(t, project, environment, binary, "--project", "remove", "project-demo")
+		runCommandWithEnv(t, project, environment, binary, "remove", "global-demo")
 		if _, err := os.Stat(filepath.Join(project, "repertoire.yaml")); !os.IsNotExist(err) {
 			t.Fatalf("removing bootstrap skill changed project requirements manifest: %v", err)
 		}
@@ -77,7 +77,6 @@ catalogs:
 skills:
   global-demo:
     catalog: local
-    scope: global
     targets: [agents]
 `)
 		runCommandWithEnv(t, project, environment, binary, "bootstrap")
@@ -124,6 +123,7 @@ catalogs:
 skills:
   demo:
     catalog: second
+    scope: project
     targets: [agents]
 `)
 		runCommandWithEnv(t, project, environment, binary, "bootstrap")
@@ -148,6 +148,7 @@ catalogs:
 skills:
   tracked:
     catalog: tracking
+    scope: project
     targets: [agents]
 `)
 		runCommandWithEnv(t, project, environment, binary, "bootstrap")
@@ -174,6 +175,7 @@ catalogs:
 skills:
   tracked:
     catalog: tracking
+    scope: project
     targets: [agents]
 `)
 		runCommandWithEnv(t, project, environment, binary, "sync")
@@ -185,6 +187,41 @@ skills:
 		output := runCommandWithEnvError(t, project, environment, binary, "bootstrap", "--global")
 		if !strings.Contains(output, "--global and --project are not supported") {
 			t.Fatalf("scope flag output:\n%s", output)
+		}
+	})
+
+	t.Run("missing bootstrap creates namespaced global starter", func(t *testing.T) {
+		project, home, environment := bootstrapEnvironment(t)
+		seedBuiltinCatalogCache(t, home, map[string]string{
+			"demo": "demo-v1",
+		})
+		if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		if !strings.Contains(output, "created .repertoire.yaml") ||
+			!strings.Contains(output, "bootstrapped github.com/phillarmonic/ai-skills/demo (global)") {
+			t.Fatalf("bootstrap create output:\n%s", output)
+		}
+		content, err := os.ReadFile(filepath.Join(project, ".repertoire.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(content)
+		if !strings.Contains(body, "github.com/phillarmonic/ai-skills/demo:") ||
+			!strings.Contains(body, "scope: global") {
+			t.Fatalf("created bootstrap manifest:\n%s", body)
+		}
+		if _, err := os.Stat(filepath.Join(home, ".codex", "skills", "demo", "SKILL.md")); err != nil {
+			t.Fatalf("expected global install of short skill name: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(project, ".codex", "skills", "demo")); !os.IsNotExist(err) {
+			t.Fatalf("project should not contain installed skill: %v", err)
+		}
+		emptyProject, _, emptyEnv := bootstrapEnvironment(t)
+		output = runCommandWithEnvError(t, emptyProject, emptyEnv, binary, "sync")
+		if !strings.Contains(output, "does not exist") {
+			t.Fatalf("sync without manifest:\n%s", output)
 		}
 	})
 }
@@ -213,6 +250,32 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 		"USERPROFILE="+home,
 	)
 	return project, home, environment
+}
+
+func seedBuiltinCatalogCache(t *testing.T, home string, skills map[string]string) {
+	t.Helper()
+	root := createBootstrapCatalog(t, "phillarmonic", skills)
+	runGit(t, root, "init", "-q", "-b", "main")
+	runGit(t, root, "config", "user.email", "test@example.test")
+	runGit(t, root, "config", "user.name", "Test")
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-qm", "seed")
+	cacheParent := filepath.Join(userCacheRoot(home), "repertoire", "catalogs")
+	if err := os.MkdirAll(cacheParent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, cacheParent, "git", "clone", "-q", root, "phillarmonic")
+}
+
+func userCacheRoot(home string) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Caches")
+	case "windows":
+		return filepath.Join(home, "cache")
+	default:
+		return filepath.Join(home, "cache")
+	}
 }
 
 func createBootstrapCatalog(t *testing.T, name string, skills map[string]string) string {

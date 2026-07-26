@@ -6,9 +6,10 @@ icon: lucide/library
 
 Repertoire automates installing, syncing, and managing portable AI agent skills.
 It discovers `SKILL.md` packages in Git-backed catalogs and installs them into
-the native project or global directories used by Codex, Claude Code, Cursor,
+the native home-directory skill roots used by Codex, Claude Code, Cursor,
 Gemini CLI, Windsurf, Cline, Roo Code, Kiro, Junie, Kimi Code, OpenCode,
-GitHub Copilot, OpenClaw, and shared `.agents` setups.
+GitHub Copilot, OpenClaw, and shared `.agents` setups. Use `--project` only
+when a skill should live inside a Git worktree.
 
 The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
 skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).

@@ -31,10 +31,10 @@ func TestAddInstallAndListEndToEnd(t *testing.T) {
 	binary := testBinaryPath(t)
 	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
 	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
-	runCommand(t, project, binary, "catalog", "add", catalogRoot, "--name", "local")
-	runCommand(t, project, binary, "add", "demo", "--catalog", "local", "--target", "agents")
-	runCommand(t, project, binary, "install", "loose", "--catalog", "local", "--target", "agents")
-	output := runCommand(t, project, binary, "list")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "local")
+	runCommand(t, project, binary, "--project", "add", "demo", "--catalog", "local", "--target", "agents")
+	runCommand(t, project, binary, "--project", "install", "loose", "--catalog", "local", "--target", "agents")
+	output := runCommand(t, project, binary, "--project", "list")
 	if !strings.Contains(output, "demo\tlocal\tdeclared\tagents") ||
 		!strings.Contains(output, "loose\tlocal\tad-hoc\tagents") {
 		t.Fatalf("unexpected list output:\n%s", output)
@@ -45,7 +45,7 @@ func TestAddInstallAndListEndToEnd(t *testing.T) {
 	if err := os.RemoveAll(filepath.Join(project, ".agents", "skills", "demo")); err != nil {
 		t.Fatal(err)
 	}
-	runCommand(t, project, binary, "install", "--target", "all")
+	runCommand(t, project, binary, "--project", "install", "--target", "all")
 	for _, path := range []string{
 		filepath.Join(project, ".agents", "skills", "demo", "SKILL.md"),
 		filepath.Join(project, ".codex", "skills", "demo", "SKILL.md"),
@@ -58,13 +58,13 @@ func TestAddInstallAndListEndToEnd(t *testing.T) {
 	if err := os.RemoveAll(filepath.Join(project, ".codex", "skills", "demo")); err != nil {
 		t.Fatal(err)
 	}
-	runCommand(t, project, binary, "update", "demo", "--target", "all")
+	runCommand(t, project, binary, "--project", "update", "demo", "--target", "all")
 	if _, err := os.Stat(filepath.Join(project, ".codex", "skills", "demo", "SKILL.md")); err != nil {
 		t.Fatalf("updated skill on all targets: %v", err)
 	}
-	runCommand(t, project, binary, "remove", "demo")
-	runCommand(t, project, binary, "remove", "loose")
-	output = runCommand(t, project, binary, "list")
+	runCommand(t, project, binary, "--project", "remove", "demo")
+	runCommand(t, project, binary, "--project", "remove", "loose")
+	output = runCommand(t, project, binary, "--project", "list")
 	if strings.TrimSpace(output) != "" {
 		t.Fatalf("expected empty installed list, got %q", output)
 	}

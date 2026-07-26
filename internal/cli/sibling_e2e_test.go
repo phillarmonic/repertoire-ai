@@ -18,10 +18,10 @@ func TestSiblingCatalogProjectAndGlobalWorkflows(t *testing.T) {
 
 	project := t.TempDir()
 	runCommand(t, project, "git", "init", "-q")
-	runCommand(t, project, binary, "catalog", "add", siblingCatalog, "--name", "phillarmonic", "--force")
-	runCommand(t, project, binary, "add", "zensical", "--target", "agents")
-	runCommand(t, project, binary, "update", "zensical")
-	runCommand(t, project, binary, "remove", "zensical")
+	runCommand(t, project, binary, "--project", "catalog", "add", siblingCatalog, "--name", "phillarmonic", "--force")
+	runCommand(t, project, binary, "--project", "add", "zensical", "--target", "agents")
+	runCommand(t, project, binary, "--project", "update", "zensical")
+	runCommand(t, project, binary, "--project", "remove", "zensical")
 
 	home := t.TempDir()
 	environment := append(os.Environ(),

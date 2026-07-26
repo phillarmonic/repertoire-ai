@@ -109,7 +109,7 @@ func (m Manifest) Validate() error {
 		}
 	}
 	for name, requirement := range m.Requirements {
-		if err := ValidateName(name); err != nil {
+		if err := ValidateSkillReference(name); err != nil {
 			return fmt.Errorf("requirement %q: %w", name, err)
 		}
 		if err := ValidateName(requirement.Catalog); err != nil {
@@ -122,6 +122,31 @@ func (m Manifest) Validate() error {
 func ValidateName(name string) error {
 	if len(name) == 0 || len(name) > 64 || !skillNamePattern.MatchString(name) {
 		return errors.New("must contain 1-64 lowercase letters, digits, or single hyphens")
+	}
+	return nil
+}
+
+// ValidateSkillReference accepts a short skill name or a namespaced skill ID
+// such as github.com/phillarmonic/ai-skills/zensical.
+func ValidateSkillReference(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("skill id is required")
+	}
+	if !strings.Contains(id, "/") {
+		return ValidateName(id)
+	}
+	index := strings.LastIndex(id, "/")
+	namespace := id[:index]
+	skillName := id[index+1:]
+	if namespace == "" {
+		return errors.New("skill namespace is required")
+	}
+	if strings.Contains(namespace, " ") {
+		return errors.New("skill namespace must not contain spaces")
+	}
+	if err := ValidateName(skillName); err != nil {
+		return fmt.Errorf("skill name: %w", err)
 	}
 	return nil
 }

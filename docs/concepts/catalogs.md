@@ -10,11 +10,13 @@ has a single visible definition, these commands are equivalent:
 ```bash
 repertoire add zensical
 repertoire add zensical --catalog phillarmonic
+repertoire add github.com/phillarmonic/ai-skills/zensical
 ```
 
-When several visible catalogs define the same skill name, Repertoire lists
-every matching catalog and source instead of choosing one. Repeat the command
-with `--catalog <name>` to select the intended definition.
+Namespaced IDs are `{catalog-host-and-path}/{skill-name}` and always select one
+catalog source. When several visible catalogs define the same short skill name,
+Repertoire lists every matching catalog (with namespaced IDs) instead of
+choosing one. Repeat with `--catalog <name>` or a namespaced ID.
 
 ```bash
 repertoire catalog list
