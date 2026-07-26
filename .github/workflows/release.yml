@@ -13,6 +13,10 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  GOSEC_VERSION: v2.28.0
+  GOVULNCHECK_VERSION: v1.6.0
+
 jobs:
   release:
     name: Verify and build release
@@ -37,8 +41,26 @@ jobs:
         with:
           version: "v2"
 
-      - name: Install vulnerability scanner
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+          install-only: true
+
+      - name: Restore security scanners
+        id: security-tools-cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/go/bin/gosec
+            ~/go/bin/govulncheck
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security scanners
+        if: steps.security-tools-cache.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
+          go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
 
       - name: Run CI
         run: xdrun ci
