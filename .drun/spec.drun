@@ -1,0 +1,48 @@
+# drun (do-run) CLI is a fast, semantic task runner with
+# its own powerful automation language. Effortless tasks, serious speed.
+# Learn more at https://github.com/phillarmonic/drun
+
+version: 2.0
+
+project "repertoire-ai" version "1.0":
+	requires tools:
+		go >= "1.26.5"
+		golangci-lint provision
+		gosec provision
+		govulncheck
+
+task "vet" means "Run Go static analysis":
+	run "go vet -tags sqlite_fts5 ./..."
+
+task "lint" means "Check Go source formatting":
+	run "test -z \"$(gofmt -l cmd internal)\""
+	run "golangci-lint run --build-tags sqlite_fts5 ./..."
+
+task "test" means "Run the Go test suite":
+	run "go test -tags sqlite_fts5 ./..."
+
+task "vuln" means "Check dependencies for known vulnerabilities":
+	run "govulncheck ./..."
+
+task "build" means "Build every Go package":
+	run "go build -tags sqlite_fts5 ./..."
+
+task "install" means "Install repertoire with local build information":
+	run "go install -ldflags=\"-X 'main.version=dev-$(git rev-parse --short HEAD) (built at $(date -u '+%Y-%m-%d %H:%M:%S UTC'))'\" ./cmd/repertoire"
+	success "repertoire installed"
+
+task "sec" means "Security checks (high)":
+	run "gosec -tags sqlite_fts5 -severity high -confidence medium ./..."
+
+task "docs" means "Runs the Zensical documentation":
+    requires tools:
+        uv
+    run "uv run zensical serve"
+
+task "ci" mode "ci" means "Run all required project checks":
+	call task "vuln"
+	call task "vet"
+	call task "lint"
+	call task "test"
+	call task "build"
+	call task "sec"

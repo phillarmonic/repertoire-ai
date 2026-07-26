@@ -1,0 +1,194 @@
+name: Test Suite
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - converted_to_draft
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GOSEC_VERSION: v2.28.0
+  GOVULNCHECK_VERSION: v1.6.0
+
+jobs:
+  quality:
+    name: Quality and security
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up xdrun
+        uses: phillarmonic/setup-drun@v2
+        with:
+          version: "v2"
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+          install-only: true
+
+      - name: Restore security scanners
+        id: security-tools-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security scanners
+        if: steps.security-tools-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
+          go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
+
+      - name: Add Go tools to PATH
+        shell: bash
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run CI
+        run: xdrun ci
+
+  test:
+    name: Test on ${{ matrix.os }} with ${{ matrix.shell_name }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            shell_name: Bash
+          - os: macos-latest
+            shell: bash
+            shell_name: Bash
+          - os: windows-latest
+            shell: pwsh
+            shell_name: PowerShell
+          - os: windows-latest
+            shell: bash
+            shell_name: Git Bash
+          - os: windows-latest
+            shell: cmd
+            shell_name: Command Prompt
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up xdrun
+        uses: phillarmonic/setup-drun@v2
+        with:
+          version: "v2"
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+          install-only: true
+          skip-cache: true
+
+      - name: Restore security scanners
+        id: security-tools-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security scanners
+        if: steps.security-tools-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
+          go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
+
+      - name: Add Go tools to PATH
+        shell: bash
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run tests with Bash
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: xdrun test
+
+      - name: Run tests with PowerShell
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: xdrun test
+
+      - name: Run tests with Command Prompt
+        if: matrix.shell == 'cmd'
+        shell: cmd
+        run: xdrun test
+
+      - name: Build packages with Bash
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: xdrun build
+
+      - name: Build packages with PowerShell
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: xdrun build
+
+      - name: Build packages with Command Prompt
+        if: matrix.shell == 'cmd'
+        shell: cmd
+        run: xdrun build
+
+      - name: Build and smoke-test native binary
+        shell: bash
+        run: |
+          short_commit="${GITHUB_SHA:0:7}"
+          build_date="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          binary="bin/repertoire"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            binary="${binary}.exe"
+          fi
+
+          mkdir -p bin
+          go build \
+            -trimpath \
+            -ldflags="-X 'main.version=ci (${short_commit}, ${build_date})'" \
+            -o "$binary" \
+            ./cmd/repertoire
+
+          "$binary" --version
+          "$binary" --help >/dev/null

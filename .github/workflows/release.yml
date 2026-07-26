@@ -1,0 +1,94 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  GOSEC_VERSION: v2.28.0
+  GOVULNCHECK_VERSION: v1.6.0
+
+jobs:
+  release:
+    name: Verify and build release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up xdrun
+        uses: phillarmonic/setup-drun@v2
+        with:
+          version: "v2"
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+          install-only: true
+
+      - name: Restore security scanners
+        id: security-tools-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/go/bin
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security scanners
+        if: steps.security-tools-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@${GOSEC_VERSION}
+          go install golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}
+
+      - name: Add Go tools to PATH
+        shell: bash
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Run CI
+        run: xdrun ci
+
+      - name: Build all release binaries
+        env:
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+        run: ./scripts/build-release.sh "$VERSION"
+
+      - name: Upload dry-run artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: repertoire-release-${{ github.sha }}
+          path: |
+            dist/repertoire-*
+            dist/checksums.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            dist/repertoire-*
+            dist/checksums.txt
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
