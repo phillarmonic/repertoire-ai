@@ -24,7 +24,9 @@ repertoire add code-reviewer
 repertoire add code-reviewer --catalog company --target codex --target claude
 ```
 
-An unqualified name must occur in exactly one visible catalog.
+An unqualified name resolves when exactly one visible catalog defines it. If
+several catalogs define the name, Repertoire lists every definition and
+requires `--catalog`.
 
 ## Synchronize
 
@@ -34,7 +36,7 @@ manifest.
 
 ```bash
 repertoire install
-repertoire install zensical --catalog phillarmonic
+repertoire install zensical
 repertoire install --target all
 ```
 

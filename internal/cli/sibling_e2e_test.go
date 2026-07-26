@@ -19,7 +19,7 @@ func TestSiblingCatalogProjectAndGlobalWorkflows(t *testing.T) {
 	project := t.TempDir()
 	runCommand(t, project, "git", "init", "-q")
 	runCommand(t, project, binary, "catalog", "add", siblingCatalog, "--name", "phillarmonic", "--force")
-	runCommand(t, project, binary, "add", "zensical", "--catalog", "phillarmonic", "--target", "agents")
+	runCommand(t, project, binary, "add", "zensical", "--target", "agents")
 	runCommand(t, project, binary, "update", "zensical")
 	runCommand(t, project, binary, "remove", "zensical")
 
@@ -31,7 +31,7 @@ func TestSiblingCatalogProjectAndGlobalWorkflows(t *testing.T) {
 		"CODEX_HOME="+filepath.Join(home, ".codex"),
 	)
 	runCommandWithEnv(t, t.TempDir(), environment, binary, "--global", "catalog", "add", siblingCatalog, "--name", "phillarmonic", "--force")
-	runCommandWithEnv(t, t.TempDir(), environment, binary, "--global", "install", "zensical", "--catalog", "phillarmonic", "--target", "agents")
+	runCommandWithEnv(t, t.TempDir(), environment, binary, "--global", "install", "zensical", "--target", "agents")
 	output := runCommandWithEnv(t, t.TempDir(), environment, binary, "--global", "list")
 	if !strings.Contains(output, "zensical\tphillarmonic\tad-hoc\tagents") {
 		t.Fatalf("unexpected global list: %s", output)

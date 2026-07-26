@@ -57,7 +57,6 @@ catalogs:
 
 skills:
   graphify:
-    catalog: phillarmonic
     scope: project
     targets: [codex]
 
@@ -68,9 +67,10 @@ skills:
 ```
 
 `skills` must contain at least one skill. `catalog` and `targets` are optional.
-An omitted catalog uses normal unqualified resolution and must resolve
-unambiguously. An omitted target uses agent detection for that scope. `scope`
-accepts `project` or `global` and defaults to `project`.
+An omitted catalog uses unqualified resolution: exactly one visible catalog
+must define the skill. If several catalogs define it, add the intended catalog
+name to the declaration. An omitted target uses agent detection for that scope.
+`scope` accepts `project` or `global` and defaults to `project`.
 
 Bootstrap installations are recorded with a `bootstrap` origin in the normal
 project or global lock. They do not add requirements to either

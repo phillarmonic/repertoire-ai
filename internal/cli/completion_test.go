@@ -28,7 +28,7 @@ func TestCompletionCommandGeneratesSupportedShells(t *testing.T) {
 	}
 }
 
-func TestAvailableSkillCompletionsReadLocalAndCachedCatalogs(t *testing.T) {
+func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	local := writeCompletionCatalog(t, t.TempDir(), "local", map[string]string{
 		"alpha":  "skills/alpha",
 		"shared": "skills/shared",
@@ -44,14 +44,14 @@ func TestAvailableSkillCompletionsReadLocalAndCachedCatalogs(t *testing.T) {
 	})
 
 	manifest := state.NewManifest()
-	manifest.Catalogs["local"] = state.CatalogRegistration{Source: local}
+	manifest.Catalogs["phillarmonic"] = state.CatalogRegistration{Source: local}
 	manifest.Catalogs["remote"] = state.CatalogRegistration{Source: "https://example.invalid/skills.git"}
 	manifest.Catalogs["uncached"] = state.CatalogRegistration{Source: "https://example.invalid/missing.git"}
 
 	got := availableSkillCompletions(manifest, "", "", cacheRoot)
 	want := []string{
-		"alpha\t[available] local",
-		"shared\t[available] local, remote",
+		"alpha\t[available] phillarmonic",
+		"shared\t[available] phillarmonic, remote",
 		"zulu\t[available] remote",
 	}
 	if !reflect.DeepEqual(got, want) {

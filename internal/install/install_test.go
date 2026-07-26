@@ -218,7 +218,7 @@ func TestOpenClawStateDirectoryOverride(t *testing.T) {
 	}
 }
 
-func TestResolverRejectsAmbiguityAndAcceptsQualification(t *testing.T) {
+func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) {
 	t.Parallel()
 	manifest := state.NewManifest()
 	for _, name := range []string{"one", "two"} {
@@ -241,15 +241,27 @@ func TestResolverRejectsAmbiguityAndAcceptsQualification(t *testing.T) {
 		manifest.Catalogs[name] = state.CatalogRegistration{Source: root}
 	}
 	manifest.Catalogs[catalog.BuiltinName] = manifest.Catalogs["one"]
+	delete(manifest.Catalogs, "one")
 	manager, err := catalog.NewManager(filepath.Join(t.TempDir(), "cache"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Resolve(manager, manifest, "demo", "", false); err == nil || !strings.Contains(err.Error(), "ambiguous") {
-		t.Fatalf("expected ambiguity, got %v", err)
+	_, err = Resolve(manager, manifest, "demo", "", false)
+	if err == nil {
+		t.Fatal("expected ambiguous resolution to fail")
 	}
-	resolved, err := Resolve(manager, manifest, "demo", "one", false)
-	if err != nil || resolved.Catalog.Name != "one" {
+	for _, expected := range []string{
+		`skill "demo" is defined in multiple catalogs:`,
+		"  - phillarmonic (" + manifest.Catalogs[catalog.BuiltinName].Source + ")",
+		"  - two (" + manifest.Catalogs["two"].Source + ")",
+		"specify a catalog with --catalog <name>",
+	} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("ambiguity error %q does not contain %q", err, expected)
+		}
+	}
+	resolved, err := Resolve(manager, manifest, "demo", "two", false)
+	if err != nil || resolved.Catalog.Name != "two" {
 		t.Fatalf("qualified resolution: %+v, %v", resolved, err)
 	}
 }

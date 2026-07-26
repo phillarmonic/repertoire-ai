@@ -10,6 +10,13 @@ the native project or global directories used by Codex, Claude Code, Cursor,
 Gemini CLI, Windsurf, Cline, Roo Code, Kiro, Junie, Kimi Code, OpenCode,
 GitHub Copilot, OpenClaw, and shared `.agents` setups.
 
+The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
+skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
+Its skills can be referenced without declaring the repository or specifying a
+catalog when their names are unique among the visible catalogs. If several
+catalogs define the same name, Repertoire lists them and requires an explicit
+`--catalog <name>`.
+
 ## Install one skill across multiple AI coding agents
 
 Use one command instead of manually copying the same skill into every

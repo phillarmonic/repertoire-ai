@@ -13,6 +13,11 @@ Use it to:
 - automate team onboarding and agent setup with a checked-in
   `.repertoire.yaml`.
 
+The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
+skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
+Its skills can be referenced without declaring the repository or specifying a
+catalog when their names are unique among the visible catalogs.
+
 ### Supported agents and harnesses
 
 | Agent or harness               | Target     |
@@ -111,11 +116,11 @@ Repertoire includes the Phillarmonic skills catalog by default, so you can explo
 # See the available skills
 repertoire list --available --catalog phillarmonic
 
-# Install a skill for Codex and record it as a requirement
-repertoire add zensical --catalog phillarmonic --target codex
+# Install an official skill for Codex and record it as a requirement
+repertoire add zensical --target codex
 
 # Install it for every supported agent target instead
-repertoire add zensical --catalog phillarmonic --target all
+repertoire add zensical --target all
 
 # See what Repertoire manages
 repertoire list
@@ -155,7 +160,6 @@ catalogs:
 
 skills:
   zensical:
-    catalog: phillarmonic
     scope: project
     targets: [ codex ]
 
@@ -194,8 +198,9 @@ automatically delete an installed skill.
 | `repertoire bootstrap`            | Install the skills in `.repertoire.yaml`                                      |
 | `repertoire sync`                 | Refresh catalogs and synchronize `.repertoire.yaml`                           |
 
-Unqualified skill names must resolve to exactly one visible catalog. Use
-`--catalog <name>` when the same name exists in more than one catalog.
+An unqualified skill name resolves automatically when exactly one visible
+catalog defines it. If multiple catalogs define the same name, Repertoire lists
+every matching catalog and source; repeat the command with `--catalog <name>`.
 
 ## Shell completion
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
@@ -47,11 +48,19 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		return ResolvedSkill{}, fmt.Errorf("skill %q was not found", name)
 	}
 	if len(matches) > 1 {
-		names := make([]string, 0, len(matches))
+		sort.Slice(matches, func(i, j int) bool {
+			return matches[i].Catalog.Name < matches[j].Catalog.Name
+		})
+		definitions := make([]string, 0, len(matches))
 		for _, match := range matches {
-			names = append(names, match.Catalog.Name)
+			source := catalog.RedactSource(catalog.NormalizeSource(match.Catalog.Registration.Source))
+			definitions = append(definitions, fmt.Sprintf("  - %s (%s)", match.Catalog.Name, source))
 		}
-		return ResolvedSkill{}, fmt.Errorf("skill %q is ambiguous across catalogs %s; use --catalog", name, strings.Join(names, ", "))
+		return ResolvedSkill{}, fmt.Errorf(
+			"skill %q is defined in multiple catalogs:\n%s\nspecify a catalog with --catalog <name>",
+			name,
+			strings.Join(definitions, "\n"),
+		)
 	}
 	return matches[0], nil
 }

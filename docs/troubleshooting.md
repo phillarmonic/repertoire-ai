@@ -9,7 +9,8 @@ copies for every supported client regardless of detection, use `--target all`.
 
 ## Skill name is ambiguous
 
-Two visible catalogs declare the same name. Repeat the command with
+Two or more visible catalogs declare the same name. Repertoire lists every
+matching catalog and source in the error. Repeat the command with
 `--catalog <name>`; Repertoire never chooses a source silently.
 
 ## Target is unmanaged or modified
