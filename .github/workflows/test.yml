@@ -111,7 +111,6 @@ jobs:
           cache: true
 
       - name: Download dependencies
-        shell: ${{ matrix.shell }}
         run: go mod download
 
       - name: Set up xdrun
@@ -144,12 +143,34 @@ jobs:
         shell: bash
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Run tests
-        shell: ${{ matrix.shell }}
+      - name: Run tests with Bash
+        if: matrix.shell == 'bash'
+        shell: bash
         run: xdrun test
 
-      - name: Build packages
-        shell: ${{ matrix.shell }}
+      - name: Run tests with PowerShell
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: xdrun test
+
+      - name: Run tests with Command Prompt
+        if: matrix.shell == 'cmd'
+        shell: cmd
+        run: xdrun test
+
+      - name: Build packages with Bash
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: xdrun build
+
+      - name: Build packages with PowerShell
+        if: matrix.shell == 'pwsh'
+        shell: pwsh
+        run: xdrun build
+
+      - name: Build packages with Command Prompt
+        if: matrix.shell == 'cmd'
+        shell: cmd
         run: xdrun build
 
       - name: Build and smoke-test native binary
