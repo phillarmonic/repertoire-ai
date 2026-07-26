@@ -7,7 +7,8 @@ OpenClaw, or a shared `.agents` setup—without changing the open
 
 Use it to:
 
-- discover reusable skills from public, private, or local catalogs;
+- discover reusable skills from public catalogs, local paths, or private
+  company registries you host yourself;
 - install the same `SKILL.md` package across multiple AI coding agents;
 - keep managed skills updated without overwriting local changes;
 - automate team onboarding and agent setup with a checked-in
@@ -17,6 +18,24 @@ The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
 skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
 Its skills can be referenced without declaring the repository or specifying a
 catalog when their names are unique among the visible catalogs.
+
+### Private company registries
+
+You can point Repertoire at your own Git-backed catalog—a private registry of
+company-owned AI skills—just as you would a public one. Host the repository on
+GitHub, GitLab, Bitbucket, or any other Git remote your team already uses, then
+register it:
+
+```shell
+repertoire catalog add git@github.com:your-org/company-skills.git --name company
+```
+
+Access is gated by normal Git authentication only. Repertoire never stores
+tokens or passwords; it uses the same SSH agent, credential helper, or provider
+CLI (`gh auth setup-git`, and so on) that already lets `git clone` and
+`git ls-remote` reach that repository. Without credentials that can read the
+remote, the private catalog is unavailable. See
+[Private repositories](https://phillarmonic.github.io/repertoire-ai/private-repositories/) for details.
 
 ### Supported agents and harnesses
 
@@ -153,7 +172,8 @@ Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, 
 built-in catalog skills with namespaced IDs and `scope: global`—so the small manifest stays in the repo while skills
 install under home-directory agent roots.
 
-You can also commit a custom `.repertoire.yaml`:
+You can also commit a custom `.repertoire.yaml`, including a private company
+registry (reachable only with Git credentials that can read that remote):
 
 ```yaml
 schema: 1
@@ -234,17 +254,17 @@ Repertoire validates every catalog path and skill manifest before copying anythi
 atomically, symlinks may not escape their skill directory, and skill scripts are copied as data rather than executed.
 
 Managed content is tracked by digest. Repertoire refuses to replace or remove an unmanaged or locally modified target
-unless you explicitly pass `--force`. Private catalog authentication is delegated to your normal Git credentials, so
-tokens do not belong in Repertoire manifests.
+unless you explicitly pass `--force`. Private company registries rely on your existing Git credentials—SSH keys,
+credential helpers, or provider CLIs—so tokens never belong in Repertoire manifests.
 
 ## Learn more
 
-- [Commands](docs/commands.md)
-- [Manifests and project bootstrap](docs/concepts/manifests.md)
-- [Catalogs](docs/concepts/catalogs.md)
-- [Targets and security](docs/concepts/targets-security.md)
-- [Private repositories](docs/private-repositories.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- [Commands](https://phillarmonic.github.io/repertoire-ai/commands/)
+- [Manifests and project bootstrap](https://phillarmonic.github.io/repertoire-ai/concepts/manifests/)
+- [Catalogs](https://phillarmonic.github.io/repertoire-ai/concepts/catalogs/)
+- [Targets and security](https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/)
+- [Private repositories](https://phillarmonic.github.io/repertoire-ai/private-repositories/)
+- [Troubleshooting](https://phillarmonic.github.io/repertoire-ai/troubleshooting/)
 
 To browse the complete documentation locally:
 

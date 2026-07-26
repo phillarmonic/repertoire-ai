@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - "**/*.md"
+      - "zensical.toml"
   pull_request:
     branches:
       - master
@@ -13,6 +16,9 @@ on:
       - reopened
       - ready_for_review
       - converted_to_draft
+    paths-ignore:
+      - "**/*.md"
+      - "zensical.toml"
   workflow_dispatch:
 
 concurrency:
