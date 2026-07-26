@@ -194,11 +194,12 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 	project := t.TempDir()
 	runCommand(t, project, "git", "init", "-q")
 	home := t.TempDir()
-	environment := make([]string, 0, len(os.Environ())+6)
+	environment := make([]string, 0, len(os.Environ())+7)
 	for _, value := range os.Environ() {
 		if strings.HasPrefix(value, "HOME=") || strings.HasPrefix(value, "XDG_CONFIG_HOME=") ||
 			strings.HasPrefix(value, "XDG_CACHE_HOME=") || strings.HasPrefix(value, "CODEX_HOME=") ||
-			strings.HasPrefix(value, "APPDATA=") || strings.HasPrefix(value, "LOCALAPPDATA=") {
+			strings.HasPrefix(value, "APPDATA=") || strings.HasPrefix(value, "LOCALAPPDATA=") ||
+			strings.HasPrefix(value, "USERPROFILE=") {
 			continue
 		}
 		environment = append(environment, value)
@@ -209,6 +210,7 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 		"XDG_CACHE_HOME="+filepath.Join(home, "cache"),
 		"APPDATA="+filepath.Join(home, "config"),
 		"LOCALAPPDATA="+filepath.Join(home, "cache"),
+		"USERPROFILE="+home,
 	)
 	return project, home, environment
 }
