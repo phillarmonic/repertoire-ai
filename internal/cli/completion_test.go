@@ -93,7 +93,7 @@ func TestContextCompletionsUseProjectState(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(previous) })
 
-	global, projectFlag := false, false
+	global, projectFlag := false, true
 	installed, directive := completeInstalledSkills(&global, &projectFlag)(nil, nil, "rev")
 	if directive != completionDirective {
 		t.Fatalf("installed directive = %v", directive)

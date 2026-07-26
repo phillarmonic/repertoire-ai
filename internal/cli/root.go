@@ -51,7 +51,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	command.SetOut(stdout)
 	command.SetErr(stderr)
 	command.SetVersionTemplate("repertoire version {{.Version}}\n")
-	command.PersistentFlags().BoolVar(&globalScope, "global", false, "use user-global state")
+	command.PersistentFlags().BoolVar(&globalScope, "global", false, "use user-global state (default)")
 	command.PersistentFlags().BoolVar(&projectScope, "project", false, "use the current Git project")
 	command.PersistentFlags().BoolVar(&force, "force", false, "replace protected managed state")
 	command.Flags().BoolVar(&selfUpdate, "self-update", false, "update Repertoire to the latest stable release")

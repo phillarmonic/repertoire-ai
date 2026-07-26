@@ -31,10 +31,12 @@ Repeat `--target` with individual names to install only a subset:
 repertoire add code-reviewer --target codex --target claude
 ```
 
-Use `--global` for skills that should be available in every project:
+Skills install to the home directory by default. Use `--project` only when a
+skill should live inside the Git worktree:
 
 ```bash
-repertoire add code-reviewer --global --target codex --target claude
+repertoire add code-reviewer --target codex --target claude
+repertoire add shared-helpers --project --target agents
 ```
 
 ## Automate developer and CI setup
@@ -50,9 +52,8 @@ catalogs:
     ref: main
 
 skills:
-  code-reviewer:
-    catalog: company
-    scope: project
+  github.com/example/company-skills/code-reviewer:
+    scope: global
     targets: [codex, claude, cursor, gemini, copilot]
 ```
 
@@ -62,9 +63,10 @@ Then bootstrap every declared skill:
 repertoire bootstrap
 ```
 
-The command installs missing skills and repairs missing managed copies. Run
-`repertoire sync` when the automation should fetch catalog changes and update
-the declared installations.
+If `.repertoire.yaml` is missing, `bootstrap` creates a starter from the built-in
+catalog (namespaced IDs, `scope: global`) and installs those skills. The command
+repairs missing managed copies. Run `repertoire sync` when the automation should
+fetch catalog changes and update the declared installations.
 
 To override the targets stored in the manifest or lock and apply every skill to
 every supported agent, use:

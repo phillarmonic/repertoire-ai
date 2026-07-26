@@ -108,11 +108,20 @@ func TestResolveScope(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	scope, err := ResolveScope(ScopeOptions{Directory: nested})
+	config := filepath.Join(t.TempDir(), "config")
+	scope, err := ResolveScope(ScopeOptions{Directory: nested, ConfigDir: config})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !scope.Global || scope.Root != config {
+		t.Fatalf("unexpected default global scope: %+v", scope)
+	}
+
 	projectRoot, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err = ResolveScope(ScopeOptions{Project: true, Directory: nested})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +129,6 @@ func TestResolveScope(t *testing.T) {
 		t.Fatalf("unexpected project scope: %+v", scope)
 	}
 
-	config := filepath.Join(t.TempDir(), "config")
 	scope, err = ResolveScope(ScopeOptions{Global: true, Directory: nested, ConfigDir: config})
 	if err != nil {
 		t.Fatal(err)
@@ -130,6 +138,9 @@ func TestResolveScope(t *testing.T) {
 	}
 	if _, err := ResolveScope(ScopeOptions{Global: true, Project: true}); err == nil {
 		t.Fatal("expected conflicting flags to fail")
+	}
+	if _, err := ResolveScope(ScopeOptions{Project: true, Directory: t.TempDir()}); err == nil {
+		t.Fatal("expected --project outside a Git worktree to fail")
 	}
 }
 

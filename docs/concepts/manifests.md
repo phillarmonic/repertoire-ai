@@ -31,10 +31,11 @@ must be relative and contained within the catalog repository.
 
 ## Project and global scope
 
-Inside a Git worktree, Repertoire reads `repertoire.yaml` and
-`repertoire.lock.json` from the worktree root. Outside a worktree it uses the
-operating system's user configuration directory. `--project` and `--global`
-select a scope explicitly and cannot be combined.
+Commands default to user-global scope: state lives in the operating system's
+user configuration directory, and skills install under home-directory agent
+roots. `--project` reads `repertoire.yaml` and `repertoire.lock.json` from the
+current Git worktree root and installs into project-local agent directories.
+`--global` makes the default explicit. The two flags cannot be combined.
 
 The lock file is generated deterministically. It records resolved commits,
 content digests, logical targets, installed locations, and whether an
@@ -56,21 +57,26 @@ catalogs:
     ref: main
 
 skills:
-  graphify:
-    scope: project
+  github.com/phillarmonic/ai-skills/zensical:
+    scope: global
     targets: [codex]
 
-  code-reviewer:
+  shared-helpers:
     catalog: company
-    scope: global
-    targets: [codex, claude]
+    scope: project
+    targets: [agents]
 ```
 
-`skills` must contain at least one skill. `catalog` and `targets` are optional.
-An omitted catalog uses unqualified resolution: exactly one visible catalog
-must define the skill. If several catalogs define it, add the intended catalog
-name to the declaration. An omitted target uses agent detection for that scope.
-`scope` accepts `project` or `global` and defaults to `project`.
+`skills` must contain at least one skill. Keys may be short names or namespaced
+IDs (`{catalog-host-and-path}/{skill-name}`). On-disk install directories still use
+the short skill name. `catalog` and `targets` are optional. An omitted catalog
+uses unqualified resolution for short names, or the namespace's catalog source
+for namespaced IDs. An omitted target uses agent detection for that scope.
+`scope` accepts `project` or `global` and defaults to `global`.
+
+When `repertoire bootstrap` runs without `.repertoire.yaml`, it writes a starter
+manifest that declares every built-in `phillarmonic` skill with a namespaced ID
+and `scope: global`.
 
 Bootstrap installations are recorded with a `bootstrap` origin in the normal
 project or global lock. They do not add requirements to either

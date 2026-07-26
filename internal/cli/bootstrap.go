@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -40,9 +41,12 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		return err
 	}
 	bootstrapPath := filepath.Join(projectScope.Root, state.BootstrapFileName)
-	bootstrap, err := state.LoadBootstrapManifest(bootstrapPath)
+	bootstrap, created, err := loadOrCreateBootstrapManifest(bootstrapPath, refresh)
 	if err != nil {
 		return err
+	}
+	if created {
+		_, _ = fmt.Fprintf(command.OutOrStdout(), "created %s\n", state.BootstrapFileName)
 	}
 	resolutionManifest := bootstrap.ResolutionManifest()
 	if refresh {
@@ -107,6 +111,43 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s (%s)\n", action, name, declaration.Scope)
 	}
 	return nil
+}
+
+func loadOrCreateBootstrapManifest(path string, refresh bool) (state.BootstrapManifest, bool, error) {
+	bootstrap, err := state.LoadBootstrapManifest(path)
+	if err == nil {
+		return bootstrap, false, nil
+	}
+	if refresh || !errors.Is(err, os.ErrNotExist) {
+		return state.BootstrapManifest{}, false, err
+	}
+	manager, err := catalog.NewManager("")
+	if err != nil {
+		return state.BootstrapManifest{}, false, err
+	}
+	materialized, err := manager.Materialize(catalog.Source{
+		Name:    catalog.BuiltinName,
+		Builtin: true,
+		Registration: state.CatalogRegistration{
+			Source: catalog.BuiltinSource,
+		},
+	}, false)
+	if err != nil {
+		return state.BootstrapManifest{}, false, err
+	}
+	if materialized.Manifest.Catalog == nil || len(materialized.Manifest.Catalog.Skills) == 0 {
+		return state.BootstrapManifest{}, false, errors.New("built-in catalog declares no skills")
+	}
+	names := make([]string, 0, len(materialized.Manifest.Catalog.Skills))
+	for name := range materialized.Manifest.Catalog.Skills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	bootstrap = catalog.DefaultBootstrapManifest(catalog.BuiltinSource, names)
+	if err := state.SaveBootstrapManifest(path, bootstrap); err != nil {
+		return state.BootstrapManifest{}, false, err
+	}
+	return bootstrap, true, nil
 }
 
 func refreshBootstrapCatalogs(bootstrap state.BootstrapManifest, manifest state.Manifest) error {

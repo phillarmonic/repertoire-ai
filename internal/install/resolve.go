@@ -21,28 +21,35 @@ type ResolvedSkill struct {
 }
 
 func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogName string, refresh bool) (ResolvedSkill, error) {
+	namespace, skillName, err := catalog.ParseSkillID(name)
+	if err != nil {
+		return ResolvedSkill{}, err
+	}
 	var matches []ResolvedSkill
 	for _, source := range catalog.Sources(manifest) {
 		if catalogName != "" && source.Name != catalogName {
+			continue
+		}
+		if namespace != "" && !catalog.SourceMatchesNamespace(source.Registration.Source, namespace) {
 			continue
 		}
 		materialized, err := manager.Materialize(source, refresh)
 		if err != nil {
 			return ResolvedSkill{}, err
 		}
-		entry, exists := materialized.Manifest.Catalog.Skills[name]
+		entry, exists := materialized.Manifest.Catalog.Skills[skillName]
 		if !exists {
 			continue
 		}
 		root := filepath.Join(materialized.Root, filepath.FromSlash(entry.Path))
-		if err := ValidateSkill(root, name); err != nil {
+		if err := ValidateSkill(root, skillName); err != nil {
 			return ResolvedSkill{}, fmt.Errorf("catalog %q: %w", source.Name, err)
 		}
 		digest, err := Digest(root)
 		if err != nil {
 			return ResolvedSkill{}, err
 		}
-		matches = append(matches, ResolvedSkill{Name: name, Catalog: materialized, Root: root, Digest: digest})
+		matches = append(matches, ResolvedSkill{Name: skillName, Catalog: materialized, Root: root, Digest: digest})
 	}
 	if len(matches) == 0 {
 		return ResolvedSkill{}, fmt.Errorf("skill %q was not found", name)
@@ -54,10 +61,11 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		definitions := make([]string, 0, len(matches))
 		for _, match := range matches {
 			source := catalog.RedactSource(catalog.NormalizeSource(match.Catalog.Registration.Source))
-			definitions = append(definitions, fmt.Sprintf("  - %s (%s)", match.Catalog.Name, source))
+			id := catalog.SkillID(match.Catalog.Registration.Source, match.Name)
+			definitions = append(definitions, fmt.Sprintf("  - %s (%s) [%s]", match.Catalog.Name, source, id))
 		}
 		return ResolvedSkill{}, fmt.Errorf(
-			"skill %q is defined in multiple catalogs:\n%s\nspecify a catalog with --catalog <name>",
+			"skill %q is defined in multiple catalogs:\n%s\nspecify a catalog with --catalog <name> or a namespaced skill id",
 			name,
 			strings.Join(definitions, "\n"),
 		)

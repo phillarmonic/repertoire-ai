@@ -18,8 +18,7 @@ skills:
   reviewer:
     catalog: company
     targets: [codex, claude, cline, cursor, gemini, junie, kimi, kiro, opencode, openclaw, roo, windsurf]
-  graphify:
-    catalog: phillarmonic
+  github.com/phillarmonic/ai-skills/zensical:
     scope: global
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -29,7 +28,7 @@ skills:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Skills["reviewer"].Scope != BootstrapScopeProject {
+	if manifest.Skills["reviewer"].Scope != BootstrapScopeGlobal {
 		t.Fatalf("default scope = %q", manifest.Skills["reviewer"].Scope)
 	}
 	first, err := manifest.Marshal()

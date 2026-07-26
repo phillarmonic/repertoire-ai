@@ -36,16 +36,16 @@ func ResolveScope(options ScopeOptions) (Scope, error) {
 		}
 	}
 
-	if !options.Global {
-		if root, err := gitRoot(directory); err == nil {
-			return Scope{
-				Root:         root,
-				ManifestPath: filepath.Join(root, "repertoire.yaml"),
-				LockPath:     filepath.Join(root, "repertoire.lock.json"),
-			}, nil
-		} else if options.Project {
+	if options.Project {
+		root, err := gitRoot(directory)
+		if err != nil {
 			return Scope{}, errors.New("--project requires a Git worktree")
 		}
+		return Scope{
+			Root:         root,
+			ManifestPath: filepath.Join(root, "repertoire.yaml"),
+			LockPath:     filepath.Join(root, "repertoire.lock.json"),
+		}, nil
 	}
 
 	configDir := options.ConfigDir

@@ -49,7 +49,7 @@ type BootstrapSkill struct {
 func LoadBootstrapManifest(path string) (BootstrapManifest, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return BootstrapManifest{}, fmt.Errorf("bootstrap manifest %s does not exist", path)
+		return BootstrapManifest{}, fmt.Errorf("bootstrap manifest %s does not exist: %w", path, err)
 	}
 	if err != nil {
 		return BootstrapManifest{}, fmt.Errorf("read bootstrap manifest: %w", err)
@@ -64,7 +64,7 @@ func LoadBootstrapManifest(path string) (BootstrapManifest, error) {
 	}
 	for name, skill := range manifest.Skills {
 		if skill.Scope == "" {
-			skill.Scope = BootstrapScopeProject
+			skill.Scope = BootstrapScopeGlobal
 			manifest.Skills[name] = skill
 		}
 	}
@@ -105,7 +105,7 @@ func (m BootstrapManifest) Validate() error {
 		}
 	}
 	for name, skill := range m.Skills {
-		if err := ValidateName(name); err != nil {
+		if err := ValidateSkillReference(name); err != nil {
 			return fmt.Errorf("skill %q: %w", name, err)
 		}
 		if skill.Catalog != "" {
