@@ -7,6 +7,7 @@ install_dir="${INSTALL_DIR:-${HOME}/.local/bin}"
 requested_version="${1:-}"
 temporary_dir=""
 
+
 cleanup() {
     if [[ -n "$temporary_dir" && -d "$temporary_dir" ]]; then
         rm -rf "$temporary_dir"
