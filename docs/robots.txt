@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# AI search, retrieval, and model crawlers are explicitly welcome.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://phillarmonic.github.io/repertoire-ai/sitemap.xml
+Sitemap: https://phillarmonic.github.io/repertoire-ai/sites.xml

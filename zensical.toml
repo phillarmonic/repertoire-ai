@@ -1,0 +1,34 @@
+[project]
+site_name = "Repertoire"
+site_url = "https://phillarmonic.github.io/repertoire-ai/"
+site_description = "Automate installing, syncing, and managing portable SKILL.md packages across AI coding agents."
+site_author = "Phillarmonic"
+repo_url = "https://github.com/phillarmonic/repertoire-ai"
+repo_name = "phillarmonic/repertoire-ai"
+copyright = "Copyright &copy; 2026 Phillarmonic"
+nav = [
+  { "Home" = "index.md" },
+  { "Automate agent skills" = "automation.md" },
+  { "Commands" = "commands.md" },
+  { "Private repositories" = "private-repositories.md" },
+  { "Troubleshooting" = "troubleshooting.md" },
+  { "Contributing" = "contributing.md" },
+  { "Releasing" = "releasing.md" },
+  { "Concepts" = [
+    { "Manifests and state" = "concepts/manifests.md" },
+    { "Catalogs" = "concepts/catalogs.md" },
+    { "Targets and security" = "concepts/targets-security.md" },
+  ] },
+]
+
+[project.theme]
+variant = "modern"
+language = "en"
+features = [
+  "content.code.copy",
+  "navigation.instant",
+  "navigation.sections",
+]
+
+[project.theme.icon]
+logo = "lucide/library"

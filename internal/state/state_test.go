@@ -1,0 +1,154 @@
+package state
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestManifestRoundTripAndValidation(t *testing.T) {
+	t.Parallel()
+	manifest := NewManifest()
+	manifest.Catalog = &CatalogDefinition{
+		Name: "example",
+		Skills: map[string]SkillEntry{
+			"code-reviewer": {Path: "skills/code-reviewer"},
+		},
+	}
+	manifest.Catalogs["private"] = CatalogRegistration{Source: "git@example.test:org/skills.git", Ref: "main"}
+	manifest.Requirements["code-reviewer"] = Requirement{Catalog: "example", Targets: []string{"codex"}}
+
+	first, err := manifest.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	if err := WriteFileAtomic(path, first, 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	loaded, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	second, err := loaded.Marshal()
+	if err != nil {
+		t.Fatalf("marshal loaded: %v", err)
+	}
+	if string(first) != string(second) {
+		t.Fatalf("manifest is not deterministic:\n%s\n%s", first, second)
+	}
+
+	loaded.Catalog.Skills["escape"] = SkillEntry{Path: "../escape"}
+	if _, err := loaded.Marshal(); err == nil {
+		t.Fatal("expected escaping path to fail")
+	}
+}
+
+func TestLockMarshalDeterministic(t *testing.T) {
+	t.Parallel()
+	lock := NewLock()
+	lock.Skills["z"] = LockSkill{Catalog: "z", Commit: "1", Digest: "a"}
+	lock.Skills["a"] = LockSkill{Catalog: "a", Commit: "2", Digest: "b"}
+	first, err := lock.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := lock.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(first) != string(second) || !strings.HasSuffix(string(first), "\n") {
+		t.Fatal("lock encoding is not deterministic")
+	}
+}
+
+func TestLockOriginsRemainBackwardCompatible(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.lock.json")
+	legacy := `{
+  "schema": 1,
+  "skills": {
+    "declared": {"declared": true},
+    "loose": {"declared": false}
+  }
+}
+`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := LoadLock(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lock.Skills["declared"].EffectiveOrigin() != LockOriginDeclared {
+		t.Fatalf("legacy declared origin = %q", lock.Skills["declared"].EffectiveOrigin())
+	}
+	if lock.Skills["loose"].EffectiveOrigin() != LockOriginAdHoc {
+		t.Fatalf("legacy loose origin = %q", lock.Skills["loose"].EffectiveOrigin())
+	}
+	lock.Skills["bootstrapped"] = LockSkill{Origin: LockOriginBootstrap}
+	content, err := lock.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), `"origin": "bootstrap"`) {
+		t.Fatalf("bootstrap origin missing from lock:\n%s", content)
+	}
+}
+
+func TestResolveScope(t *testing.T) {
+	t.Parallel()
+	project := t.TempDir()
+	if err := exec.Command("git", "-C", project, "init", "-q").Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+	nested := filepath.Join(project, "a", "b")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	scope, err := ResolveScope(ScopeOptions{Directory: nested})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectRoot, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scope.Global || scope.Root != projectRoot {
+		t.Fatalf("unexpected project scope: %+v", scope)
+	}
+
+	config := filepath.Join(t.TempDir(), "config")
+	scope, err = ResolveScope(ScopeOptions{Global: true, Directory: nested, ConfigDir: config})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !scope.Global || scope.Root != config {
+		t.Fatalf("unexpected global scope: %+v", scope)
+	}
+	if _, err := ResolveScope(ScopeOptions{Global: true, Project: true}); err == nil {
+		t.Fatal("expected conflicting flags to fail")
+	}
+}
+
+func TestAtomicWritePreservesExistingFileOnValidationFailure(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	if err := os.WriteFile(path, []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	invalid := NewManifest()
+	invalid.Schema = 99
+	if err := SaveManifest(path, invalid); err == nil {
+		t.Fatal("expected validation failure")
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "original" {
+		t.Fatalf("existing content changed: %q", content)
+	}
+}

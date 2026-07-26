@@ -1,0 +1,107 @@
+name: Test Suite
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - converted_to_draft
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality and security
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up xdrun
+        uses: phillarmonic/setup-drun@v2
+        with:
+          version: "v2"
+
+      - name: Install vulnerability scanner
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run CI
+        run: xdrun ci
+
+  test:
+    name: Test on ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Set up xdrun
+        uses: phillarmonic/setup-drun@v2
+        with:
+          version: "v2"
+
+      - name: Run tests and build
+        run: |
+          xdrun test
+          xdrun build
+
+      - name: Build and smoke-test native binary
+        shell: bash
+        run: |
+          short_commit="${GITHUB_SHA:0:7}"
+          build_date="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          binary="bin/repertoire"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            binary="${binary}.exe"
+          fi
+
+          mkdir -p bin
+          go build \
+            -trimpath \
+            -ldflags="-X 'main.version=ci (${short_commit}, ${build_date})'" \
+            -o "$binary" \
+            ./cmd/repertoire
+
+          "$binary" --version
+          "$binary" --help >/dev/null

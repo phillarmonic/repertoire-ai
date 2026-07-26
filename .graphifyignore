@@ -1,0 +1,12 @@
+*
+!cmd/
+!cmd/**
+!internal/
+!internal/**
+!docs/
+!docs/**
+!.drun/
+!.drun/**
+!README.md
+!go.mod
+!zensical.toml
