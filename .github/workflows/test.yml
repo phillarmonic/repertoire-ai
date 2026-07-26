@@ -111,6 +111,7 @@ jobs:
         with:
           version: v2.11
           install-only: true
+          skip-cache: true
 
       - name: Restore security scanners
         id: security-tools-cache
