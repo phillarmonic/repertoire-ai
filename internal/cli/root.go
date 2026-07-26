@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
+	"github.com/phillarmonic/repertoire-ai/internal/selfupdate"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	var globalScope bool
 	var projectScope bool
 	var force bool
+	var selfUpdate bool
 	command := &cobra.Command{
 		Use:           "repertoire",
 		Short:         productDescription,
@@ -33,6 +35,18 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Version:       version,
+		Args:          cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			if !selfUpdate {
+				return command.Help()
+			}
+			return selfupdate.Run(command.Context(), selfupdate.Options{
+				CurrentVersion: version,
+				In:             command.InOrStdin(),
+				Out:            command.OutOrStdout(),
+				Err:            command.ErrOrStderr(),
+			})
+		},
 	}
 	command.SetOut(stdout)
 	command.SetErr(stderr)
@@ -40,6 +54,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	command.PersistentFlags().BoolVar(&globalScope, "global", false, "use user-global state")
 	command.PersistentFlags().BoolVar(&projectScope, "project", false, "use the current Git project")
 	command.PersistentFlags().BoolVar(&force, "force", false, "replace protected managed state")
+	command.Flags().BoolVar(&selfUpdate, "self-update", false, "update Repertoire to the latest stable release")
 	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force))
 	command.AddCommand(newCompletionCommand())
 	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force) {

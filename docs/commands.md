@@ -1,5 +1,20 @@
 # Commands
 
+## Update Repertoire
+
+Update the Repertoire executable to the newest stable GitHub release that
+contains a binary for the current operating system and architecture:
+
+```bash
+repertoire --self-update
+```
+
+The command asks for confirmation, verifies the downloaded binary against the
+release `checksums.txt`, checks its reported version, and then replaces the
+running executable. The previous executable is retained under
+`~/.repertoire/backups`; only the five newest backups are kept. A failed install
+or post-install verification restores the backup automatically.
+
 ## Declare and install
 
 `add` records a requirement in the selected scope and installs it immediately:

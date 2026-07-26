@@ -45,7 +45,7 @@ func TestRootCommandHelpIncludesProductBanner(t *testing.T) {
 	}
 
 	output := stdout.String()
-	for _, want := range []string{productBanner, productDescription} {
+	for _, want := range []string{productBanner, productDescription, "--self-update"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help output does not contain %q:\n%s", want, output)
 		}

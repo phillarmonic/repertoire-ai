@@ -85,6 +85,16 @@ installation:
 repertoire --version
 ```
 
+Update an installed release in place:
+
+```shell
+repertoire --self-update
+```
+
+The updater verifies the release checksum and downloaded binary before replacing
+the current executable. It retains the five newest rollback copies under
+`~/.repertoire/backups`.
+
 To build from a local checkout instead:
 
 ```shell
