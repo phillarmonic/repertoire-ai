@@ -42,6 +42,20 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		return ResolvedSkill{}, err
 	}
 	sources := catalog.Sources(manifest)
+	if namespace != "" {
+		qualified := make([]catalog.Source, 0, 1)
+		for _, source := range sources {
+			if catalog.SourceMatchesNamespace(source.Registration.Source, namespace) {
+				qualified = append(qualified, source)
+			}
+		}
+		// A slash is also valid inside a logical catalog skill key, such as
+		// "phillarmonkey/code". Only narrow the source set when the parsed
+		// namespace actually identifies a visible catalog.
+		if len(qualified) != 0 {
+			sources = qualified
+		}
+	}
 	preferMainline := namespace == "" && catalogName == ""
 	if preferMainline {
 		sort.SliceStable(sources, func(i, j int) bool {

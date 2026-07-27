@@ -344,7 +344,6 @@ func TestResolverPrefersMainlineAndAcceptsQualification(t *testing.T) {
 	if err != nil || resolved.Catalog.Name != catalog.BuiltinName {
 		t.Fatalf("mainline resolution: %+v, %v", resolved, err)
 	}
-	delete(manifest.Catalogs, "broken")
 	resolved, err = Resolve(manager, manifest, "demo", "two", false)
 	if err != nil || resolved.Catalog.Name != "two" {
 		t.Fatalf("qualified resolution: %+v, %v", resolved, err)
