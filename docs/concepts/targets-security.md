@@ -63,6 +63,8 @@ The expanded concrete target names—not `all`—are saved in the manifest and l
   the worktree for global-scope skills while keeping the full skill under the user's home directory.
 - Interactive `add` prompts before installing optional hooks and integrations; noninteractive commands require
   `--with-hooks`.
+- Hook configuration committed to a repository should invoke tools by binary name through `PATH`, never through a
+  machine-specific absolute executable path.
 - `--no-hooks` removes previously managed optional artifacts while retaining project instructions. Unrelated Markdown,
   JSON entries, and locally modified files
   are preserved or rejected unless

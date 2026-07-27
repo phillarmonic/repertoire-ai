@@ -93,3 +93,8 @@ Artifact modes are:
 The special target `all` applies to every selected target in either section.
 Repertoire copies artifact data and updates configuration; it does not execute
 hook scripts during installation.
+
+Command-bearing project artifacts should invoke installed tools by binary name
+and rely on `PATH`, for example `graphify hook-check`. Do not package an
+installer-resolved path such as `/Users/name/.local/bin/graphify`; it will not
+be portable to another contributor or machine.
