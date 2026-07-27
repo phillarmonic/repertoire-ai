@@ -64,7 +64,7 @@ repertoire bootstrap
 ```
 
 If `.repertoire.yaml` is missing, `bootstrap` creates a starter from the built-in
-catalog (namespaced IDs, `scope: global`) and installs those skills. The command
+catalog (source-qualified IDs, `scope: global`) and installs those skills. The command
 repairs missing managed copies. Run `repertoire sync` when the automation should
 fetch catalog changes and update the declared installations.
 

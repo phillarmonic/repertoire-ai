@@ -27,11 +27,12 @@ requirements:
 ```
 
 Catalog names use lowercase letters, digits, and hyphens. Catalog skill names
-use the same rule, and may include `/` to qualify broad names with an owner or
-vendor segment, such as `a-vendor-name/code`. Skill paths must be relative and
-contained within the catalog repository. Avoid publishing generic catalog skill
-names such as `code`, `docs`, or `review`; when agents show several personal or
-vendor skills together, those labels are easy to confuse.
+use the same kebab-case rule. Prefer owner-prefixed names such as
+`phillarmonkey-code` for broad skills that would otherwise be generic. Skill
+paths must be relative and contained within the catalog repository. Avoid
+publishing generic catalog skill names such as `code`, `docs`, or `review`;
+when agents show several personal or vendor skills together, those labels are
+easy to confuse.
 
 ## Project and global scope
 
@@ -71,21 +72,20 @@ skills:
     targets: [agents]
 ```
 
-`skills` must contain at least one skill. Keys may be short names or namespaced
-IDs (`{catalog-host-and-path}/{skill-name}`). Use the namespaced form for broad
-or generic skills so the manifest records who owns the definition. A catalog
-skill named `a-vendor-name/code` can be referenced from a source-qualified
-project manifest key such as
-`github.com/example/company-skills/a-vendor-name/code`. On-disk install
-directories still use a safe flat form of the skill name. `catalog` and
-`targets` are optional. An omitted catalog uses unqualified resolution for short
-names, or the namespace's catalog source for namespaced IDs. An omitted target
-uses agent detection for that scope.
+`skills` must contain at least one skill. Keys may be skill names or
+source-qualified IDs (`{catalog-host-and-path}/{skill-name}`). Prefer
+owner-prefixed kebab-case skill names for broad or generic skills, such as
+`phillarmonkey-code`. A catalog skill with that name can be referenced from a
+source-qualified project manifest key such as
+`github.com/example/company-skills/phillarmonkey-code`. `catalog` and
+`targets` are optional. An omitted catalog uses unqualified resolution for skill
+names, or the source-qualified ID's catalog source. An omitted target uses
+agent detection for that scope.
 `scope` accepts `project` or `global` and defaults to `global`.
 
 When `repertoire bootstrap` runs without `.repertoire.yaml`, it writes a starter
-manifest that declares every built-in `phillarmonic` skill with a namespaced ID
-and `scope: global`.
+manifest that declares every built-in `phillarmonic` skill with a
+source-qualified ID and `scope: global`.
 
 Bootstrap installations are recorded with a `bootstrap` origin in the normal
 project or global lock. They do not add requirements to either

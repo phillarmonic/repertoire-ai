@@ -174,7 +174,7 @@ repertoire update --target all
 ## Set up a project in one command
 
 Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, Repertoire creates one that lists
-built-in catalog skills with namespaced IDs and `scope: global`—so the small manifest stays in the repo while skills
+built-in catalog skills with source-qualified IDs and `scope: global`—so the small manifest stays in the repo while skills
 install under home-directory agent roots.
 
 You can also commit a custom `.repertoire.yaml`, including a private company
@@ -193,7 +193,7 @@ skills:
     scope: global
     targets: [ codex ]
 
-  github.com/example/company-skills/a-vendor-name/code:
+  github.com/example/company-skills/phillarmonkey-code:
     scope: project
     targets: [ agents ]
 ```
@@ -214,9 +214,9 @@ repertoire sync
 Project and global skills can be installed together. Removing an entry from the bootstrap manifest does not
 automatically delete an installed skill.
 
-For broad skills, prefer owner-qualified identifiers instead of generic names.
-For example, use a namespaced manifest key such as
-`github.com/example/company-skills/a-vendor-name/code` rather than a bare
+For broad skills, prefer owner-prefixed kebab-case identifiers instead of
+generic names. For example, use a source-qualified manifest key such as
+`github.com/example/company-skills/phillarmonkey-code` rather than a bare
 `code`, so agents and UIs can tell which vendor or personal catalog owns the
 behavior.
 

@@ -33,10 +33,9 @@ agent-skills/
         └── SKILL.md
 ```
 
-For short skill names, the directory name must match the skill name exactly.
-For qualified names such as `company/code`, the directory name must match the
-final segment (`code`). The path in `repertoire.yaml` is relative to the
-repository root and must stay inside the repo.
+Skill names should always be kebab-case. The directory name must match the
+skill name exactly. The path in `repertoire.yaml` is relative to the repository
+root and must stay inside the repo.
 
 ### 3. Declare the catalog in `repertoire.yaml`
 
@@ -56,14 +55,14 @@ Rules:
 - `schema` must be `1`.
 - Catalog names use 1–64 lowercase letters, digits, or single hyphens
   (`company-skills` is valid; `Company_Skills` is not).
-- Skill names use the same lowercase-and-hyphen rule, and may include `/` to
-  qualify a generic skill with an owner or vendor segment (`code-reviewer` and
-  `company/code` are valid; `Code_Reviewer` is not).
+- Skill names use the same lowercase-and-hyphen rule. Prefer owner-prefixed
+  kebab-case for broad or generic skills (`code-reviewer` and
+  `phillarmonkey-code` are valid; `Code_Reviewer` is not).
 - Avoid generic skill names such as `code`, `docs`, or `review` in published
   catalogs. Agents often display only the skill title or short identifier, so
   generic names become confusing when several personal or vendor catalogs are
-  enabled. Prefer a clear owner-qualified identifier such as `company/code` or
-  `a-vendor-name/code`.
+  enabled. Prefer a clear owner-prefixed kebab-case identifier such as
+  `phillarmonkey-code`.
 - The catalog must declare at least one skill.
 - Each skill `path` must be a contained relative path (no absolute paths, no
   `..` escape).
@@ -86,10 +85,8 @@ catalog:
 ### 4. Author each skill's `SKILL.md`
 
 Every skill directory must contain a `SKILL.md` with YAML frontmatter. The
-`name` must match the key in `repertoire.yaml`. For short names, the directory
-name must match too; for qualified names such as `company/code`, the directory
-name must match the final segment (`code`). `description` is required and must
-be non-empty:
+`name` must match the key in `repertoire.yaml`, and the directory name must
+match too. `description` is required and must be non-empty:
 
 ```markdown
 ---
@@ -103,10 +100,10 @@ Instructions for the agent go here.
 ```
 
 Keep the `name` specific when the skill covers a broad domain. For example,
-use `company/code` instead of `code`, and reserve the description for the
+use `phillarmonkey-code` instead of `code`, and reserve the description for the
 human-readable explanation. Project `.repertoire.yaml` files may still refer to
-the skill with a full namespaced ID such as
-`github.com/company/agent-skills/company/code` when that makes the source
+the skill with a full source-qualified ID such as
+`github.com/company/agent-skills/phillarmonkey-code` when that makes the source
 clearer.
 
 You may include supporting files next to `SKILL.md` (scripts, templates,
