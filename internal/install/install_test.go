@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -77,8 +78,8 @@ func TestValidateSkillRejectsInvalidStubManifest(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "stubs.yaml"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateSkill(source, "demo"); err == nil || !strings.Contains(err.Error(), "no such file or directory") {
-		t.Fatalf("expected invalid stub manifest, got %v", err)
+	if err := ValidateSkill(source, "demo"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected missing stub asset error, got %v", err)
 	}
 }
 

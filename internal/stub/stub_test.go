@@ -1,6 +1,7 @@
 package stub
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,13 +42,14 @@ func TestLoadRejectsInvalidManifests(t *testing.T) {
 		manifest string
 		setup    func(t *testing.T, root string)
 		want     string
+		notExist bool
 	}{
 		{name: "schema", manifest: "schema: 2\nstubs: {}\n", want: "unsupported stub schema"},
 		{name: "name", manifest: stubYAML("Bad_Name", "assets/file", "Description", "Instructions"), setup: regularAsset("assets/file"), want: `stub "Bad_Name"`},
 		{name: "description", manifest: stubYAML("demo", "assets/file", " ", "Instructions"), setup: regularAsset("assets/file"), want: "description is required"},
 		{name: "instructions", manifest: stubYAML("demo", "assets/file", "Description", " "), setup: regularAsset("assets/file"), want: "instructions are required"},
 		{name: "traversal", manifest: stubYAML("demo", "../file", "Description", "Instructions"), want: "contained relative path"},
-		{name: "missing", manifest: stubYAML("demo", "assets/file", "Description", "Instructions"), want: "no such file"},
+		{name: "missing", manifest: stubYAML("demo", "assets/file", "Description", "Instructions"), notExist: true},
 		{name: "directory", manifest: stubYAML("demo", "assets", "Description", "Instructions"), setup: func(t *testing.T, root string) {
 			t.Helper()
 			if err := os.MkdirAll(filepath.Join(root, "assets"), 0o755); err != nil {
@@ -68,6 +70,12 @@ func TestLoadRejectsInvalidManifests(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err := Load(root)
+			if test.notExist {
+				if !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("error = %v, want os.ErrNotExist", err)
+				}
+				return
+			}
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want %q", err, test.want)
 			}
