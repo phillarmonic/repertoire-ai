@@ -15,12 +15,13 @@ import (
 )
 
 type ResolvedSkill struct {
-	Name      string
-	Catalog   catalog.Materialized
-	Root      string
-	Digest    string
-	Variants  map[string]ResolvedVariant
-	Artifacts map[string][]ResolvedArtifact
+	Name         string
+	Catalog      catalog.Materialized
+	Root         string
+	Digest       string
+	Variants     map[string]ResolvedVariant
+	Instructions map[string][]ResolvedArtifact
+	Artifacts    map[string][]ResolvedArtifact
 }
 
 type ResolvedVariant struct {
@@ -64,7 +65,9 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 			}
 			resolved := ResolvedSkill{
 				Name: candidate, Catalog: materialized, Root: root, Digest: digest,
-				Variants: map[string]ResolvedVariant{}, Artifacts: map[string][]ResolvedArtifact{},
+				Variants:     map[string]ResolvedVariant{},
+				Instructions: map[string][]ResolvedArtifact{},
+				Artifacts:    map[string][]ResolvedArtifact{},
 			}
 			for target, path := range entry.Variants {
 				variantRoot := filepath.Join(materialized.Root, filepath.FromSlash(path))
@@ -77,24 +80,37 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 				}
 				resolved.Variants[target] = ResolvedVariant{Root: variantRoot, Digest: variantDigest}
 			}
-			for target, declarations := range entry.Artifacts {
-				for _, declaration := range declarations {
-					sourcePath := filepath.Join(materialized.Root, filepath.FromSlash(declaration.Source))
-					info, err := os.Lstat(sourcePath)
-					if err != nil {
-						return ResolvedSkill{}, fmt.Errorf("catalog %q artifact %q: %w", source.Name, declaration.ID, err)
+			resolveArtifacts := func(
+				kind string,
+				declarationsByTarget map[string][]state.ArtifactEntry,
+				destination map[string][]ResolvedArtifact,
+			) error {
+				for target, declarations := range declarationsByTarget {
+					for _, declaration := range declarations {
+						sourcePath := filepath.Join(materialized.Root, filepath.FromSlash(declaration.Source))
+						info, err := os.Lstat(sourcePath)
+						if err != nil {
+							return fmt.Errorf("catalog %q %s %q: %w", source.Name, kind, declaration.ID, err)
+						}
+						if !info.Mode().IsRegular() {
+							return fmt.Errorf("catalog %q %s %q source is not a regular file", source.Name, kind, declaration.ID)
+						}
+						artifactDigest, err := DigestFile(sourcePath)
+						if err != nil {
+							return err
+						}
+						destination[target] = append(destination[target], ResolvedArtifact{
+							ArtifactEntry: declaration, SourcePath: sourcePath, Digest: artifactDigest,
+						})
 					}
-					if !info.Mode().IsRegular() {
-						return ResolvedSkill{}, fmt.Errorf("catalog %q artifact %q source is not a regular file", source.Name, declaration.ID)
-					}
-					artifactDigest, err := DigestFile(sourcePath)
-					if err != nil {
-						return ResolvedSkill{}, err
-					}
-					resolved.Artifacts[target] = append(resolved.Artifacts[target], ResolvedArtifact{
-						ArtifactEntry: declaration, SourcePath: sourcePath, Digest: artifactDigest,
-					})
 				}
+				return nil
+			}
+			if err := resolveArtifacts("instruction", entry.Instructions, resolved.Instructions); err != nil {
+				return ResolvedSkill{}, err
+			}
+			if err := resolveArtifacts("artifact", entry.Artifacts, resolved.Artifacts); err != nil {
+				return ResolvedSkill{}, err
 			}
 			matches = append(matches, resolved)
 		}

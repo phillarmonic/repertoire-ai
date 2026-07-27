@@ -14,6 +14,22 @@ import (
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 )
 
+// ProjectArtifacts returns the always-on project instructions and, when
+// requested, the skill's optional hooks and integrations as one install set.
+func ProjectArtifacts(resolved ResolvedSkill, includeOptional bool) ResolvedSkill {
+	selected := resolved
+	selected.Artifacts = map[string][]ResolvedArtifact{}
+	for target, instructions := range resolved.Instructions {
+		selected.Artifacts[target] = append(selected.Artifacts[target], instructions...)
+	}
+	if includeOptional {
+		for target, artifacts := range resolved.Artifacts {
+			selected.Artifacts[target] = append(selected.Artifacts[target], artifacts...)
+		}
+	}
+	return selected
+}
+
 func InstallArtifacts(
 	resolved ResolvedSkill,
 	targets []Target,
@@ -25,21 +41,19 @@ func InstallArtifacts(
 		destination string
 		mode        string
 	}
+	installations := artifactInstallations(resolved, targets)
 	desired := map[string]desiredArtifact{}
-	for _, target := range targets {
-		artifacts := append([]ResolvedArtifact(nil), resolved.Artifacts["all"]...)
-		artifacts = append(artifacts, resolved.Artifacts[target.Name]...)
-		for _, artifact := range artifacts {
-			key := artifactKey(target.Name, artifact.ID)
-			if _, duplicate := desired[key]; duplicate {
-				return nil, fmt.Errorf("artifact id %q is repeated for target %s", artifact.ID, target.Name)
-			}
-			destination, err := safeArtifactDestination(projectRoot, artifact.Destination)
-			if err != nil {
-				return nil, fmt.Errorf("install artifact %q: %w", artifact.ID, err)
-			}
-			desired[key] = desiredArtifact{destination: destination, mode: artifact.Mode}
+	for _, installation := range installations {
+		artifact := installation.artifact
+		key := artifactKey(installation.targetName, artifact.ID)
+		if _, duplicate := desired[key]; duplicate {
+			return nil, fmt.Errorf("artifact id %q is repeated for target %s", artifact.ID, installation.targetName)
 		}
+		destination, err := safeArtifactDestination(projectRoot, artifact.Destination)
+		if err != nil {
+			return nil, fmt.Errorf("install artifact %q: %w", artifact.ID, err)
+		}
+		desired[key] = desiredArtifact{destination: destination, mode: artifact.Mode}
 	}
 
 	previousByKey := map[string]state.LockArtifact{}
@@ -58,50 +72,82 @@ func InstallArtifacts(
 	}
 
 	var installed []state.LockArtifact
-	for _, target := range targets {
-		artifacts := append([]ResolvedArtifact(nil), resolved.Artifacts["all"]...)
-		artifacts = append(artifacts, resolved.Artifacts[target.Name]...)
-		for _, artifact := range artifacts {
-			destination, err := safeArtifactDestination(projectRoot, artifact.Destination)
-			if err != nil {
-				return nil, fmt.Errorf("install artifact %q: %w", artifact.ID, err)
-			}
-			previousArtifact, hadPrevious := previousByKey[artifactKey(target.Name, artifact.ID)]
-			entry := state.LockArtifact{
-				ID: artifact.ID, Target: target.Name, Destination: destination,
-				Mode: artifact.Mode, Digest: artifact.Digest,
-			}
-			_, destinationErr := os.Lstat(destination)
-			entry.Created = os.IsNotExist(destinationErr)
-			if hadPrevious {
-				entry.Created = previousArtifact.Created
-			}
-			entry.Digest, err = DigestFile(artifact.SourcePath)
-			if err != nil {
-				return nil, fmt.Errorf("digest artifact %q: %w", artifact.ID, err)
-			}
-			switch artifact.Mode {
-			case state.ArtifactModeCopy:
-				err = installCopiedArtifact(artifact.SourcePath, destination, artifact.Executable, previousArtifact, hadPrevious, force)
-			case state.ArtifactModeMarkdownSection:
-				entry.Marker = artifactMarkerPrefix(resolved.Name, target.Name, artifact.ID)
-				entry.Digest, err = markdownArtifactDigest(artifact.SourcePath)
-				if err != nil {
-					break
-				}
-				err = installMarkdownArtifact(resolved.Name, artifact, target.Name, destination, previousArtifact, hadPrevious, force)
-			case state.ArtifactModeJSONMerge:
-				entry.ManagedJSON, err = installJSONArtifact(artifact, destination, previousArtifact, hadPrevious, force)
-			default:
-				err = fmt.Errorf("unknown artifact mode %q", artifact.Mode)
-			}
-			if err != nil {
-				return nil, fmt.Errorf("install artifact %q for %s: %w", artifact.ID, target.Name, err)
-			}
-			installed = append(installed, entry)
+	for _, installation := range installations {
+		artifact := installation.artifact
+		targetName := installation.targetName
+		destination, err := safeArtifactDestination(projectRoot, artifact.Destination)
+		if err != nil {
+			return nil, fmt.Errorf("install artifact %q: %w", artifact.ID, err)
 		}
+		previousArtifact, hadPrevious := previousByKey[artifactKey(targetName, artifact.ID)]
+		entry := state.LockArtifact{
+			ID: artifact.ID, Target: targetName, Destination: destination,
+			Mode: artifact.Mode, Digest: artifact.Digest,
+		}
+		_, destinationErr := os.Lstat(destination)
+		entry.Created = os.IsNotExist(destinationErr)
+		if hadPrevious {
+			entry.Created = previousArtifact.Created
+		}
+		entry.Digest, err = DigestFile(artifact.SourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("digest artifact %q: %w", artifact.ID, err)
+		}
+		switch artifact.Mode {
+		case state.ArtifactModeCopy:
+			err = installCopiedArtifact(artifact.SourcePath, destination, artifact.Executable, previousArtifact, hadPrevious, force)
+		case state.ArtifactModeMarkdownSection:
+			entry.Marker = artifactMarkerPrefix(resolved.Name, targetName, artifact.ID)
+			entry.Digest, err = markdownArtifactDigest(artifact.SourcePath)
+			if err != nil {
+				break
+			}
+			entry.MarkdownSeparator, err = installMarkdownArtifact(
+				resolved.Name,
+				artifact,
+				targetName,
+				destination,
+				previousArtifact,
+				hadPrevious,
+				force,
+			)
+		case state.ArtifactModeJSONMerge:
+			entry.ManagedJSON, err = installJSONArtifact(artifact, destination, previousArtifact, hadPrevious, force)
+		default:
+			err = fmt.Errorf("unknown artifact mode %q", artifact.Mode)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("install artifact %q for %s: %w", artifact.ID, targetName, err)
+		}
+		installed = append(installed, entry)
 	}
 	return installed, nil
+}
+
+type artifactInstallation struct {
+	targetName string
+	artifact   ResolvedArtifact
+}
+
+func artifactInstallations(resolved ResolvedSkill, targets []Target) []artifactInstallation {
+	var installations []artifactInstallation
+	if len(targets) > 0 {
+		for _, artifact := range resolved.Artifacts["all"] {
+			installations = append(installations, artifactInstallation{
+				targetName: "all",
+				artifact:   artifact,
+			})
+		}
+	}
+	for _, target := range targets {
+		for _, artifact := range resolved.Artifacts[target.Name] {
+			installations = append(installations, artifactInstallation{
+				targetName: target.Name,
+				artifact:   artifact,
+			})
+		}
+	}
+	return installations
 }
 
 func RemoveArtifacts(artifacts []state.LockArtifact, projectRoot string, force bool) error {
@@ -167,36 +213,37 @@ func installMarkdownArtifact(
 	targetName, destination string,
 	previous state.LockArtifact,
 	hadPrevious, force bool,
-) error {
+) (string, error) {
 	source, err := os.ReadFile(artifact.SourcePath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	existing, err := readOptionalFile(destination)
 	if err != nil {
-		return err
+		return "", err
 	}
 	start, end := artifactMarkers(skillName, targetName, artifact.ID)
 	current, found, err := markedSection(existing, start, end)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if found && hadPrevious && previous.Mode == state.ArtifactModeMarkdownSection &&
 		digestBytes(current) != previous.Digest && !force {
-		return errors.New("managed Markdown section is locally modified; use --force")
+		return "", errors.New("managed Markdown section is locally modified; use --force")
 	}
 	block := renderMarkedSection(start, end, source)
 	var updated []byte
+	separator := ""
 	if found {
 		updated = replaceMarkedSection(existing, start, end, block)
+		separator = previous.MarkdownSeparator
 	} else {
-		updated = append(bytes.TrimRight(existing, "\n"), '\n')
-		if len(bytes.TrimSpace(existing)) > 0 {
-			updated = append(updated, '\n')
-		}
+		separator = markdownSectionSeparator(existing)
+		updated = append([]byte(nil), existing...)
+		updated = append(updated, separator...)
 		updated = append(updated, block...)
 	}
-	return state.WriteFileAtomic(destination, updated, 0o644)
+	return separator, state.WriteFileAtomic(destination, updated, 0o644)
 }
 
 func removeMarkdownArtifact(destination string, artifact state.LockArtifact, force bool) error {
@@ -212,8 +259,13 @@ func removeMarkdownArtifact(destination string, artifact state.LockArtifact, for
 	if digestBytes(current) != artifact.Digest && !force {
 		return errors.New("managed Markdown section is locally modified; use --force")
 	}
-	updated := replaceMarkedSection(existing, start, end, nil)
-	updated = bytes.TrimLeft(updated, "\n")
+	updated, err := removeMarkedSection(existing, start, end, artifact.MarkdownSeparator, force)
+	if err != nil {
+		return err
+	}
+	if artifact.MarkdownSeparator == "" && len(bytes.TrimSpace(updated)) == 0 {
+		updated = bytes.TrimRight(updated, "\n")
+	}
 	if artifact.Created && len(bytes.TrimSpace(updated)) == 0 {
 		return os.Remove(destination)
 	}
@@ -394,6 +446,46 @@ func replaceMarkedSection(content []byte, start, end string, replacement []byte)
 	result = append(result, replacement...)
 	result = append(result, content[endIndex:]...)
 	return result
+}
+
+func markdownSectionSeparator(content []byte) string {
+	if len(content) == 0 {
+		return ""
+	}
+	if content[len(content)-1] == '\n' {
+		return "\n"
+	}
+	return "\n\n"
+}
+
+func removeMarkedSection(content []byte, start, end, separator string, force bool) ([]byte, error) {
+	startIndex := bytes.Index(content, []byte(start))
+	endIndex := bytes.Index(content, []byte(end)) + len(end)
+	if startIndex < 0 || endIndex < len(end) {
+		return content, nil
+	}
+	if separator != "" {
+		if separator != "\n" && separator != "\n\n" {
+			return nil, errors.New("managed Markdown separator is invalid")
+		}
+		if !bytes.HasSuffix(content[:startIndex], []byte(separator)) {
+			if !force {
+				return nil, errors.New("managed Markdown separator is locally modified; use --force")
+			}
+		} else {
+			startIndex -= len(separator)
+		}
+	} else if startIndex >= 2 && bytes.Equal(content[startIndex-2:startIndex], []byte("\n\n")) {
+		// Locks written before markdown_separator normalized user content to one
+		// trailing newline plus one blank separator line.
+		startIndex--
+	}
+	for endIndex < len(content) && content[endIndex] == '\n' {
+		endIndex++
+	}
+	result := append([]byte(nil), content[:startIndex]...)
+	result = append(result, content[endIndex:]...)
+	return result, nil
 }
 
 func readOptionalFile(path string) ([]byte, error) {

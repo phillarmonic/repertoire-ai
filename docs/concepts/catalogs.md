@@ -59,17 +59,24 @@ catalog:
       variants:
         codex: platforms/codex
         claude: platforms/claude
-      artifacts:
+      instructions:
         codex:
           - id: guidance
-            source: project-files/agents.md
+            source: pointers/agents.md
             destination: AGENTS.md
             mode: markdown-section
+      artifacts:
+        codex:
           - id: hooks
             source: project-files/codex-hooks.json
             destination: .codex/hooks.json
             mode: json-merge
 ```
+
+`instructions` are always-on, lightweight project pointers or rules.
+`artifacts` are optional hooks, plugins, and integration configuration.
+Project installs always apply matching instructions; optional artifacts retain
+the interactive prompt and `--with-hooks`/`--no-hooks` controls.
 
 Variant directories may have any directory name, but their `SKILL.md`
 frontmatter name must match the logical catalog skill. Variant and artifact
@@ -83,6 +90,6 @@ Artifact modes are:
 - `json-merge` adds object keys and array entries while preserving unrelated
   configuration.
 
-The special artifact target `all` applies to every selected target. Repertoire
-copies artifact data and updates configuration; it does not execute hook
-scripts during installation.
+The special target `all` applies to every selected target in either section.
+Repertoire copies artifact data and updates configuration; it does not execute
+hook scripts during installation.

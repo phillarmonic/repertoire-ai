@@ -13,8 +13,9 @@ const (
 )
 
 type Lock struct {
-	Schema int                  `json:"schema"`
-	Skills map[string]LockSkill `json:"skills"`
+	Schema   int                                        `json:"schema"`
+	Skills   map[string]LockSkill                       `json:"skills"`
+	Projects map[string]map[string]LockProjectArtifacts `json:"projects,omitempty"`
 }
 
 type LockSkill struct {
@@ -27,23 +28,41 @@ type LockSkill struct {
 	Targets       []string          `json:"targets"`
 	Locations     []string          `json:"locations"`
 	Artifacts     []LockArtifact    `json:"artifacts,omitempty"`
+	Instructions  bool              `json:"instructions,omitempty"`
+	Hooks         bool              `json:"hooks,omitempty"`
 	Declared      bool              `json:"declared"`
 	Origin        string            `json:"origin,omitempty"`
 }
 
+type LockProjectArtifacts struct {
+	Catalog      string         `json:"catalog"`
+	Source       string         `json:"source"`
+	Ref          string         `json:"ref,omitempty"`
+	Commit       string         `json:"commit"`
+	Targets      []string       `json:"targets"`
+	Artifacts    []LockArtifact `json:"artifacts,omitempty"`
+	Instructions bool           `json:"instructions,omitempty"`
+	Hooks        bool           `json:"hooks,omitempty"`
+}
+
 type LockArtifact struct {
-	ID          string          `json:"id"`
-	Target      string          `json:"target"`
-	Destination string          `json:"destination"`
-	Mode        string          `json:"mode"`
-	Marker      string          `json:"marker,omitempty"`
-	Digest      string          `json:"digest"`
-	Created     bool            `json:"created,omitempty"`
-	ManagedJSON json.RawMessage `json:"managed_json,omitempty"`
+	ID                string          `json:"id"`
+	Target            string          `json:"target"`
+	Destination       string          `json:"destination"`
+	Mode              string          `json:"mode"`
+	Marker            string          `json:"marker,omitempty"`
+	Digest            string          `json:"digest"`
+	Created           bool            `json:"created,omitempty"`
+	MarkdownSeparator string          `json:"markdown_separator,omitempty"`
+	ManagedJSON       json.RawMessage `json:"managed_json,omitempty"`
 }
 
 func NewLock() Lock {
-	return Lock{Schema: SchemaVersion, Skills: map[string]LockSkill{}}
+	return Lock{
+		Schema:   SchemaVersion,
+		Skills:   map[string]LockSkill{},
+		Projects: map[string]map[string]LockProjectArtifacts{},
+	}
 }
 
 func LoadLock(path string) (Lock, error) {
@@ -60,6 +79,9 @@ func LoadLock(path string) (Lock, error) {
 	}
 	if lock.Schema != SchemaVersion {
 		return Lock{}, fmt.Errorf("unsupported lock schema %d", lock.Schema)
+	}
+	if lock.Projects == nil {
+		lock.Projects = map[string]map[string]LockProjectArtifacts{}
 	}
 	for name, skill := range lock.Skills {
 		if skill.Origin == "" {
@@ -85,6 +107,9 @@ func (l Lock) Marshal() ([]byte, error) {
 			return nil, fmt.Errorf("skill %q has unknown lock origin %q", name, skill.Origin)
 		}
 		normalized.Skills[name] = skill
+	}
+	for projectRoot, artifacts := range l.Projects {
+		normalized.Projects[projectRoot] = artifacts
 	}
 	content, err := json.MarshalIndent(normalized, "", "  ")
 	if err != nil {

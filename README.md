@@ -94,7 +94,9 @@ repertoire bootstrap
 ```
 
 This gives teams one command to install or repair the required AI agent skills across supported tools without
-maintaining separate setup scripts for every agent.
+maintaining separate setup scripts for every agent. Catalog-provided project
+instructions remain small and project-local even when the full skill is
+installed globally.
 
 ## Install
 
@@ -222,6 +224,13 @@ repertoire sync
 
 Project and global skills can be installed together. Removing an entry from the bootstrap manifest does not
 automatically delete an installed skill.
+
+Catalogs may distinguish always-on project instructions from optional hooks.
+Bootstrap installs instruction pointers into the worktree even for
+`scope: global` skills, while keeping their management state in Repertoire's
+global lock. Set `hooks: true` only when that repository should also receive
+the catalog's hook and integration artifacts. Removing the global skill also
+removes its recorded project artifacts without touching unrelated content.
 
 For broad skills, prefer owner-prefixed kebab-case identifiers instead of generic names. For example, use a
 source-qualified manifest key such as

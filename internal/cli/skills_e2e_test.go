@@ -122,10 +122,9 @@ func TestPlatformVariantAndManagedHooksEndToEnd(t *testing.T) {
 
 	runCommand(t, project, binary, "--project", "add", "graphify", "--catalog", "graphify", "--target", "codex")
 	assertFileContent(t, filepath.Join(project, ".codex", "skills", "graphify", "variant.txt"), "v1")
-	for _, path := range []string{"AGENTS.md", filepath.Join(".codex", "hooks.json")} {
-		if _, err := os.Stat(filepath.Join(project, path)); !os.IsNotExist(err) {
-			t.Fatalf("noninteractive install unexpectedly created %s: %v", path, err)
-		}
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v1")
+	if _, err := os.Stat(filepath.Join(project, ".codex", "hooks.json")); !os.IsNotExist(err) {
+		t.Fatalf("noninteractive install unexpectedly created hooks: %v", err)
 	}
 	runCommand(t, project, binary, "--project", "remove", "graphify")
 
@@ -150,10 +149,7 @@ func TestPlatformVariantAndManagedHooksEndToEnd(t *testing.T) {
 	assertContainsFile(t, filepath.Join(project, ".codex", "hooks.json"), "graphify-v2", "user-hook")
 
 	runCommand(t, project, binary, "--project", "update", "graphify", "--no-hooks")
-	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.")
-	if strings.Contains(readFileForTest(t, filepath.Join(project, "AGENTS.md")), "Graphify") {
-		t.Fatal("managed AGENTS section remains after --no-hooks")
-	}
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v2", "Keep me.")
 	hooks := readFileForTest(t, filepath.Join(project, ".codex", "hooks.json"))
 	if !strings.Contains(hooks, "user-hook") || strings.Contains(hooks, "graphify-v2") {
 		t.Fatalf("hooks after --no-hooks:\n%s", hooks)
@@ -203,12 +199,14 @@ catalog:
       path: skills/graphify
       variants:
         codex: platforms/codex
-      artifacts:
+      instructions:
         codex:
           - id: guidance
             source: project-files/agents.md
             destination: AGENTS.md
             mode: markdown-section
+      artifacts:
+        codex:
           - id: hooks
             source: project-files/hooks.json
             destination: .codex/hooks.json

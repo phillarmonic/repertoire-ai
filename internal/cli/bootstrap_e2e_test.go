@@ -137,6 +137,83 @@ skills:
 		}
 	})
 
+	t.Run("global skill manages project instructions without a project lock", func(t *testing.T) {
+		project, home, environment := bootstrapEnvironment(t)
+		catalogRoot := createBootstrapIntegrationCatalog(t, "v1")
+		if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("# Project\n\nKeep me.\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		writeBootstrapFile(t, project, `schema: 1
+catalogs:
+  graphify:
+    source: `+catalogRoot+`
+skills:
+  graphify:
+    catalog: graphify
+    scope: global
+    targets: [agents, copilot]
+`)
+		runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.", "Graphify pointer v1")
+		assertContainsFile(t, filepath.Join(project, ".github", "copilot-instructions.md"), "Graphify pointer v1")
+		if _, err := os.Stat(filepath.Join(project, ".git", "hooks", "post-commit")); !os.IsNotExist(err) {
+			t.Fatalf("hooks should remain optional: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(project, "repertoire.lock.json")); !os.IsNotExist(err) {
+			t.Fatalf("global bootstrap should not create a project lock: %v", err)
+		}
+		assertContainsFile(
+			t,
+			filepath.Join(globalConfigRoot(home), "repertoire.lock.json"),
+			`"projects"`,
+			project,
+			`"instructions": true`,
+		)
+
+		createBootstrapIntegrationCatalogAt(t, catalogRoot, "v2")
+		runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.", "Graphify pointer v2")
+
+		writeBootstrapFile(t, project, `schema: 1
+catalogs:
+  graphify:
+    source: `+catalogRoot+`
+skills:
+  graphify:
+    catalog: graphify
+    scope: global
+    targets: [agents, copilot]
+    hooks: true
+`)
+		runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		assertFileContent(t, filepath.Join(project, ".git", "hooks", "post-commit"), "#!/bin/sh\ngraphify update .\n")
+
+		writeBootstrapFile(t, project, `schema: 1
+catalogs:
+  graphify:
+    source: `+catalogRoot+`
+skills:
+  graphify:
+    catalog: graphify
+    scope: global
+    targets: [agents, copilot]
+`)
+		runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		if _, err := os.Stat(filepath.Join(project, ".git", "hooks", "post-commit")); !os.IsNotExist(err) {
+			t.Fatalf("disabling hooks should remove the managed hook: %v", err)
+		}
+		assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.", "Graphify pointer v2")
+
+		runCommandWithEnv(t, project, environment, binary, "remove", "graphify")
+		assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.")
+		if strings.Contains(readFileForTest(t, filepath.Join(project, "AGENTS.md")), "Graphify pointer") {
+			t.Fatal("global removal left the managed project instruction")
+		}
+		if _, err := os.Stat(filepath.Join(project, ".github", "copilot-instructions.md")); !os.IsNotExist(err) {
+			t.Fatalf("global removal left a created project instruction: %v", err)
+		}
+	})
+
 	t.Run("bootstrap stays cached sync refreshes and commit refs stay pinned", func(t *testing.T) {
 		project, _, environment := bootstrapEnvironment(t)
 		work, remote, firstCommit := createTrackingCatalog(t)
@@ -298,6 +375,71 @@ func createBootstrapCatalog(t *testing.T, name string, skills map[string]string)
 		t.Fatal(err)
 	}
 	return root
+}
+
+func createBootstrapIntegrationCatalog(t *testing.T, version string) string {
+	t.Helper()
+	root := t.TempDir()
+	createBootstrapIntegrationCatalogAt(t, root, version)
+	return root
+}
+
+func createBootstrapIntegrationCatalogAt(t *testing.T, root, version string) {
+	t.Helper()
+	for _, directory := range []string{
+		filepath.Join(root, "skills", "graphify"),
+		filepath.Join(root, "project-files"),
+	} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	skill := "---\nname: graphify\ndescription: Test Graphify skill\n---\n"
+	if err := os.WriteFile(filepath.Join(root, "skills", "graphify", "SKILL.md"), []byte(skill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(root, "project-files", "agents.md"),
+		[]byte("## Graphify pointer "+version+"\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(root, "project-files", "post-commit"),
+		[]byte("#!/bin/sh\ngraphify update .\n"),
+		0o755,
+	); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `schema: 1
+catalog:
+  name: graphify
+  skills:
+    graphify:
+      path: skills/graphify
+      instructions:
+        agents:
+          - id: guidance
+            source: project-files/agents.md
+            destination: AGENTS.md
+            mode: markdown-section
+        copilot:
+          - id: copilot-guidance
+            source: project-files/agents.md
+            destination: .github/copilot-instructions.md
+            mode: markdown-section
+      artifacts:
+        all:
+          - id: post-commit
+            source: project-files/post-commit
+            destination: .git/hooks/post-commit
+            mode: copy
+            executable: true
+`
+	if err := os.WriteFile(filepath.Join(root, "repertoire.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func createTrackingCatalog(t *testing.T) (string, string, string) {

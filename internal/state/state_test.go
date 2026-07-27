@@ -17,6 +17,12 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 			"code-reviewer": {
 				Path:     "skills/code-reviewer",
 				Variants: map[string]string{"codex": "platforms/codex"},
+				Instructions: map[string][]ArtifactEntry{
+					"codex": {{
+						ID: "guidance", Source: "platforms/codex/agents.md",
+						Destination: "AGENTS.md", Mode: ArtifactModeMarkdownSection,
+					}},
+				},
 				Artifacts: map[string][]ArtifactEntry{
 					"codex": {{
 						ID: "hooks", Source: "platforms/codex/hooks.json",
@@ -85,6 +91,35 @@ func TestCatalogRejectsUnsafeVariantAndArtifactDeclarations(t *testing.T) {
 	artifact.Catalog.Skills["graphify"] = entry
 	if err := artifact.Validate(); err == nil || !strings.Contains(err.Error(), "contained relative path") {
 		t.Fatalf("unsafe artifact error = %v", err)
+	}
+
+	instruction := base()
+	entry = instruction.Catalog.Skills["graphify"]
+	entry.Instructions = map[string][]ArtifactEntry{
+		"codex": {{
+			ID: "guidance", Source: "../escape", Destination: "AGENTS.md", Mode: ArtifactModeMarkdownSection,
+		}},
+	}
+	instruction.Catalog.Skills["graphify"] = entry
+	if err := instruction.Validate(); err == nil || !strings.Contains(err.Error(), "contained relative path") {
+		t.Fatalf("unsafe instruction error = %v", err)
+	}
+
+	duplicate := base()
+	entry = duplicate.Catalog.Skills["graphify"]
+	entry.Instructions = map[string][]ArtifactEntry{
+		"codex": {{
+			ID: "managed", Source: "agents.md", Destination: "AGENTS.md", Mode: ArtifactModeMarkdownSection,
+		}},
+	}
+	entry.Artifacts = map[string][]ArtifactEntry{
+		"codex": {{
+			ID: "managed", Source: "hooks.json", Destination: ".codex/hooks.json", Mode: ArtifactModeJSONMerge,
+		}},
+	}
+	duplicate.Catalog.Skills["graphify"] = entry
+	if err := duplicate.Validate(); err == nil || !strings.Contains(err.Error(), "across instruction and artifact") {
+		t.Fatalf("duplicate managed id error = %v", err)
 	}
 }
 

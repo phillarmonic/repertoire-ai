@@ -41,8 +41,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	}
 	add.Flags().StringVar(&catalogName, "catalog", "", "resolve from this catalog")
 	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable)")
-	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install managed hooks and project instructions")
-	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip managed hooks and project instructions")
+	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName)
 	_ = add.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = add.RegisterFlagCompletionFunc("target", completeTargets)
@@ -111,8 +111,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	}
 	installCommand.Flags().StringVar(&installCatalog, "catalog", "", "resolve from this catalog")
 	installCommand.Flags().StringSliceVar(&installTargets, "target", nil, "agent target (repeatable)")
-	installCommand.Flags().BoolVar(&installWithHooks, "with-hooks", false, "install managed hooks and project instructions")
-	installCommand.Flags().BoolVar(&installNoHooks, "no-hooks", false, "skip managed hooks and project instructions")
+	installCommand.Flags().BoolVar(&installWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	installCommand.Flags().BoolVar(&installNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	installCommand.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &installCatalog)
 	_ = installCommand.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = installCommand.RegisterFlagCompletionFunc("target", completeTargets)
@@ -229,7 +229,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				if err != nil {
 					return err
 				}
-				if !updateWithHooks && !updateNoHooks && len(entry.Artifacts) > 0 {
+				if !updateWithHooks && !updateNoHooks &&
+					(entry.Hooks || (!entry.Instructions && len(entry.Artifacts) > 0)) {
 					hooks = hookChoiceYes
 				}
 				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks); err != nil {
@@ -241,8 +242,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 		},
 	}
 	update.Flags().StringSliceVar(&updateTargets, "target", nil, "agent target (repeatable; use \"all\" for every target)")
-	update.Flags().BoolVar(&updateWithHooks, "with-hooks", false, "install managed hooks and project instructions")
-	update.Flags().BoolVar(&updateNoHooks, "no-hooks", false, "remove managed hooks and project instructions")
+	update.Flags().BoolVar(&updateWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	update.Flags().BoolVar(&updateNoHooks, "no-hooks", false, "remove optional managed hooks and project integrations")
 	update.ValidArgsFunction = completeInstalledSkillsAndCatalogs(globalScope, projectScope)
 	_ = update.RegisterFlagCompletionFunc("target", completeTargets)
 	remove := &cobra.Command{
@@ -265,6 +266,11 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			if err := installer.RemoveArtifacts(entry.Artifacts, scope.Root, *force); err != nil {
 				return err
 			}
+			if scope.Global {
+				if err := removeGlobalProjectArtifacts(&lock, args[0], *force); err != nil {
+					return err
+				}
+			}
 			if err := installer.Remove(args[0], targets, entry, *force); err != nil {
 				return err
 			}
@@ -284,6 +290,25 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	}
 	remove.ValidArgsFunction = completeInstalledSkills(globalScope, projectScope)
 	return []*cobra.Command{add, installCommand, list, update, remove}
+}
+
+func removeGlobalProjectArtifacts(lock *state.Lock, skillName string, force bool) error {
+	for projectRoot, skills := range lock.Projects {
+		entry, exists := skills[skillName]
+		if !exists {
+			continue
+		}
+		if err := installer.RemoveArtifacts(entry.Artifacts, projectRoot, force); err != nil {
+			return fmt.Errorf("remove project artifacts from %s: %w", projectRoot, err)
+		}
+		delete(skills, skillName)
+		if len(skills) == 0 {
+			delete(lock.Projects, projectRoot)
+		} else {
+			lock.Projects[projectRoot] = skills
+		}
+	}
+	return nil
 }
 
 func loadInstallationState(globalScope, projectScope bool) (state.Scope, state.Manifest, state.Lock, error) {
@@ -355,17 +380,14 @@ func installManaged(
 		return false, err
 	}
 	var artifacts []state.LockArtifact
-	if previous != nil && !hooksEnabled && len(previous.Artifacts) > 0 {
-		if err := installer.RemoveArtifacts(previous.Artifacts, scope.Root, force); err != nil {
-			return false, err
-		}
-	}
-	if hooksEnabled {
+	instructionsEnabled := !scope.Global && hasProjectInstructions(resolved, targets)
+	if !scope.Global {
 		var previousArtifacts []state.LockArtifact
 		if previous != nil {
 			previousArtifacts = previous.Artifacts
 		}
-		artifacts, err = installer.InstallArtifacts(resolved, targets, scope.Root, previousArtifacts, force)
+		selected := installer.ProjectArtifacts(resolved, hooksEnabled)
+		artifacts, err = installer.InstallArtifacts(selected, targets, scope.Root, previousArtifacts, force)
 		if err != nil {
 			return false, err
 		}
@@ -379,6 +401,7 @@ func installManaged(
 		Catalog: resolved.Catalog.Name, Source: source, Ref: resolved.Catalog.Registration.Ref,
 		Commit: resolved.Catalog.Commit, Digest: resolved.Digest, TargetDigests: targetDigests,
 		Targets: targetNames, Locations: locations, Artifacts: artifacts,
+		Instructions: instructionsEnabled, Hooks: hooksEnabled,
 		Declared: origin == state.LockOriginDeclared, Origin: origin,
 	}
 	if origin == state.LockOriginDeclared && requirementsManifest != nil {
@@ -429,7 +452,7 @@ func resolveHookChoice(
 	if choice == hookChoiceNo || !interactiveInput(command.InOrStdin()) {
 		return false, nil
 	}
-	_, _ = fmt.Fprint(command.OutOrStdout(), "Install managed hooks and project instructions? [y/N] ")
+	_, _ = fmt.Fprint(command.OutOrStdout(), "Install optional managed hooks and project integrations? [y/N] ")
 	answer, err := bufio.NewReader(command.InOrStdin()).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return false, err
@@ -444,6 +467,18 @@ func hasManagedArtifacts(resolved installer.ResolvedSkill, targets []installer.T
 	}
 	for _, target := range targets {
 		if len(resolved.Artifacts[target.Name]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasProjectInstructions(resolved installer.ResolvedSkill, targets []installer.Target) bool {
+	if len(resolved.Instructions["all"]) > 0 {
+		return true
+	}
+	for _, target := range targets {
+		if len(resolved.Instructions[target.Name]) > 0 {
 			return true
 		}
 	}

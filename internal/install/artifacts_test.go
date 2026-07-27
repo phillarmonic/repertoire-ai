@@ -18,7 +18,8 @@ func TestMarkdownArtifactInstallUpdateAndRemovePreservesUserContent(t *testing.T
 		t.Fatal(err)
 	}
 	destination := filepath.Join(project, "AGENTS.md")
-	if err := os.WriteFile(destination, []byte("# User instructions\n\nKeep this.\n"), 0o644); err != nil {
+	original := "# User instructions\n\nKeep this.\n"
+	if err := os.WriteFile(destination, []byte(original), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	resolved := artifactFixture("markdown-section", source, "AGENTS.md")
@@ -48,9 +49,70 @@ func TestMarkdownArtifactInstallUpdateAndRemovePreservesUserContent(t *testing.T
 		t.Fatal(err)
 	}
 	content = readTestFile(t, destination)
-	if !strings.Contains(content, "Keep this.") || strings.Contains(content, "Graphify") ||
-		strings.Contains(content, "repertoire:") {
-		t.Fatalf("removed Markdown:\n%s", content)
+	if content != original {
+		t.Fatalf("removed Markdown = %q, want original %q", content, original)
+	}
+}
+
+func TestMarkdownArtifactRemovalRestoresTrailingNewlines(t *testing.T) {
+	testCases := map[string]string{
+		"empty":                "",
+		"no trailing newline":  "User content",
+		"one trailing newline": "User content\n",
+		"several newlines":     "User content\n\n\n",
+		"leading newline":      "\nUser content\n",
+	}
+	for name, original := range testCases {
+		t.Run(name, func(t *testing.T) {
+			project := t.TempDir()
+			source := filepath.Join(t.TempDir(), "agents.md")
+			if err := os.WriteFile(source, []byte("Managed content\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			destination := filepath.Join(project, "AGENTS.md")
+			if err := os.WriteFile(destination, []byte(original), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			resolved := artifactFixture("markdown-section", source, "AGENTS.md")
+			installed, err := InstallArtifacts(resolved, []Target{{Name: "codex"}}, project, nil, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := InstallArtifacts(resolved, []Target{{Name: "codex"}}, project, installed, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := RemoveArtifacts(installed, project, false); err != nil {
+				t.Fatal(err)
+			}
+			if content := readTestFile(t, destination); content != original {
+				t.Fatalf("removed Markdown = %q, want original %q", content, original)
+			}
+		})
+	}
+}
+
+func TestMarkdownArtifactRemovalSupportsLegacyLock(t *testing.T) {
+	project := t.TempDir()
+	source := filepath.Join(t.TempDir(), "agents.md")
+	if err := os.WriteFile(source, []byte("Managed content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(project, "AGENTS.md")
+	original := "User content\n"
+	if err := os.WriteFile(destination, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolved := artifactFixture("markdown-section", source, "AGENTS.md")
+	installed, err := InstallArtifacts(resolved, []Target{{Name: "codex"}}, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed[0].MarkdownSeparator = ""
+	if err := RemoveArtifacts(installed, project, false); err != nil {
+		t.Fatal(err)
+	}
+	if content := readTestFile(t, destination); content != original {
+		t.Fatalf("removed Markdown = %q, want original %q", content, original)
 	}
 }
 
@@ -159,6 +221,57 @@ func TestArtifactUpdateRemovesRetiredEntries(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(project, "GRAPHIFY.md")); err != nil {
 		t.Fatalf("replacement artifact missing: %v", err)
+	}
+}
+
+func TestAllArtifactsInstallOnceAcrossTargets(t *testing.T) {
+	project := t.TempDir()
+	source := filepath.Join(t.TempDir(), "post-commit")
+	if err := os.WriteFile(source, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolved := ResolvedSkill{
+		Name: "graphify",
+		Artifacts: map[string][]ResolvedArtifact{
+			"all": {{
+				ArtifactEntry: state.ArtifactEntry{
+					ID:          "git-post-commit",
+					Source:      filepath.Base(source),
+					Destination: ".git/hooks/post-commit",
+					Mode:        state.ArtifactModeCopy,
+					Executable:  true,
+				},
+				SourcePath: source,
+			}},
+		},
+	}
+	targets := []Target{{Name: "codex"}, {Name: "copilot"}}
+	installed, err := InstallArtifacts(resolved, targets, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 1 || installed[0].Target != "all" {
+		t.Fatalf("installed artifacts = %+v, want one target=all entry", installed)
+	}
+	info, err := os.Stat(installed[0].Destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Fatalf("shared hook mode = %v, want executable", info.Mode())
+	}
+	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 1 || updated[0].Target != "all" {
+		t.Fatalf("updated artifacts = %+v, want one target=all entry", updated)
+	}
+	if err := RemoveArtifacts(updated, project, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(installed[0].Destination); !os.IsNotExist(err) {
+		t.Fatalf("shared hook remains after removal: %v", err)
 	}
 }
 

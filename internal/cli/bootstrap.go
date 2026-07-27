@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
+	installer "github.com/phillarmonic/repertoire-ai/internal/install"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 	"github.com/spf13/cobra"
 )
@@ -110,6 +111,22 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		); err != nil {
 			return err
 		}
+		if declaration.Scope == state.BootstrapScopeGlobal {
+			entry := globalLock.Skills[name]
+			if err := installBootstrapProjectArtifacts(
+				projectScope,
+				globalScope.LockPath,
+				resolutionManifest,
+				&globalLock,
+				name,
+				declaration.Catalog,
+				entry.Targets,
+				declaration.Hooks,
+				force,
+			); err != nil {
+				return err
+			}
+		}
 		action := "bootstrapped"
 		if refresh {
 			action = "synced"
@@ -117,6 +134,66 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s (%s)\n", action, name, declaration.Scope)
 	}
 	return nil
+}
+
+func installBootstrapProjectArtifacts(
+	projectScope state.Scope,
+	globalLockPath string,
+	resolutionManifest state.Manifest,
+	globalLock *state.Lock,
+	name, catalogName string,
+	targetNames []string,
+	includeOptional, force bool,
+) error {
+	manager, err := catalog.NewManager("")
+	if err != nil {
+		return err
+	}
+	resolved, err := installer.Resolve(manager, resolutionManifest, name, catalogName, false)
+	if err != nil {
+		return err
+	}
+	targets, err := installer.ResolveTargets(projectScope, targetNames, "")
+	if err != nil {
+		return err
+	}
+	projectArtifacts := globalLock.Projects[projectScope.Root]
+	if projectArtifacts == nil {
+		projectArtifacts = map[string]state.LockProjectArtifacts{}
+	}
+	previous := projectArtifacts[name]
+	selected := installer.ProjectArtifacts(resolved, includeOptional)
+	artifacts, err := installer.InstallArtifacts(
+		selected,
+		targets,
+		projectScope.Root,
+		previous.Artifacts,
+		force,
+	)
+	if err != nil {
+		return err
+	}
+	if len(artifacts) == 0 {
+		delete(projectArtifacts, name)
+		if len(projectArtifacts) == 0 {
+			delete(globalLock.Projects, projectScope.Root)
+		} else {
+			globalLock.Projects[projectScope.Root] = projectArtifacts
+		}
+		return state.SaveLock(globalLockPath, *globalLock)
+	}
+	projectArtifacts[name] = state.LockProjectArtifacts{
+		Catalog:      resolved.Catalog.Name,
+		Source:       catalog.RedactSource(resolved.Catalog.Registration.Source),
+		Ref:          resolved.Catalog.Registration.Ref,
+		Commit:       resolved.Catalog.Commit,
+		Targets:      targetNames,
+		Artifacts:    artifacts,
+		Instructions: hasProjectInstructions(resolved, targets),
+		Hooks:        includeOptional && hasManagedArtifacts(resolved, targets),
+	}
+	globalLock.Projects[projectScope.Root] = projectArtifacts
+	return state.SaveLock(globalLockPath, *globalLock)
 }
 
 func loadOrCreateBootstrapManifest(path string, refresh bool) (state.BootstrapManifest, bool, error) {

@@ -29,9 +29,10 @@ type CatalogDefinition struct {
 }
 
 type SkillEntry struct {
-	Path      string                     `yaml:"path"`
-	Variants  map[string]string          `yaml:"variants,omitempty"`
-	Artifacts map[string][]ArtifactEntry `yaml:"artifacts,omitempty"`
+	Path         string                     `yaml:"path"`
+	Variants     map[string]string          `yaml:"variants,omitempty"`
+	Instructions map[string][]ArtifactEntry `yaml:"instructions,omitempty"`
+	Artifacts    map[string][]ArtifactEntry `yaml:"artifacts,omitempty"`
 }
 
 const (
@@ -123,34 +124,12 @@ func (m Manifest) Validate() error {
 					return fmt.Errorf("skill %q variant %q path: %w", name, target, err)
 				}
 			}
-			for target, artifacts := range entry.Artifacts {
-				if err := ValidateName(target); err != nil {
-					return fmt.Errorf("skill %q artifact target %q: %w", name, target, err)
-				}
-				seen := map[string]struct{}{}
-				for _, artifact := range artifacts {
-					if err := ValidateName(artifact.ID); err != nil {
-						return fmt.Errorf("skill %q artifact %q id: %w", name, artifact.ID, err)
-					}
-					if _, exists := seen[artifact.ID]; exists {
-						return fmt.Errorf("skill %q repeats artifact id %q for target %q", name, artifact.ID, target)
-					}
-					seen[artifact.ID] = struct{}{}
-					if err := ValidateRelativePath(artifact.Source); err != nil {
-						return fmt.Errorf("skill %q artifact %q source: %w", name, artifact.ID, err)
-					}
-					if err := ValidateRelativePath(artifact.Destination); err != nil {
-						return fmt.Errorf("skill %q artifact %q destination: %w", name, artifact.ID, err)
-					}
-					switch artifact.Mode {
-					case ArtifactModeCopy, ArtifactModeMarkdownSection, ArtifactModeJSONMerge:
-					default:
-						return fmt.Errorf("skill %q artifact %q has unknown mode %q", name, artifact.ID, artifact.Mode)
-					}
-					if artifact.Executable && artifact.Mode != ArtifactModeCopy {
-						return fmt.Errorf("skill %q artifact %q can only be executable in copy mode", name, artifact.ID)
-					}
-				}
+			usedArtifactIDs := map[string]map[string]string{}
+			if err := validateArtifactEntries(name, "instruction", entry.Instructions, usedArtifactIDs); err != nil {
+				return err
+			}
+			if err := validateArtifactEntries(name, "artifact", entry.Artifacts, usedArtifactIDs); err != nil {
+				return err
 			}
 		}
 	}
@@ -168,6 +147,52 @@ func (m Manifest) Validate() error {
 		}
 		if err := ValidateName(requirement.Catalog); err != nil {
 			return fmt.Errorf("requirement %q catalog: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func validateArtifactEntries(
+	skillName, kind string,
+	entries map[string][]ArtifactEntry,
+	usedIDs map[string]map[string]string,
+) error {
+	for target, artifacts := range entries {
+		if err := ValidateName(target); err != nil {
+			return fmt.Errorf("skill %q %s target %q: %w", skillName, kind, target, err)
+		}
+		if usedIDs[target] == nil {
+			usedIDs[target] = map[string]string{}
+		}
+		for _, artifact := range artifacts {
+			if err := ValidateName(artifact.ID); err != nil {
+				return fmt.Errorf("skill %q %s %q id: %w", skillName, kind, artifact.ID, err)
+			}
+			if previousKind, exists := usedIDs[target][artifact.ID]; exists {
+				return fmt.Errorf(
+					"skill %q repeats managed artifact id %q for target %q across %s and %s entries",
+					skillName,
+					artifact.ID,
+					target,
+					previousKind,
+					kind,
+				)
+			}
+			usedIDs[target][artifact.ID] = kind
+			if err := ValidateRelativePath(artifact.Source); err != nil {
+				return fmt.Errorf("skill %q %s %q source: %w", skillName, kind, artifact.ID, err)
+			}
+			if err := ValidateRelativePath(artifact.Destination); err != nil {
+				return fmt.Errorf("skill %q %s %q destination: %w", skillName, kind, artifact.ID, err)
+			}
+			switch artifact.Mode {
+			case ArtifactModeCopy, ArtifactModeMarkdownSection, ArtifactModeJSONMerge:
+			default:
+				return fmt.Errorf("skill %q %s %q has unknown mode %q", skillName, kind, artifact.ID, artifact.Mode)
+			}
+			if artifact.Executable && artifact.Mode != ArtifactModeCopy {
+				return fmt.Errorf("skill %q %s %q can only be executable in copy mode", skillName, kind, artifact.ID)
+			}
 		}
 	}
 	return nil

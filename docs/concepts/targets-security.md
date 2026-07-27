@@ -57,10 +57,13 @@ The expanded concrete target names—not `all`—are saved in the manifest and l
 - Installation is staged beside the destination and then renamed atomically.
 - An unmanaged or locally modified destination is preserved. Replacement requires an explicit `--force`.
 - Skill scripts are copied as data and are never executed during installation.
-- Catalogs may declare managed project artifacts. Repertoire supports whole-file copies, marked Markdown sections, and
-  additive JSON-object merges.
-- Managed artifacts are project-scoped. Interactive `add` prompts before installing them; noninteractive commands
-  require `--with-hooks`.
-- `--no-hooks` removes previously managed artifact content. Unrelated Markdown, JSON entries, and locally modified files
+- Catalogs may declare always-on project instructions and optional managed artifacts. Repertoire supports whole-file
+  copies, marked Markdown sections, and additive JSON-object merges.
+- Project instructions install whenever their target is installed in project scope. Bootstrap also installs them into
+  the worktree for global-scope skills while keeping the full skill under the user's home directory.
+- Interactive `add` prompts before installing optional hooks and integrations; noninteractive commands require
+  `--with-hooks`.
+- `--no-hooks` removes previously managed optional artifacts while retaining project instructions. Unrelated Markdown,
+  JSON entries, and locally modified files
   are preserved or rejected unless
   `--force` is explicit.

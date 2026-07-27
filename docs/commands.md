@@ -32,10 +32,12 @@ catalog source and short skill name together. If several catalogs define a short
 name, Repertoire lists every definition (with source-qualified IDs) and requires
 `--catalog` or a source-qualified ID.
 
-Catalog skills can expose managed hooks and project instructions. Interactive
-`add` asks before installing them. Noninteractive use skips them unless
-`--with-hooks` is present; `--no-hooks` makes the skip explicit. The selected
-choice is stored for declared requirements.
+Catalog skills can expose always-on project instructions plus optional hooks
+and integrations. Matching instructions are installed for every project-scope
+installation. Interactive `add` asks before installing optional artifacts.
+Noninteractive use skips optional artifacts unless `--with-hooks` is present;
+`--no-hooks` makes the skip explicit. The selected choice is stored for
+declared requirements.
 
 ## Synchronize
 
@@ -74,6 +76,12 @@ when the project should refresh tracking catalogs before updating declarations:
 ```bash
 repertoire sync
 ```
+
+For a global-scope skill, bootstrap may also manage small catalog-declared
+instruction pointers in the worktree. Their state is stored in the global
+Repertoire lock, so the repository does not gain a project lock merely for the
+pointer. `hooks: true` in the bootstrap declaration additionally installs
+optional hooks and integrations into that worktree.
 
 Both commands process skills by name and stop at the first error. Work completed
 before an error remains installed and locked. They never remove skills omitted
