@@ -18,20 +18,11 @@ const (
 )
 
 var bootstrapTargets = map[string]struct{}{
-	"agents":   {},
-	"claude":   {},
-	"cline":    {},
-	"codex":    {},
-	"copilot":  {},
-	"cursor":   {},
-	"gemini":   {},
-	"junie":    {},
-	"kimi":     {},
-	"kiro":     {},
-	"opencode": {},
-	"openclaw": {},
-	"roo":      {},
-	"windsurf": {},
+	"agents": {}, "aider": {}, "amp": {}, "antigravity": {}, "antigravity-windows": {},
+	"claude": {}, "claw": {}, "cline": {}, "codebuddy": {}, "codex": {}, "copilot": {},
+	"cursor": {}, "devin": {}, "droid": {}, "gemini": {}, "hermes": {}, "junie": {},
+	"kilo": {}, "kimi": {}, "kiro": {}, "opencode": {}, "openclaw": {}, "pi": {},
+	"roo": {}, "trae": {}, "trae-cn": {}, "vscode": {}, "windows": {}, "windsurf": {},
 }
 
 type BootstrapManifest struct {
@@ -44,6 +35,7 @@ type BootstrapSkill struct {
 	Catalog string   `yaml:"catalog,omitempty"`
 	Scope   string   `yaml:"scope,omitempty"`
 	Targets []string `yaml:"targets,omitempty"`
+	Hooks   bool     `yaml:"hooks,omitempty"`
 }
 
 func LoadBootstrapManifest(path string) (BootstrapManifest, error) {

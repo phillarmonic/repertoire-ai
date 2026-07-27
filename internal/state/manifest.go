@@ -29,7 +29,24 @@ type CatalogDefinition struct {
 }
 
 type SkillEntry struct {
-	Path string `yaml:"path"`
+	Path         string                     `yaml:"path"`
+	Variants     map[string]string          `yaml:"variants,omitempty"`
+	Instructions map[string][]ArtifactEntry `yaml:"instructions,omitempty"`
+	Artifacts    map[string][]ArtifactEntry `yaml:"artifacts,omitempty"`
+}
+
+const (
+	ArtifactModeCopy            = "copy"
+	ArtifactModeMarkdownSection = "markdown-section"
+	ArtifactModeJSONMerge       = "json-merge"
+)
+
+type ArtifactEntry struct {
+	ID          string `yaml:"id"`
+	Source      string `yaml:"source"`
+	Destination string `yaml:"destination"`
+	Mode        string `yaml:"mode"`
+	Executable  bool   `yaml:"executable,omitempty"`
 }
 
 type CatalogRegistration struct {
@@ -40,6 +57,7 @@ type CatalogRegistration struct {
 type Requirement struct {
 	Catalog string   `yaml:"catalog"`
 	Targets []string `yaml:"targets,omitempty"`
+	Hooks   bool     `yaml:"hooks,omitempty"`
 }
 
 func NewManifest() Manifest {
@@ -98,6 +116,21 @@ func (m Manifest) Validate() error {
 			if err := ValidateRelativePath(entry.Path); err != nil {
 				return fmt.Errorf("skill %q path: %w", name, err)
 			}
+			for target, path := range entry.Variants {
+				if err := ValidateName(target); err != nil {
+					return fmt.Errorf("skill %q variant %q: %w", name, target, err)
+				}
+				if err := ValidateRelativePath(path); err != nil {
+					return fmt.Errorf("skill %q variant %q path: %w", name, target, err)
+				}
+			}
+			usedArtifactIDs := map[string]map[string]string{}
+			if err := validateArtifactEntries(name, "instruction", entry.Instructions, usedArtifactIDs); err != nil {
+				return err
+			}
+			if err := validateArtifactEntries(name, "artifact", entry.Artifacts, usedArtifactIDs); err != nil {
+				return err
+			}
 		}
 	}
 	for name, catalog := range m.Catalogs {
@@ -114,6 +147,52 @@ func (m Manifest) Validate() error {
 		}
 		if err := ValidateName(requirement.Catalog); err != nil {
 			return fmt.Errorf("requirement %q catalog: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func validateArtifactEntries(
+	skillName, kind string,
+	entries map[string][]ArtifactEntry,
+	usedIDs map[string]map[string]string,
+) error {
+	for target, artifacts := range entries {
+		if err := ValidateName(target); err != nil {
+			return fmt.Errorf("skill %q %s target %q: %w", skillName, kind, target, err)
+		}
+		if usedIDs[target] == nil {
+			usedIDs[target] = map[string]string{}
+		}
+		for _, artifact := range artifacts {
+			if err := ValidateName(artifact.ID); err != nil {
+				return fmt.Errorf("skill %q %s %q id: %w", skillName, kind, artifact.ID, err)
+			}
+			if previousKind, exists := usedIDs[target][artifact.ID]; exists {
+				return fmt.Errorf(
+					"skill %q repeats managed artifact id %q for target %q across %s and %s entries",
+					skillName,
+					artifact.ID,
+					target,
+					previousKind,
+					kind,
+				)
+			}
+			usedIDs[target][artifact.ID] = kind
+			if err := ValidateRelativePath(artifact.Source); err != nil {
+				return fmt.Errorf("skill %q %s %q source: %w", skillName, kind, artifact.ID, err)
+			}
+			if err := ValidateRelativePath(artifact.Destination); err != nil {
+				return fmt.Errorf("skill %q %s %q destination: %w", skillName, kind, artifact.ID, err)
+			}
+			switch artifact.Mode {
+			case ArtifactModeCopy, ArtifactModeMarkdownSection, ArtifactModeJSONMerge:
+			default:
+				return fmt.Errorf("skill %q %s %q has unknown mode %q", skillName, kind, artifact.ID, artifact.Mode)
+			}
+			if artifact.Executable && artifact.Mode != ArtifactModeCopy {
+				return fmt.Errorf("skill %q %s %q can only be executable in copy mode", skillName, kind, artifact.ID)
+			}
 		}
 	}
 	return nil

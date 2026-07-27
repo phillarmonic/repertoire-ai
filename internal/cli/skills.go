@@ -1,7 +1,11 @@
 package cli
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -14,6 +18,7 @@ import (
 func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	var catalogName string
 	var requestedTargets []string
+	var addWithHooks, addNoHooks bool
 	add := &cobra.Command{
 		Use:   "add <skill>",
 		Short: "Declare and install a skill",
@@ -23,7 +28,11 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := installNamed(scope, &manifest, &lock, args[0], catalogName, requestedTargets, true, *force, false); err != nil {
+			hooks, err := hookChoiceFromFlags(addWithHooks, addNoHooks, hookChoicePrompt)
+			if err != nil {
+				return err
+			}
+			if _, err := installNamed(command, scope, &manifest, &lock, args[0], catalogName, requestedTargets, true, *force, false, hooks); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s\n", args[0], lock.Skills[args[0]].Catalog)
@@ -32,18 +41,25 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	}
 	add.Flags().StringVar(&catalogName, "catalog", "", "resolve from this catalog")
 	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable)")
+	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName)
 	_ = add.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = add.RegisterFlagCompletionFunc("target", completeTargets)
 
 	var installCatalog string
 	var installTargets []string
+	var installWithHooks, installNoHooks bool
 	installCommand := &cobra.Command{
 		Use:   "install [skill]",
 		Short: "Install one skill or synchronize requirements",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
+			if err != nil {
+				return err
+			}
+			hooks, err := hookChoiceFromFlags(installWithHooks, installNoHooks, hookChoicePrompt)
 			if err != nil {
 				return err
 			}
@@ -58,8 +74,14 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 					if len(targets) == 0 {
 						targets = requirement.Targets
 					}
+					if !installWithHooks && !installNoHooks {
+						hooks = hookChoiceNo
+						if requirement.Hooks {
+							hooks = hookChoiceYes
+						}
+					}
 				}
-				if err := installNamed(scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", args[0])
@@ -72,7 +94,14 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				if len(installTargets) > 0 {
 					targets = installTargets
 				}
-				if err := installNamed(scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false); err != nil {
+				requirementHooks := hooks
+				if !installWithHooks && !installNoHooks {
+					requirementHooks = hookChoiceNo
+					if requirement.Hooks {
+						requirementHooks = hookChoiceYes
+					}
+				}
+				if _, err := installNamed(command, scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false, requirementHooks); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", name)
@@ -82,6 +111,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	}
 	installCommand.Flags().StringVar(&installCatalog, "catalog", "", "resolve from this catalog")
 	installCommand.Flags().StringSliceVar(&installTargets, "target", nil, "agent target (repeatable)")
+	installCommand.Flags().BoolVar(&installWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	installCommand.Flags().BoolVar(&installNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	installCommand.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &installCatalog)
 	_ = installCommand.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = installCommand.RegisterFlagCompletionFunc("target", completeTargets)
@@ -145,6 +176,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	_ = list.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 
 	var updateTargets []string
+	var updateWithHooks, updateNoHooks bool
 	update := &cobra.Command{
 		Use:   "update [skill]",
 		Short: "Refresh and update installed skills",
@@ -193,7 +225,15 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				if len(updateTargets) > 0 {
 					targets = updateTargets
 				}
-				if err := installNamed(scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true); err != nil {
+				hooks, err := hookChoiceFromFlags(updateWithHooks, updateNoHooks, hookChoiceNo)
+				if err != nil {
+					return err
+				}
+				if !updateWithHooks && !updateNoHooks &&
+					(entry.Hooks || (!entry.Instructions && len(entry.Artifacts) > 0)) {
+					hooks = hookChoiceYes
+				}
+				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "updated %s\n", name)
@@ -202,6 +242,8 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 		},
 	}
 	update.Flags().StringSliceVar(&updateTargets, "target", nil, "agent target (repeatable; use \"all\" for every target)")
+	update.Flags().BoolVar(&updateWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
+	update.Flags().BoolVar(&updateNoHooks, "no-hooks", false, "remove optional managed hooks and project integrations")
 	update.ValidArgsFunction = completeInstalledSkillsAndCatalogs(globalScope, projectScope)
 	_ = update.RegisterFlagCompletionFunc("target", completeTargets)
 	remove := &cobra.Command{
@@ -220,6 +262,14 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			targets, err := installer.ResolveTargets(scope, entry.Targets, "")
 			if err != nil {
 				return err
+			}
+			if err := installer.RemoveArtifacts(entry.Artifacts, scope.Root, *force); err != nil {
+				return err
+			}
+			if scope.Global {
+				if err := removeGlobalProjectArtifacts(&lock, args[0], *force); err != nil {
+					return err
+				}
 			}
 			if err := installer.Remove(args[0], targets, entry, *force); err != nil {
 				return err
@@ -242,6 +292,25 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	return []*cobra.Command{add, installCommand, list, update, remove}
 }
 
+func removeGlobalProjectArtifacts(lock *state.Lock, skillName string, force bool) error {
+	for projectRoot, skills := range lock.Projects {
+		entry, exists := skills[skillName]
+		if !exists {
+			continue
+		}
+		if err := installer.RemoveArtifacts(entry.Artifacts, projectRoot, force); err != nil {
+			return fmt.Errorf("remove project artifacts from %s: %w", projectRoot, err)
+		}
+		delete(skills, skillName)
+		if len(skills) == 0 {
+			delete(lock.Projects, projectRoot)
+		} else {
+			lock.Projects[projectRoot] = skills
+		}
+	}
+	return nil
+}
+
 func loadInstallationState(globalScope, projectScope bool) (state.Scope, state.Manifest, state.Lock, error) {
 	scope, manifest, err := loadScope(globalScope, projectScope)
 	if err != nil {
@@ -251,15 +320,25 @@ func loadInstallationState(globalScope, projectScope bool) (state.Scope, state.M
 	return scope, manifest, lock, err
 }
 
-func installNamed(scope state.Scope, manifest *state.Manifest, lock *state.Lock, name, catalogName string, requestedTargets []string, declared, force, refresh bool) error {
+func installNamed(
+	command *cobra.Command,
+	scope state.Scope,
+	manifest *state.Manifest,
+	lock *state.Lock,
+	name, catalogName string,
+	requestedTargets []string,
+	declared, force, refresh bool,
+	hooks hookChoice,
+) (bool, error) {
 	origin := state.LockOriginAdHoc
 	if declared {
 		origin = state.LockOriginDeclared
 	}
-	return installManaged(scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false)
+	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks)
 }
 
 func installManaged(
+	command *cobra.Command,
 	scope state.Scope,
 	resolutionManifest state.Manifest,
 	requirementsManifest *state.Manifest,
@@ -268,32 +347,50 @@ func installManaged(
 	requestedTargets []string,
 	origin string,
 	force, refresh, protectGlobal bool,
-) error {
+	hooks hookChoice,
+) (bool, error) {
 	manager, err := catalog.NewManager("")
 	if err != nil {
-		return err
+		return false, err
 	}
 	resolved, err := installer.Resolve(manager, resolutionManifest, name, catalogName, refresh)
 	if err != nil {
-		return err
+		return false, err
 	}
 	targets, err := installer.ResolveTargets(scope, requestedTargets, "")
 	if err != nil {
-		return err
+		return false, err
 	}
 	var previous *state.LockSkill
 	if entry, exists := lock.Skills[name]; exists {
 		if protectGlobal && scope.Global && !force {
 			source := catalog.RedactSource(catalog.NormalizeSource(resolved.Catalog.Registration.Source))
 			if entry.Catalog != resolved.Catalog.Name || entry.Source != source || entry.Ref != resolved.Catalog.Registration.Ref {
-				return fmt.Errorf("global skill %q is managed from a different catalog source or ref; use --force to replace it", name)
+				return false, fmt.Errorf("global skill %q is managed from a different catalog source or ref; use --force to replace it", name)
 			}
 		}
 		previous = &entry
 	}
-	locations, err := installer.Skill(resolved, targets, previous, force)
+	locations, targetDigests, err := installer.SkillWithDigests(resolved, targets, previous, force)
 	if err != nil {
-		return err
+		return false, err
+	}
+	hooksEnabled, err := resolveHookChoice(command, scope, resolved, targets, hooks)
+	if err != nil {
+		return false, err
+	}
+	var artifacts []state.LockArtifact
+	instructionsEnabled := !scope.Global && hasProjectInstructions(resolved, targets)
+	if !scope.Global {
+		var previousArtifacts []state.LockArtifact
+		if previous != nil {
+			previousArtifacts = previous.Artifacts
+		}
+		selected := installer.ProjectArtifacts(resolved, hooksEnabled)
+		artifacts, err = installer.InstallArtifacts(selected, targets, scope.Root, previousArtifacts, force)
+		if err != nil {
+			return false, err
+		}
 	}
 	targetNames := make([]string, 0, len(targets))
 	for _, target := range targets {
@@ -302,16 +399,99 @@ func installManaged(
 	source := catalog.RedactSource(resolved.Catalog.Registration.Source)
 	lock.Skills[name] = state.LockSkill{
 		Catalog: resolved.Catalog.Name, Source: source, Ref: resolved.Catalog.Registration.Ref,
-		Commit: resolved.Catalog.Commit, Digest: resolved.Digest, Targets: targetNames,
-		Locations: locations, Declared: origin == state.LockOriginDeclared, Origin: origin,
+		Commit: resolved.Catalog.Commit, Digest: resolved.Digest, TargetDigests: targetDigests,
+		Targets: targetNames, Locations: locations, Artifacts: artifacts,
+		Instructions: instructionsEnabled, Hooks: hooksEnabled,
+		Declared: origin == state.LockOriginDeclared, Origin: origin,
 	}
 	if origin == state.LockOriginDeclared && requirementsManifest != nil {
-		requirementsManifest.Requirements[name] = state.Requirement{Catalog: resolved.Catalog.Name, Targets: targetNames}
+		requirementsManifest.Requirements[name] = state.Requirement{
+			Catalog: resolved.Catalog.Name, Targets: targetNames, Hooks: hooksEnabled,
+		}
 		if err := state.SaveManifest(scope.ManifestPath, *requirementsManifest); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return state.SaveLock(scope.LockPath, *lock)
+	return hooksEnabled, state.SaveLock(scope.LockPath, *lock)
+}
+
+type hookChoice int
+
+const (
+	hookChoicePrompt hookChoice = iota
+	hookChoiceYes
+	hookChoiceNo
+)
+
+func hookChoiceFromFlags(withHooks, noHooks bool, fallback hookChoice) (hookChoice, error) {
+	if withHooks && noHooks {
+		return fallback, errors.New("--with-hooks and --no-hooks are mutually exclusive")
+	}
+	if withHooks {
+		return hookChoiceYes, nil
+	}
+	if noHooks {
+		return hookChoiceNo, nil
+	}
+	return fallback, nil
+}
+
+func resolveHookChoice(
+	command *cobra.Command,
+	scope state.Scope,
+	resolved installer.ResolvedSkill,
+	targets []installer.Target,
+	choice hookChoice,
+) (bool, error) {
+	if scope.Global || !hasManagedArtifacts(resolved, targets) {
+		return false, nil
+	}
+	if choice == hookChoiceYes {
+		return true, nil
+	}
+	if choice == hookChoiceNo || !interactiveInput(command.InOrStdin()) {
+		return false, nil
+	}
+	_, _ = fmt.Fprint(command.OutOrStdout(), "Install optional managed hooks and project integrations? [y/N] ")
+	answer, err := bufio.NewReader(command.InOrStdin()).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false, err
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
+}
+
+func hasManagedArtifacts(resolved installer.ResolvedSkill, targets []installer.Target) bool {
+	if len(resolved.Artifacts["all"]) > 0 {
+		return true
+	}
+	for _, target := range targets {
+		if len(resolved.Artifacts[target.Name]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasProjectInstructions(resolved installer.ResolvedSkill, targets []installer.Target) bool {
+	if len(resolved.Instructions["all"]) > 0 {
+		return true
+	}
+	for _, target := range targets {
+		if len(resolved.Instructions[target.Name]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func interactiveInput(input io.Reader) bool {
+	file, ok := input.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 func catalogVisible(manifest state.Manifest, name string) bool {

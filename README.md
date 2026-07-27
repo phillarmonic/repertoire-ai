@@ -7,54 +7,65 @@ OpenClaw, or a shared `.agents` setup—without changing the open
 
 Use it to:
 
-- discover reusable skills from public catalogs, local paths, or private
-  company catalogs you host yourself;
+- discover reusable skills from public catalogs, local paths, or private company catalogs you host yourself;
 - install the same `SKILL.md` package across multiple AI coding agents;
 - keep managed skills updated without overwriting local changes;
 - automate team onboarding and agent setup with a checked-in
   `.repertoire.yaml`.
 
-The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
-skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
-Its skills can be referenced without declaring the repository or specifying a
-catalog when their names are unique among the visible catalogs.
+The built-in `phillarmonic` catalog provides Phillarmonic's official vendored skill set
+from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills). Its skills can be referenced without declaring
+the repository or specifying a catalog when their names are unique among the visible catalogs.
 
 ### Private Company Catalogs
 
-You can point Repertoire at your own Git-backed catalog: a private catalog of
-company-owned AI skills—just as you would a public one. Host the repository on
-GitHub, GitLab, Bitbucket, or any other Git remote your team already uses, then
+You can point Repertoire at your own Git-backed catalog: a private catalog of company-owned AI skills—just as you would
+a public one. Host the repository on GitHub, GitLab, Bitbucket, or any other Git remote your team already uses, then
 register it:
 
 ```shell
 repertoire catalog add git@github.com:your-org/company-skills.git --name company
 ```
 
-Access is gated by normal Git authentication only. Repertoire never stores
-tokens or passwords; it uses the same SSH agent, credential helper, or provider
-CLI (`gh auth setup-git`, and so on) that already lets `git clone` and
-`git ls-remote` reach that repository. Without credentials that can read the
-remote, the private catalog is unavailable. See
+Access is gated by normal Git authentication only. Repertoire never stores tokens or passwords; it uses the same SSH
+agent, credential helper, or provider CLI (`gh auth setup-git`, and so on) that already lets `git clone` and
+`git ls-remote` reach that repository. Without credentials that can read the remote, the private catalog is unavailable.
+See
 [Private repositories](https://phillarmonic.github.io/repertoire-ai/private-repositories/) for details.
 
 ### Supported agents and harnesses
 
-| Agent or harness               | Target     |
-|--------------------------------|------------|
-| Agent Skills shared convention | `agents`   |
-| Claude Code                    | `claude`   |
-| Cline                          | `cline`    |
-| Codex                          | `codex`    |
-| GitHub Copilot                 | `copilot`  |
-| Cursor                         | `cursor`   |
-| Gemini CLI                     | `gemini`   |
-| Junie                          | `junie`    |
-| Kimi Code                      | `kimi`     |
-| Kiro                           | `kiro`     |
-| OpenClaw                       | `openclaw` |
-| OpenCode                       | `opencode` |
-| Roo Code                       | `roo`      |
-| Windsurf                       | `windsurf` |
+| Agent or harness               | Target                |
+|--------------------------------|-----------------------|
+| Agent Skills shared convention | `agents`              |
+| Aider                          | `aider`               |
+| Amp                            | `amp`                 |
+| Antigravity                    | `antigravity`         |
+| Antigravity on Windows         | `antigravity-windows` |
+| Claude Code                    | `claude`              |
+| OpenClaw native layout         | `claw`                |
+| Cline                          | `cline`               |
+| CodeBuddy                      | `codebuddy`           |
+| Codex                          | `codex`               |
+| GitHub Copilot                 | `copilot`             |
+| Cursor                         | `cursor`              |
+| Devin                          | `devin`               |
+| Factory Droid                  | `droid`               |
+| Gemini CLI                     | `gemini`              |
+| Hermes                         | `hermes`              |
+| Junie                          | `junie`               |
+| Kilo Code                      | `kilo`                |
+| Kimi Code                      | `kimi`                |
+| Kiro                           | `kiro`                |
+| OpenClaw                       | `openclaw`            |
+| OpenCode                       | `opencode`            |
+| Pi                             | `pi`                  |
+| Roo Code                       | `roo`                 |
+| Trae                           | `trae`                |
+| Trae China                     | `trae-cn`             |
+| VS Code Copilot instructions   | `vscode`              |
+| Claude Code on Windows         | `windows`             |
+| Windsurf                       | `windsurf`            |
 
 ## Automate AI agent skill installation
 
@@ -66,16 +77,14 @@ at once:
 repertoire add zensical --target all
 ```
 
-Repertoire validates the portable `SKILL.md` package, installs it into each agent's native home-directory skills
-root by default, and records the exact catalog source and content digest. Unlike automatic target detection,
+Repertoire validates the portable `SKILL.md` package, installs it into each agent's native home-directory skills root by
+default, and records the exact catalog source and content digest. Unlike automatic target detection,
 `--target all` includes every supported target even when its configuration directory does not exist yet. Repeat
-`--target` with individual names when only a subset is needed. Use `--project` to install into a Git worktree
-instead.
+`--target` with individual names when only a subset is needed. Use `--project` to install into a Git worktree instead.
 
 Installed skills can also expose small file-backed stubs. The
-`repertoire stub get <skill>/<stub>` command gives an agent a verified asset
-path and authored instructions without changing the project or printing the
-asset contents.
+`repertoire stub get <skill>/<stub>` command gives an agent a verified asset path and authored instructions without
+changing the project or printing the asset contents.
 
 For repeatable developer onboarding and CI-managed environments, commit a
 `.repertoire.yaml` manifest and run:
@@ -85,7 +94,9 @@ repertoire bootstrap
 ```
 
 This gives teams one command to install or repair the required AI agent skills across supported tools without
-maintaining separate setup scripts for every agent.
+maintaining separate setup scripts for every agent. Catalog-provided project
+instructions remain small and project-local even when the full skill is
+installed globally.
 
 ## Install
 
@@ -121,8 +132,8 @@ Update an installed release in place:
 repertoire --self-update
 ```
 
-The updater verifies the release checksum and downloaded binary before replacing
-the current executable. It retains the five newest rollback copies under
+The updater verifies the release checksum and downloaded binary before replacing the current executable. It retains the
+five newest rollback copies under
 `~/.repertoire/backups`.
 
 To build from a local checkout instead:
@@ -174,11 +185,11 @@ repertoire update --target all
 ## Set up a project in one command
 
 Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, Repertoire creates one that lists
-built-in catalog skills with source-qualified IDs and `scope: global`—so the small manifest stays in the repo while skills
-install under home-directory agent roots.
+built-in catalog skills with source-qualified IDs and `scope: global`—so the small manifest stays in the repo while
+skills install under home-directory agent roots.
 
-You can also commit a custom `.repertoire.yaml`, including a private company
-catalog (reachable only with Git credentials that can read that remote):
+You can also commit a custom `.repertoire.yaml`, including a private company catalog (reachable only with Git
+credentials that can read that remote):
 
 ```yaml
 schema: 1
@@ -214,28 +225,33 @@ repertoire sync
 Project and global skills can be installed together. Removing an entry from the bootstrap manifest does not
 automatically delete an installed skill.
 
-For broad skills, prefer owner-prefixed kebab-case identifiers instead of
-generic names. For example, use a source-qualified manifest key such as
+Catalogs may distinguish always-on project instructions from optional hooks.
+Bootstrap installs instruction pointers into the worktree even for
+`scope: global` skills, while keeping their management state in Repertoire's
+global lock. Set `hooks: true` only when that repository should also receive
+the catalog's hook and integration artifacts. Removing the global skill also
+removes its recorded project artifacts without touching unrelated content.
+
+For broad skills, prefer owner-prefixed kebab-case identifiers instead of generic names. For example, use a
+source-qualified manifest key such as
 `github.com/example/company-skills/phillarmonkey-code` rather than a bare
-`code`, so agents and UIs can tell which vendor or personal catalog owns the
-behavior.
+`code`, so agents and UIs can tell which vendor or personal catalog owns the behavior.
 
 ## Everyday commands
 
-| Command                           | Purpose                                                                       |
-|-----------------------------------|-------------------------------------------------------------------------------|
-| `repertoire list --available`     | Refresh and browse skills visible in configured catalogs                      |
-| `repertoire add <skill>`          | Install a skill and declare it as a requirement                               |
-| `repertoire install [skill]`      | Install one skill or repair all requirements (`--target all` for every agent) |
+| Command                              | Purpose                                                                       |
+|--------------------------------------|-------------------------------------------------------------------------------|
+| `repertoire list --available`        | Refresh and browse skills visible in configured catalogs                      |
+| `repertoire add <skill>`             | Install a skill and declare it as a requirement                               |
+| `repertoire install [skill]`         | Install one skill or repair all requirements (`--target all` for every agent) |
 | `repertoire update [skill\|catalog]` | Refresh catalogs and update managed skills (`--target all` for every agent)   |
-| `repertoire remove <skill>`       | Safely remove a managed skill                                                 |
-| `repertoire catalog add <source>` | Register a public, private, or local catalog                                  |
-| `repertoire bootstrap`            | Install the skills in `.repertoire.yaml`                                      |
-| `repertoire sync`                 | Refresh catalogs and synchronize `.repertoire.yaml`                           |
+| `repertoire remove <skill>`          | Safely remove a managed skill                                                 |
+| `repertoire catalog add <source>`    | Register a public, private, or local catalog                                  |
+| `repertoire bootstrap`               | Install the skills in `.repertoire.yaml`                                      |
+| `repertoire sync`                    | Refresh catalogs and synchronize `.repertoire.yaml`                           |
 
-An unqualified skill name resolves automatically when exactly one visible
-catalog defines it. If multiple catalogs define the same name, Repertoire lists
-every matching catalog and source; repeat the command with `--catalog <name>`.
+An unqualified skill name resolves automatically when exactly one visible catalog defines it. If multiple catalogs
+define the same name, Repertoire lists every matching catalog and source; repeat the command with `--catalog <name>`.
 
 ## Shell completion
 

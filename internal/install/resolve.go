@@ -15,10 +15,24 @@ import (
 )
 
 type ResolvedSkill struct {
-	Name    string
-	Catalog catalog.Materialized
-	Root    string
-	Digest  string
+	Name         string
+	Catalog      catalog.Materialized
+	Root         string
+	Digest       string
+	Variants     map[string]ResolvedVariant
+	Instructions map[string][]ResolvedArtifact
+	Artifacts    map[string][]ResolvedArtifact
+}
+
+type ResolvedVariant struct {
+	Root   string
+	Digest string
+}
+
+type ResolvedArtifact struct {
+	state.ArtifactEntry
+	SourcePath string
+	Digest     string
 }
 
 func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogName string, refresh bool) (ResolvedSkill, error) {
@@ -49,7 +63,56 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 			if err != nil {
 				return ResolvedSkill{}, err
 			}
-			matches = append(matches, ResolvedSkill{Name: candidate, Catalog: materialized, Root: root, Digest: digest})
+			resolved := ResolvedSkill{
+				Name: candidate, Catalog: materialized, Root: root, Digest: digest,
+				Variants:     map[string]ResolvedVariant{},
+				Instructions: map[string][]ResolvedArtifact{},
+				Artifacts:    map[string][]ResolvedArtifact{},
+			}
+			for target, path := range entry.Variants {
+				variantRoot := filepath.Join(materialized.Root, filepath.FromSlash(path))
+				if err := validateSkill(variantRoot, candidate, false); err != nil {
+					return ResolvedSkill{}, fmt.Errorf("catalog %q variant %q: %w", source.Name, target, err)
+				}
+				variantDigest, err := Digest(variantRoot)
+				if err != nil {
+					return ResolvedSkill{}, err
+				}
+				resolved.Variants[target] = ResolvedVariant{Root: variantRoot, Digest: variantDigest}
+			}
+			resolveArtifacts := func(
+				kind string,
+				declarationsByTarget map[string][]state.ArtifactEntry,
+				destination map[string][]ResolvedArtifact,
+			) error {
+				for target, declarations := range declarationsByTarget {
+					for _, declaration := range declarations {
+						sourcePath := filepath.Join(materialized.Root, filepath.FromSlash(declaration.Source))
+						info, err := os.Lstat(sourcePath)
+						if err != nil {
+							return fmt.Errorf("catalog %q %s %q: %w", source.Name, kind, declaration.ID, err)
+						}
+						if !info.Mode().IsRegular() {
+							return fmt.Errorf("catalog %q %s %q source is not a regular file", source.Name, kind, declaration.ID)
+						}
+						artifactDigest, err := DigestFile(sourcePath)
+						if err != nil {
+							return err
+						}
+						destination[target] = append(destination[target], ResolvedArtifact{
+							ArtifactEntry: declaration, SourcePath: sourcePath, Digest: artifactDigest,
+						})
+					}
+				}
+				return nil
+			}
+			if err := resolveArtifacts("instruction", entry.Instructions, resolved.Instructions); err != nil {
+				return ResolvedSkill{}, err
+			}
+			if err := resolveArtifacts("artifact", entry.Artifacts, resolved.Artifacts); err != nil {
+				return ResolvedSkill{}, err
+			}
+			matches = append(matches, resolved)
 		}
 	}
 	if len(matches) == 0 {
@@ -102,14 +165,18 @@ type skillHeader struct {
 }
 
 func ValidateSkill(root, expectedName string) error {
-	info, err := os.Stat(root)
+	return validateSkill(root, expectedName, true)
+}
+
+func validateSkill(root, expectedName string, requireMatchingDirectory bool) error {
+	info, err := os.Lstat(root)
 	if err != nil {
 		return fmt.Errorf("inspect skill %q: %w", expectedName, err)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("skill %q path is not a directory", expectedName)
 	}
-	if filepath.Base(root) != catalogSkillLeaf(expectedName) {
+	if requireMatchingDirectory && filepath.Base(root) != catalogSkillLeaf(expectedName) {
 		return fmt.Errorf("skill %q directory name does not match", expectedName)
 	}
 	content, err := os.ReadFile(filepath.Join(root, "SKILL.md"))

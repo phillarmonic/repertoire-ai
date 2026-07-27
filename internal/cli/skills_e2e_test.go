@@ -109,6 +109,133 @@ func TestQualifiedCatalogSkillEndToEnd(t *testing.T) {
 	}
 }
 
+func TestPlatformVariantAndManagedHooksEndToEnd(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := t.TempDir()
+	writeGraphifyCatalogFixture(t, catalogRoot, "v1")
+
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "graphify")
+
+	runCommand(t, project, binary, "--project", "add", "graphify", "--catalog", "graphify", "--target", "codex")
+	assertFileContent(t, filepath.Join(project, ".codex", "skills", "graphify", "variant.txt"), "v1")
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v1")
+	if _, err := os.Stat(filepath.Join(project, ".codex", "hooks.json")); !os.IsNotExist(err) {
+		t.Fatalf("noninteractive install unexpectedly created hooks: %v", err)
+	}
+	runCommand(t, project, binary, "--project", "remove", "graphify")
+
+	if err := os.WriteFile(filepath.Join(project, "AGENTS.md"), []byte("# User\n\nKeep me.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(project, ".codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	userHooks := `{"hooks":{"PreToolUse":[{"matcher":"User","hooks":[{"command":"user-hook"}]}]}}`
+	if err := os.WriteFile(filepath.Join(project, ".codex", "hooks.json"), []byte(userHooks), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, project, binary, "--project", "add", "graphify", "--catalog", "graphify", "--target", "codex", "--with-hooks")
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v1", "Keep me.")
+	assertContainsFile(t, filepath.Join(project, ".codex", "hooks.json"), "graphify-v1", "user-hook")
+
+	writeGraphifyCatalogFixture(t, catalogRoot, "v2")
+	runCommand(t, project, binary, "--project", "update", "graphify")
+	assertFileContent(t, filepath.Join(project, ".codex", "skills", "graphify", "variant.txt"), "v2")
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v2", "Keep me.")
+	assertContainsFile(t, filepath.Join(project, ".codex", "hooks.json"), "graphify-v2", "user-hook")
+
+	runCommand(t, project, binary, "--project", "update", "graphify", "--no-hooks")
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Graphify v2", "Keep me.")
+	hooks := readFileForTest(t, filepath.Join(project, ".codex", "hooks.json"))
+	if !strings.Contains(hooks, "user-hook") || strings.Contains(hooks, "graphify-v2") {
+		t.Fatalf("hooks after --no-hooks:\n%s", hooks)
+	}
+
+	runCommand(t, project, binary, "--project", "update", "graphify", "--with-hooks")
+	runCommand(t, project, binary, "--project", "remove", "graphify")
+	assertContainsFile(t, filepath.Join(project, "AGENTS.md"), "Keep me.")
+	assertContainsFile(t, filepath.Join(project, ".codex", "hooks.json"), "user-hook")
+}
+
+func writeGraphifyCatalogFixture(t *testing.T, root, version string) {
+	t.Helper()
+	for _, directory := range []string{
+		filepath.Join(root, "skills", "graphify"),
+		filepath.Join(root, "platforms", "codex"),
+		filepath.Join(root, "project-files"),
+	} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	skill := "---\nname: graphify\ndescription: Test Graphify skill\n---\n"
+	for _, directory := range []string{
+		filepath.Join(root, "skills", "graphify"),
+		filepath.Join(root, "platforms", "codex"),
+	} {
+		if err := os.WriteFile(filepath.Join(directory, "SKILL.md"), []byte(skill), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "platforms", "codex", "variant.txt"), []byte(version), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "project-files", "agents.md"), []byte("## Graphify "+version+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hooks := `{"hooks":{"PreToolUse":[{"matcher":"Graphify","hooks":[{"command":"graphify-` + version + `"}]}]}}`
+	if err := os.WriteFile(filepath.Join(root, "project-files", "hooks.json"), []byte(hooks), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `schema: 1
+catalog:
+  name: graphify
+  skills:
+    graphify:
+      path: skills/graphify
+      variants:
+        codex: platforms/codex
+      instructions:
+        codex:
+          - id: guidance
+            source: project-files/agents.md
+            destination: AGENTS.md
+            mode: markdown-section
+      artifacts:
+        codex:
+          - id: hooks
+            source: project-files/hooks.json
+            destination: .codex/hooks.json
+            mode: json-merge
+`
+	if err := os.WriteFile(filepath.Join(root, "repertoire.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertContainsFile(t *testing.T, path string, values ...string) {
+	t.Helper()
+	content := readFileForTest(t, path)
+	for _, value := range values {
+		if !strings.Contains(content, value) {
+			t.Fatalf("%s does not contain %q:\n%s", path, value, content)
+		}
+	}
+}
+
+func readFileForTest(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(content)
+}
+
 func TestUpdateRefreshesCatalogsAndAvailableDiscovery(t *testing.T) {
 	binary := testBinaryPath(t)
 	moduleRoot := filepath.Clean(filepath.Join("..", ".."))

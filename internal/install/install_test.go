@@ -94,6 +94,37 @@ func TestQualifiedCatalogSkillInstallsToFlatDirectory(t *testing.T) {
 	}
 }
 
+func TestTargetVariantInstallsUnderLogicalSkillName(t *testing.T) {
+	t.Parallel()
+	defaultRoot := skillFixture(t, "graphify")
+	codexRoot := skillFixtureWithDirectory(t, "codex", "graphify")
+	defaultDigest, err := Digest(defaultRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codexDigest, err := Digest(codexRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := ResolvedSkill{
+		Name: "graphify", Root: defaultRoot, Digest: defaultDigest,
+		Variants: map[string]ResolvedVariant{"codex": {Root: codexRoot, Digest: codexDigest}},
+	}
+	targetRoot := filepath.Join(t.TempDir(), "skills")
+	locations, digests, err := SkillWithDigests(
+		resolved, []Target{{Name: "codex", Root: targetRoot}}, nil, false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(locations) != 1 || filepath.Base(locations[0]) != "graphify" {
+		t.Fatalf("variant locations = %v", locations)
+	}
+	if digests["codex"] != codexDigest {
+		t.Fatalf("variant digest = %q, want %q", digests["codex"], codexDigest)
+	}
+}
+
 func TestEscapingSymlinkRejected(t *testing.T) {
 	t.Parallel()
 	source := skillFixture(t, "escape")
@@ -162,16 +193,31 @@ func TestExplicitTargetRoots(t *testing.T) {
 		projectRoot string
 		globalRoot  string
 	}{
+		{"aider", filepath.Join(project, ".aider"), filepath.Join(home, ".aider")},
+		{"amp", filepath.Join(project, ".agents", "skills"), filepath.Join(home, ".config", "agents", "skills")},
+		{"antigravity", filepath.Join(project, ".agents", "skills"), filepath.Join(home, ".gemini", "config", "skills")},
+		{"antigravity-windows", filepath.Join(project, ".agents", "skills"), filepath.Join(home, ".gemini", "config", "skills")},
 		{"claude", filepath.Join(project, ".claude", "skills"), filepath.Join(home, ".claude", "skills")},
+		{"claw", filepath.Join(project, ".openclaw", "skills"), filepath.Join(home, ".openclaw", "skills")},
 		{"cline", filepath.Join(project, ".cline", "skills"), filepath.Join(home, ".cline", "skills")},
+		{"codebuddy", filepath.Join(project, ".codebuddy", "skills"), filepath.Join(home, ".codebuddy", "skills")},
 		{"cursor", filepath.Join(project, ".cursor", "skills"), filepath.Join(home, ".cursor", "skills")},
+		{"devin", filepath.Join(project, ".devin", "skills"), filepath.Join(home, ".config", "devin", "skills")},
+		{"droid", filepath.Join(project, ".factory", "skills"), filepath.Join(home, ".factory", "skills")},
 		{"gemini", filepath.Join(project, ".gemini", "skills"), filepath.Join(home, ".gemini", "skills")},
+		{"hermes", filepath.Join(project, ".hermes", "skills"), filepath.Join(home, ".hermes", "skills")},
 		{"junie", filepath.Join(project, ".junie", "skills"), filepath.Join(home, ".junie", "skills")},
+		{"kilo", filepath.Join(project, ".config", "kilo", "skills"), filepath.Join(home, ".config", "kilo", "skills")},
 		{"kimi", filepath.Join(project, ".kimi-code", "skills"), filepath.Join(home, ".kimi-code", "skills")},
 		{"kiro", filepath.Join(project, ".kiro", "skills"), filepath.Join(home, ".kiro", "skills")},
 		{"opencode", filepath.Join(project, ".opencode", "skills"), filepath.Join(home, ".config", "opencode", "skills")},
 		{"openclaw", filepath.Join(project, "skills"), filepath.Join(home, ".openclaw", "skills")},
+		{"pi", filepath.Join(project, ".pi", "agent", "skills"), filepath.Join(home, ".pi", "agent", "skills")},
 		{"roo", filepath.Join(project, ".roo", "skills"), filepath.Join(home, ".roo", "skills")},
+		{"trae", filepath.Join(project, ".trae", "skills"), filepath.Join(home, ".trae", "skills")},
+		{"trae-cn", filepath.Join(project, ".trae-cn", "skills"), filepath.Join(home, ".trae-cn", "skills")},
+		{"vscode", filepath.Join(project, ".github", "skills"), filepath.Join(home, ".copilot", "skills")},
+		{"windows", filepath.Join(project, ".claude", "skills"), filepath.Join(home, ".claude", "skills")},
 		{"windsurf", filepath.Join(project, ".windsurf", "skills"), filepath.Join(home, ".codeium", "windsurf", "skills")},
 	}
 	for _, test := range tests {

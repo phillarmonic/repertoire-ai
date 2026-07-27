@@ -16,8 +16,11 @@ type Target struct {
 }
 
 var supportedTargetNames = []string{
-	"agents", "claude", "cline", "codex", "copilot", "cursor", "gemini",
-	"junie", "kimi", "kiro", "openclaw", "opencode", "roo", "windsurf",
+	"agents", "aider", "amp", "antigravity", "antigravity-windows", "claude",
+	"claw", "cline", "codebuddy", "codex", "copilot", "cursor", "devin",
+	"droid", "gemini", "hermes", "junie", "kilo", "kimi", "kiro",
+	"openclaw", "opencode", "pi", "roo", "trae", "trae-cn", "vscode",
+	"windows", "windsurf",
 }
 
 func SupportedTargetNames() []string {
@@ -53,7 +56,7 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 
 	var result []Target
 	for _, name := range supportedTargetNames {
-		if name == "agents" {
+		if explicitOnlyTarget(name) {
 			continue
 		}
 		root, err := targetRoot(scope, home, name)
@@ -70,9 +73,24 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 	return deduplicateTargets(result), nil
 }
 
+func explicitOnlyTarget(name string) bool {
+	switch name {
+	case "agents", "amp", "antigravity", "antigravity-windows", "claw", "vscode", "windows":
+		return true
+	default:
+		return false
+	}
+}
+
 func targetRoot(scope state.Scope, home, name string) (string, error) {
 	if scope.Global {
 		switch name {
+		case "aider":
+			return filepath.Join(home, ".aider"), nil
+		case "amp":
+			return filepath.Join(home, ".config", "agents", "skills"), nil
+		case "antigravity", "antigravity-windows":
+			return filepath.Join(home, ".gemini", "config", "skills"), nil
 		case "codex":
 			base := os.Getenv("CODEX_HOME")
 			if base == "" {
@@ -81,14 +99,26 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(base, "skills"), nil
 		case "claude":
 			return filepath.Join(home, ".claude", "skills"), nil
+		case "windows":
+			return filepath.Join(home, ".claude", "skills"), nil
+		case "claw":
+			return filepath.Join(home, ".openclaw", "skills"), nil
 		case "cline":
 			return filepath.Join(home, ".cline", "skills"), nil
+		case "codebuddy":
+			return filepath.Join(home, ".codebuddy", "skills"), nil
 		case "copilot":
 			return filepath.Join(home, ".copilot", "skills"), nil
 		case "cursor":
 			return filepath.Join(home, ".cursor", "skills"), nil
 		case "gemini":
 			return filepath.Join(home, ".gemini", "skills"), nil
+		case "devin":
+			return filepath.Join(home, ".config", "devin", "skills"), nil
+		case "droid":
+			return filepath.Join(home, ".factory", "skills"), nil
+		case "hermes":
+			return filepath.Join(home, ".hermes", "skills"), nil
 		case "junie":
 			return filepath.Join(home, ".junie", "skills"), nil
 		case "kimi":
@@ -99,6 +129,8 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(base, "skills"), nil
 		case "opencode":
 			return filepath.Join(home, ".config", "opencode", "skills"), nil
+		case "kilo":
+			return filepath.Join(home, ".config", "kilo", "skills"), nil
 		case "openclaw":
 			base := os.Getenv("OPENCLAW_STATE_DIR")
 			if base == "" {
@@ -107,6 +139,14 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(base, "skills"), nil
 		case "kiro":
 			return filepath.Join(home, ".kiro", "skills"), nil
+		case "pi":
+			return filepath.Join(home, ".pi", "agent", "skills"), nil
+		case "trae":
+			return filepath.Join(home, ".trae", "skills"), nil
+		case "trae-cn":
+			return filepath.Join(home, ".trae-cn", "skills"), nil
+		case "vscode":
+			return filepath.Join(home, ".copilot", "skills"), nil
 		case "roo":
 			return filepath.Join(home, ".roo", "skills"), nil
 		case "windsurf":
@@ -116,12 +156,22 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 		}
 	} else {
 		switch name {
+		case "aider":
+			return filepath.Join(scope.Root, ".aider"), nil
+		case "amp", "antigravity", "antigravity-windows":
+			return filepath.Join(scope.Root, ".agents", "skills"), nil
 		case "codex":
 			return filepath.Join(scope.Root, ".codex", "skills"), nil
 		case "claude":
 			return filepath.Join(scope.Root, ".claude", "skills"), nil
+		case "windows":
+			return filepath.Join(scope.Root, ".claude", "skills"), nil
+		case "claw":
+			return filepath.Join(scope.Root, ".openclaw", "skills"), nil
 		case "cline":
 			return filepath.Join(scope.Root, ".cline", "skills"), nil
+		case "codebuddy":
+			return filepath.Join(scope.Root, ".codebuddy", "skills"), nil
 		case "copilot":
 			if _, err := os.Stat(filepath.Join(scope.Root, ".copilot")); err == nil {
 				return filepath.Join(scope.Root, ".copilot", "skills"), nil
@@ -131,20 +181,36 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(scope.Root, ".cursor", "skills"), nil
 		case "gemini":
 			return filepath.Join(scope.Root, ".gemini", "skills"), nil
+		case "devin":
+			return filepath.Join(scope.Root, ".devin", "skills"), nil
+		case "droid":
+			return filepath.Join(scope.Root, ".factory", "skills"), nil
+		case "hermes":
+			return filepath.Join(scope.Root, ".hermes", "skills"), nil
 		case "junie":
 			return filepath.Join(scope.Root, ".junie", "skills"), nil
 		case "kimi":
 			return filepath.Join(scope.Root, ".kimi-code", "skills"), nil
 		case "kiro":
 			return filepath.Join(scope.Root, ".kiro", "skills"), nil
+		case "kilo":
+			return filepath.Join(scope.Root, ".config", "kilo", "skills"), nil
 		case "opencode":
 			return filepath.Join(scope.Root, ".opencode", "skills"), nil
 		case "openclaw":
 			return filepath.Join(scope.Root, "skills"), nil
+		case "pi":
+			return filepath.Join(scope.Root, ".pi", "agent", "skills"), nil
 		case "roo":
 			return filepath.Join(scope.Root, ".roo", "skills"), nil
 		case "windsurf":
 			return filepath.Join(scope.Root, ".windsurf", "skills"), nil
+		case "trae":
+			return filepath.Join(scope.Root, ".trae", "skills"), nil
+		case "trae-cn":
+			return filepath.Join(scope.Root, ".trae-cn", "skills"), nil
+		case "vscode":
+			return filepath.Join(scope.Root, ".github", "skills"), nil
 		case "agents":
 			return filepath.Join(scope.Root, ".agents", "skills"), nil
 		}
@@ -153,7 +219,7 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 }
 
 func targetMarker(scope state.Scope, home, name, root string) string {
-	if name == "openclaw" && !scope.Global {
+	if !scope.Global && (name == "openclaw" || name == "aider") {
 		// A workspace has no required .openclaw directory. Only auto-detect its
 		// native skills root when it already exists; an explicit target creates it.
 		return root
@@ -165,8 +231,9 @@ func deduplicateTargets(targets []Target) []Target {
 	seen := map[string]bool{}
 	result := make([]Target, 0, len(targets))
 	for _, target := range targets {
-		if !seen[target.Root] {
-			seen[target.Root] = true
+		key := target.Name + "\x00" + target.Root
+		if !seen[key] {
+			seen[key] = true
 			result = append(result, target)
 		}
 	}

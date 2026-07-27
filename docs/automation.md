@@ -25,6 +25,15 @@ Claude Code, GitHub Copilot, Cursor, Gemini CLI, Windsurf, Cline, Roo Code,
 Kiro, Junie, Kimi Code, OpenCode, OpenClaw, and the portable `.agents/skills`
 layout.
 
+Catalogs can also provide platform-specific variants, always-on project
+instructions, and optional managed hooks. Instructions install automatically
+for project scope. Use `--with-hooks` in CI or another noninteractive
+environment when optional integrations are required:
+
+```bash
+repertoire --project add graphify --target codex --with-hooks
+```
+
 Repeat `--target` with individual names to install only a subset:
 
 ```bash
@@ -55,6 +64,11 @@ skills:
   github.com/example/company-skills/code-reviewer:
     scope: global
     targets: [codex, claude, cursor, gemini, copilot]
+  graphify:
+    catalog: company
+    scope: global
+    targets: [codex]
+    hooks: true
 ```
 
 Then bootstrap every declared skill:
@@ -67,6 +81,10 @@ If `.repertoire.yaml` is missing, `bootstrap` creates a starter from the built-i
 catalog (source-qualified IDs, `scope: global`) and installs those skills. The command
 repairs missing managed copies. Run `repertoire sync` when the automation should
 fetch catalog changes and update the declared installations.
+
+Global declarations keep skill bundles under the user's home directory.
+Catalog-provided instruction pointers and any explicitly enabled hooks are
+managed in the worktree; their state remains in Repertoire's global lock.
 
 To override the targets stored in the manifest or lock and apply every skill to
 every supported agent, use:

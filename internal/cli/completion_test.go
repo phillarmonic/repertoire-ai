@@ -133,6 +133,7 @@ func TestContextCompletionsUseProjectState(t *testing.T) {
 func TestTargetCompletionsAreSortedAndDoNotCompleteFiles(t *testing.T) {
 	got, directive := completeTargets(nil, nil, "co")
 	if !reflect.DeepEqual(got, []string{
+		"codebuddy\t[agent target]",
 		"codex\t[agent target]",
 		"copilot\t[agent target]",
 	}) {
@@ -146,8 +147,10 @@ func TestTargetCompletionsAreSortedAndDoNotCompleteFiles(t *testing.T) {
 func TestNewAgentTargetCompletions(t *testing.T) {
 	got, directive := completeTargets(nil, nil, "")
 	for _, target := range []string{
-		"claude", "cline", "cursor", "gemini", "junie", "kimi", "kiro",
-		"opencode", "openclaw", "roo", "windsurf",
+		"aider", "amp", "antigravity", "claude", "cline", "codebuddy",
+		"cursor", "devin", "droid", "gemini", "hermes", "junie", "kilo",
+		"kimi", "kiro", "opencode", "openclaw", "pi", "roo", "trae",
+		"trae-cn", "vscode", "windows", "windsurf",
 	} {
 		if !containsCompletion(got, target+"\t[agent target]") {
 			t.Fatalf("target %q missing from completions: %#v", target, got)

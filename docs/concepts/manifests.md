@@ -24,6 +24,7 @@ requirements:
     catalog: company
     targets:
       - codex
+    hooks: true
 ```
 
 Catalog names use lowercase letters, digits, and hyphens. Catalog skill names
@@ -42,9 +43,13 @@ roots. `--project` reads `repertoire.yaml` and `repertoire.lock.json` from the
 current Git worktree root and installs into project-local agent directories.
 `--global` makes the default explicit. The two flags cannot be combined.
 
-The lock file is generated deterministically. It records resolved commits,
-content digests, logical targets, installed locations, and whether an
-installation came from a declared requirement or an ad-hoc install.
+The optional `hooks` field records whether optional managed project artifacts
+should be installed with a declared requirement. Catalog-provided project
+instructions are installed independently of this setting. The lock file is generated
+deterministically. It records resolved commits, per-target content digests,
+logical targets, installed locations, managed artifact destinations and
+digests, and whether an installation came from a declared requirement or an
+ad-hoc install.
 
 ## Project bootstrap manifest
 
@@ -70,6 +75,7 @@ skills:
     catalog: company
     scope: project
     targets: [agents]
+    hooks: true
 ```
 
 `skills` must contain at least one skill. Keys may be skill names or
@@ -82,6 +88,19 @@ source-qualified project manifest key such as
 names, or the source-qualified ID's catalog source. An omitted target uses
 agent detection for that scope.
 `scope` accepts `project` or `global` and defaults to `global`.
+Catalog-declared project instructions are installed into the worktree for both
+project- and global-scope bootstrap declarations. This supports a small
+repository pointer to a globally installed skill without copying the complete
+skill package into the repository. The per-project instruction state is stored
+in Repertoire's global lock, so bootstrap does not create a project lock solely
+for these pointers.
+
+`hooks: true` additionally enables catalog-declared hooks and integrations.
+For global-scope declarations, the skill stays in the user's home directory
+while these optional artifacts are managed in the bootstrapping worktree.
+Removing the globally managed skill also removes its recorded project
+instructions and optional artifacts, subject to the normal local-modification
+checks.
 
 When `repertoire bootstrap` runs without `.repertoire.yaml`, it writes a starter
 manifest that declares every built-in `phillarmonic` skill with a
