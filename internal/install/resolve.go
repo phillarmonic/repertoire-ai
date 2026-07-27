@@ -10,6 +10,7 @@ import (
 
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
+	"github.com/phillarmonic/repertoire-ai/internal/stub"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,6 +107,9 @@ func ValidateSkill(root, expectedName string) error {
 	}
 	if strings.TrimSpace(header.Description) == "" {
 		return errors.New("skill description is required")
+	}
+	if _, err := stub.Load(root); err != nil {
+		return err
 	}
 	return nil
 }

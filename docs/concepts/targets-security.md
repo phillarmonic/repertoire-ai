@@ -35,6 +35,8 @@ The expanded concrete target names—not `all`—are saved in the manifest and l
 ## Installation safety
 
 - `SKILL.md` must have valid YAML frontmatter with a matching `name` and a non-empty `description`.
+- Optional `stubs.yaml` entries must have valid names, descriptions,
+  instructions, and contained paths resolving to regular files.
 - Catalog paths must stay inside the repository. Symlinks are allowed only when they resolve inside the skill directory.
 - Repertoire hashes paths, modes, symlink targets, and file content.
 - Installation is staged beside the destination and then renamed atomically.

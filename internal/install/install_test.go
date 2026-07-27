@@ -70,6 +70,18 @@ func TestEscapingSymlinkRejected(t *testing.T) {
 	}
 }
 
+func TestValidateSkillRejectsInvalidStubManifest(t *testing.T) {
+	t.Parallel()
+	source := skillFixture(t, "demo")
+	content := "schema: 1\nstubs:\n  broken:\n    description: Broken\n    path: assets/missing\n    instructions: Use it.\n"
+	if err := os.WriteFile(filepath.Join(source, "stubs.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSkill(source, "demo"); err == nil || !strings.Contains(err.Error(), "no such file or directory") {
+		t.Fatalf("expected invalid stub manifest, got %v", err)
+	}
+}
+
 func TestResolveTargets(t *testing.T) {
 	t.Parallel()
 	project := t.TempDir()
