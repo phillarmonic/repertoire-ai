@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/phillarmonic/repertoire-ai/internal/state"
 )
 
 func TestBootstrapAndSyncEndToEnd(t *testing.T) {
@@ -162,13 +164,26 @@ skills:
 		if _, err := os.Stat(filepath.Join(project, "repertoire.lock.json")); !os.IsNotExist(err) {
 			t.Fatalf("global bootstrap should not create a project lock: %v", err)
 		}
-		assertContainsFile(
-			t,
-			filepath.Join(globalConfigRoot(home), "repertoire.lock.json"),
-			`"projects"`,
-			project,
-			`"instructions": true`,
-		)
+		lock, err := state.LoadLock(filepath.Join(globalConfigRoot(home), "repertoire.lock.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		projectInfo, err := os.Stat(project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		foundProject := false
+		for projectRoot, skills := range lock.Projects {
+			rootInfo, statErr := os.Stat(projectRoot)
+			if statErr != nil || !os.SameFile(projectInfo, rootInfo) {
+				continue
+			}
+			foundProject = skills["graphify"].Instructions
+			break
+		}
+		if !foundProject {
+			t.Fatalf("global lock does not contain Graphify instructions for project %s: %+v", project, lock.Projects)
+		}
 
 		createBootstrapIntegrationCatalogAt(t, catalogRoot, "v2")
 		runCommandWithEnv(t, project, environment, binary, "bootstrap")

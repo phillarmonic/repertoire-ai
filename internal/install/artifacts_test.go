@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -257,7 +258,7 @@ func TestAllArtifactsInstallOnceAcrossTargets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode()&0o111 == 0 {
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		t.Fatalf("shared hook mode = %v, want executable", info.Mode())
 	}
 	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
