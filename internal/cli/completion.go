@@ -265,3 +265,21 @@ func completeTargets(_ *cobra.Command, _ []string, toComplete string) ([]string,
 	}
 	return completions, completionDirective
 }
+
+func completeListFormats(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	formats := []struct {
+		name, detail string
+	}{
+		{string(skillListFormatAuto), "[table in terminals, TSV when redirected]"},
+		{string(skillListFormatTable), "[compact table]"},
+		{string(skillListFormatTSV), "[headerless tab-separated values]"},
+		{string(skillListFormatJSON), "[JSON array]"},
+	}
+	var completions []string
+	for _, format := range formats {
+		if strings.HasPrefix(format.name, toComplete) {
+			completions = append(completions, format.name+"\t"+format.detail)
+		}
+	}
+	return completions, completionDirective
+}

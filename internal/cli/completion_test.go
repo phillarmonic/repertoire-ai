@@ -144,6 +144,20 @@ func TestTargetCompletionsAreSortedAndDoNotCompleteFiles(t *testing.T) {
 	}
 }
 
+func TestListFormatCompletions(t *testing.T) {
+	got, directive := completeListFormats(nil, nil, "t")
+	want := []string{
+		"table\t[compact table]",
+		"tsv\t[headerless tab-separated values]",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("formats = %#v, want %#v", got, want)
+	}
+	if directive != completionDirective {
+		t.Fatalf("directive = %v", directive)
+	}
+}
+
 func TestNewAgentTargetCompletions(t *testing.T) {
 	got, directive := completeTargets(nil, nil, "")
 	for _, target := range []string{
@@ -195,6 +209,10 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 				t.Fatalf("%s --%s has no flag completion", commandName, flagName)
 			}
 		}
+	}
+	list, _, _ := command.Find([]string{"list"})
+	if _, exists := list.GetFlagCompletionFunc("format"); !exists {
+		t.Fatal("list --format has no flag completion")
 	}
 	catalogAdd, _, _ := command.Find([]string{"catalog", "add"})
 	catalogUpdate, _, _ := command.Find([]string{"catalog", "update"})

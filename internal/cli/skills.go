@@ -118,12 +118,17 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	_ = installCommand.RegisterFlagCompletionFunc("target", completeTargets)
 
 	var available bool
-	var listCatalog string
+	var listCatalog, listFormat string
+	var listWide bool
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List installed or available skills",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			format, err := resolveSkillListFormat(listFormat, command.OutOrStdout(), listWide)
+			if err != nil {
+				return err
+			}
 			_, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err
@@ -134,12 +139,15 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 					names = append(names, name)
 				}
 				sort.Strings(names)
+				entries := make([]skillListEntry, 0, len(names))
 				for _, name := range names {
 					entry := lock.Skills[name]
-					kind := entry.EffectiveOrigin()
-					_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s\t%s\t%s\n", name, entry.Catalog, kind, strings.Join(entry.Targets, ","))
+					entries = append(entries, skillListEntry{
+						Name: name, Catalog: entry.Catalog,
+						Origin: entry.EffectiveOrigin(), Targets: entry.Targets,
+					})
 				}
-				return nil
+				return writeSkillList(command.OutOrStdout(), entries, format, listWide, false)
 			}
 			manager, err := catalog.NewManager("")
 			if err != nil {
@@ -165,15 +173,21 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				}
 				return skills[i].name < skills[j].name
 			})
+			entries := make([]skillListEntry, 0, len(skills))
 			for _, skill := range skills {
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s\tavailable\n", skill.name, skill.catalog)
+				entries = append(entries, skillListEntry{
+					Name: skill.name, Catalog: skill.catalog, Origin: "available",
+				})
 			}
-			return nil
+			return writeSkillList(command.OutOrStdout(), entries, format, listWide, true)
 		},
 	}
 	list.Flags().BoolVar(&available, "available", false, "list skills offered by catalogs")
 	list.Flags().StringVar(&listCatalog, "catalog", "", "limit available skills to a catalog")
+	list.Flags().StringVar(&listFormat, "format", "auto", "output format: auto, table, tsv, or json")
+	list.Flags().BoolVar(&listWide, "wide", false, "show individual targets in table output")
 	_ = list.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
+	_ = list.RegisterFlagCompletionFunc("format", completeListFormats)
 
 	var updateTargets []string
 	var updateWithHooks, updateNoHooks bool

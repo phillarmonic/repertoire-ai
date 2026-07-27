@@ -95,12 +95,16 @@ shared home installation.
 
 ## List
 
-The default view shows installed skills, their catalog, declared or ad-hoc
-status, and targets. `--available` refreshes visible catalogs and reads their
-manifests instead.
+In a terminal, the default view shows a compact table of installed skills,
+their catalog, declared or ad-hoc origin, and a target summary. Use `--wide`
+to show every target. Redirected output remains headerless TSV for compatibility
+with scripts. `--format table`, `--format tsv`, and `--format json` select a
+format explicitly.
 
 ```bash
 repertoire list
+repertoire list --wide
+repertoire list --format json
 repertoire list --available
 repertoire list --available --catalog phillarmonic
 ```
