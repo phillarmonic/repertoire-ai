@@ -120,7 +120,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				if listCatalog != "" && source.Name != listCatalog {
 					continue
 				}
-				resolved, err := manager.Materialize(source, false)
+				resolved, err := manager.Materialize(source, true)
 				if err != nil {
 					return err
 				}
@@ -154,13 +154,34 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			if err != nil {
 				return err
 			}
+			manager, err := catalog.NewManager("")
+			if err != nil {
+				return err
+			}
 			var names []string
 			if len(args) == 1 {
 				if _, exists := lock.Skills[args[0]]; !exists {
-					return fmt.Errorf("skill %q is not installed", args[0])
+					if !catalogVisible(manifest, args[0]) {
+						return fmt.Errorf("skill %q is not installed", args[0])
+					}
+					refreshed, err := refreshCatalogs(manager, manifest, args[0])
+					if err != nil {
+						return err
+					}
+					for _, source := range refreshed {
+						_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
+					}
+					return nil
 				}
 				names = args
 			} else {
+				refreshed, err := refreshCatalogs(manager, manifest, "")
+				if err != nil {
+					return err
+				}
+				for _, source := range refreshed {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
+				}
 				for name := range lock.Skills {
 					names = append(names, name)
 				}
@@ -181,7 +202,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 		},
 	}
 	update.Flags().StringSliceVar(&updateTargets, "target", nil, "agent target (repeatable; use \"all\" for every target)")
-	update.ValidArgsFunction = completeInstalledSkills(globalScope, projectScope)
+	update.ValidArgsFunction = completeInstalledSkillsAndCatalogs(globalScope, projectScope)
 	_ = update.RegisterFlagCompletionFunc("target", completeTargets)
 	remove := &cobra.Command{
 		Use:   "remove <skill>",
@@ -291,6 +312,15 @@ func installManaged(
 		}
 	}
 	return state.SaveLock(scope.LockPath, *lock)
+}
+
+func catalogVisible(manifest state.Manifest, name string) bool {
+	for _, source := range catalog.Sources(manifest) {
+		if source.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func sortedRequirements(requirements map[string]state.Requirement) []string {

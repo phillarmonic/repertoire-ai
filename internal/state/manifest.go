@@ -92,7 +92,7 @@ func (m Manifest) Validate() error {
 			return errors.New("catalog must declare at least one skill")
 		}
 		for name, entry := range m.Catalog.Skills {
-			if err := ValidateName(name); err != nil {
+			if err := ValidateCatalogSkillName(name); err != nil {
 				return fmt.Errorf("skill %q: %w", name, err)
 			}
 			if err := ValidateRelativePath(entry.Path); err != nil {
@@ -122,6 +122,19 @@ func (m Manifest) Validate() error {
 func ValidateName(name string) error {
 	if len(name) == 0 || len(name) > 64 || !skillNamePattern.MatchString(name) {
 		return errors.New("must contain 1-64 lowercase letters, digits, or single hyphens")
+	}
+	return nil
+}
+
+func ValidateCatalogSkillName(name string) error {
+	if strings.TrimSpace(name) != name || name == "" {
+		return errors.New("skill name is required")
+	}
+	parts := strings.Split(name, "/")
+	for _, part := range parts {
+		if err := ValidateName(part); err != nil {
+			return fmt.Errorf("segment %q: %w", part, err)
+		}
 	}
 	return nil
 }

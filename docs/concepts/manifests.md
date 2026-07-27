@@ -26,8 +26,12 @@ requirements:
       - codex
 ```
 
-Skill and catalog names use lowercase letters, digits, and hyphens. Skill paths
-must be relative and contained within the catalog repository.
+Catalog names use lowercase letters, digits, and hyphens. Catalog skill names
+use the same rule, and may include `/` to qualify broad names with an owner or
+vendor segment, such as `a-vendor-name/code`. Skill paths must be relative and
+contained within the catalog repository. Avoid publishing generic catalog skill
+names such as `code`, `docs`, or `review`; when agents show several personal or
+vendor skills together, those labels are easy to confuse.
 
 ## Project and global scope
 
@@ -68,10 +72,15 @@ skills:
 ```
 
 `skills` must contain at least one skill. Keys may be short names or namespaced
-IDs (`{catalog-host-and-path}/{skill-name}`). On-disk install directories still use
-the short skill name. `catalog` and `targets` are optional. An omitted catalog
-uses unqualified resolution for short names, or the namespace's catalog source
-for namespaced IDs. An omitted target uses agent detection for that scope.
+IDs (`{catalog-host-and-path}/{skill-name}`). Use the namespaced form for broad
+or generic skills so the manifest records who owns the definition. A catalog
+skill named `a-vendor-name/code` can be referenced from a source-qualified
+project manifest key such as
+`github.com/example/company-skills/a-vendor-name/code`. On-disk install
+directories still use a safe flat form of the skill name. `catalog` and
+`targets` are optional. An omitted catalog uses unqualified resolution for short
+names, or the namespace's catalog source for namespaced IDs. An omitted target
+uses agent detection for that scope.
 `scope` accepts `project` or `global` and defaults to `global`.
 
 When `repertoire bootstrap` runs without `.repertoire.yaml`, it writes a starter

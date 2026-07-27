@@ -18,6 +18,13 @@ catalog source. When several visible catalogs define the same short skill name,
 Repertoire lists every matching catalog (with namespaced IDs) instead of
 choosing one. Repeat with `--catalog <name>` or a namespaced ID.
 
+Use namespaced IDs whenever a short name is generic. A skill named `code` may
+look fine inside one personal catalog, but agents and UIs can become ambiguous
+once several catalogs are enabled. Treat owner-qualified references such as
+`github.com/company/agent-skills/a-vendor-name/code` as the Repertoire form of
+`a-vendor-name/code`: the identifier tells both humans and agents which
+definition is being used.
+
 ```bash
 repertoire catalog list
 repertoire catalog add /path/to/ai-skills

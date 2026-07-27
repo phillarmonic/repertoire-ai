@@ -30,8 +30,9 @@ func TestCompletionCommandGeneratesSupportedShells(t *testing.T) {
 
 func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	local := writeCompletionCatalog(t, t.TempDir(), "local", map[string]string{
-		"alpha":  "skills/alpha",
-		"shared": "skills/shared",
+		"alpha":              "skills/alpha",
+		"phillarmonkey/code": "skills/code",
+		"shared":             "skills/shared",
 	})
 	cacheRoot := t.TempDir()
 	cached := filepath.Join(cacheRoot, "remote")
@@ -51,6 +52,7 @@ func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	got := availableSkillCompletions(manifest, "", "", cacheRoot)
 	want := []string{
 		"alpha\t[available] phillarmonic",
+		"phillarmonkey/code\t[available] phillarmonic",
 		"shared\t[available] phillarmonic, remote",
 		"zulu\t[available] remote",
 	}
@@ -60,6 +62,10 @@ func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	filtered := availableSkillCompletions(manifest, "remote", "z", cacheRoot)
 	if !reflect.DeepEqual(filtered, []string{"zulu\t[available] remote"}) {
 		t.Fatalf("filtered completions = %#v", filtered)
+	}
+	qualified := availableSkillCompletions(manifest, "", "phillarmonkey/", cacheRoot)
+	if !reflect.DeepEqual(qualified, []string{"phillarmonkey/code\t[available] phillarmonic"}) {
+		t.Fatalf("qualified completions = %#v", qualified)
 	}
 	if entries, err := os.ReadDir(filepath.Join(cacheRoot, "uncached")); err == nil || len(entries) != 0 {
 		t.Fatalf("completion created an uncached catalog directory")
@@ -105,6 +111,13 @@ func TestContextCompletionsUseProjectState(t *testing.T) {
 	}
 	if !reflect.DeepEqual(installed, []string{"reviewer\t[ad-hoc] company → codex"}) {
 		t.Fatalf("installed completions = %#v", installed)
+	}
+	updateArgs, directive := completeInstalledSkillsAndCatalogs(&global, &projectFlag)(nil, nil, "c")
+	if directive != completionDirective {
+		t.Fatalf("update directive = %v", directive)
+	}
+	if !reflect.DeepEqual(updateArgs, []string{"company\t[catalog] /catalogs/company"}) {
+		t.Fatalf("update completions = %#v", updateArgs)
 	}
 	registered, _ := completeCatalogs(&global, &projectFlag, true)(nil, nil, "")
 	if !reflect.DeepEqual(registered, []string{"company\t[registered] /catalogs/company"}) {

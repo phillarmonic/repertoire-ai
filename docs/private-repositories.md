@@ -1,13 +1,13 @@
 # Private repositories
 
-A private Repertoire registry is a normal Git repository that holds your
+A private Repertoire catalog is a normal Git repository that holds your
 company-owned AI skills. Make the repository private on GitHub, GitLab,
 Bitbucket, or any other Git host; Repertoire reads it with the same system `git`
 credentials that already work for `git clone` and `git ls-remote`. Repertoire
 does not implement its own authentication protocol and never stores tokens or
 passwords.
 
-## Build a private registry
+## Build a private catalog
 
 ### 1. Create a Git repository
 
@@ -33,9 +33,10 @@ agent-skills/
         └── SKILL.md
 ```
 
-The directory name of each skill must match the skill name exactly. The path in
-`repertoire.yaml` is relative to the repository root and must stay inside the
-repo.
+For short skill names, the directory name must match the skill name exactly.
+For qualified names such as `company/code`, the directory name must match the
+final segment (`code`). The path in `repertoire.yaml` is relative to the
+repository root and must stay inside the repo.
 
 ### 3. Declare the catalog in `repertoire.yaml`
 
@@ -53,8 +54,16 @@ catalog:
 Rules:
 
 - `schema` must be `1`.
-- Catalog and skill names use 1–64 lowercase letters, digits, or single hyphens
-  (`code-reviewer` is valid; `Code_Reviewer` is not).
+- Catalog names use 1–64 lowercase letters, digits, or single hyphens
+  (`company-skills` is valid; `Company_Skills` is not).
+- Skill names use the same lowercase-and-hyphen rule, and may include `/` to
+  qualify a generic skill with an owner or vendor segment (`code-reviewer` and
+  `company/code` are valid; `Code_Reviewer` is not).
+- Avoid generic skill names such as `code`, `docs`, or `review` in published
+  catalogs. Agents often display only the skill title or short identifier, so
+  generic names become confusing when several personal or vendor catalogs are
+  enabled. Prefer a clear owner-qualified identifier such as `company/code` or
+  `a-vendor-name/code`.
 - The catalog must declare at least one skill.
 - Each skill `path` must be a contained relative path (no absolute paths, no
   `..` escape).
@@ -77,8 +86,10 @@ catalog:
 ### 4. Author each skill's `SKILL.md`
 
 Every skill directory must contain a `SKILL.md` with YAML frontmatter. The
-`name` must match both the directory name and the key in `repertoire.yaml`.
-`description` is required and must be non-empty:
+`name` must match the key in `repertoire.yaml`. For short names, the directory
+name must match too; for qualified names such as `company/code`, the directory
+name must match the final segment (`code`). `description` is required and must
+be non-empty:
 
 ```markdown
 ---
@@ -90,6 +101,13 @@ description: Review pull requests against the company style guide.
 
 Instructions for the agent go here.
 ```
+
+Keep the `name` specific when the skill covers a broad domain. For example,
+use `company/code` instead of `code`, and reserve the description for the
+human-readable explanation. Project `.repertoire.yaml` files may still refer to
+the skill with a full namespaced ID such as
+`github.com/company/agent-skills/company/code` when that makes the source
+clearer.
 
 You may include supporting files next to `SKILL.md` (scripts, templates,
 references). Repertoire copies the skill directory as data; it never executes
@@ -157,7 +175,7 @@ your Git/SSH configuration—not in `repertoire.yaml`, lock files, or command
 arguments. That keeps secrets out of manifests, command output, and error
 snapshots.
 
-## Register and use the registry
+## Register and use the catalog
 
 Once `git ls-remote` succeeds, register the catalog:
 
@@ -184,7 +202,7 @@ repertoire catalog update
 repertoire update
 ```
 
-## Share the registry with your team
+## Share the catalog with your team
 
 Commit a project `.repertoire.yaml` so contributors install the same private
 skills after they can authenticate to the Git remote:
