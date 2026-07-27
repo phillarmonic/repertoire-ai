@@ -70,6 +70,12 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 		for name := range resolved.Manifest.Catalog.Skills {
 			id := catalog.SkillID(source.Registration.Source, name)
 			if wantNamespaced {
+				if strings.HasPrefix(name, toComplete) {
+					match := byName[name]
+					match.catalogs = append(match.catalogs, source.Name)
+					match.source = source.Registration.Source
+					byName[name] = match
+				}
 				if strings.HasPrefix(id, toComplete) {
 					match := byName[id]
 					match.catalogs = append(match.catalogs, source.Name)
@@ -122,6 +128,57 @@ func completeInstalledSkills(globalScope, projectScope *bool) cobra.CompletionFu
 				detail += " → " + strings.Join(entry.Targets, ",")
 			}
 			completions = append(completions, name+"\t"+detail)
+		}
+		return completions, completionDirective
+	}
+}
+
+func completeInstalledSkillsAndCatalogs(globalScope, projectScope *bool) cobra.CompletionFunc {
+	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		_, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
+		if err != nil {
+			return nil, completionDirective
+		}
+		type completion struct {
+			value  string
+			detail string
+		}
+		byValue := map[string]completion{}
+		for name, entry := range lock.Skills {
+			if !strings.HasPrefix(name, toComplete) {
+				continue
+			}
+			detail := "[" + entry.EffectiveOrigin() + "] " + entry.Catalog
+			if len(entry.Targets) != 0 {
+				detail += " → " + strings.Join(entry.Targets, ",")
+			}
+			byValue[name] = completion{value: name, detail: detail}
+		}
+		for _, source := range catalog.Sources(manifest) {
+			if !strings.HasPrefix(source.Name, toComplete) {
+				continue
+			}
+			if _, exists := byValue[source.Name]; exists {
+				continue
+			}
+			kind := "catalog"
+			if source.Builtin {
+				kind = "built-in catalog"
+			}
+			byValue[source.Name] = completion{
+				value:  source.Name,
+				detail: "[" + kind + "] " + catalog.RedactSource(source.Registration.Source),
+			}
+		}
+		values := make([]string, 0, len(byValue))
+		for value := range byValue {
+			values = append(values, value)
+		}
+		sort.Strings(values)
+		completions := make([]string, 0, len(values))
+		for _, value := range values {
+			match := byValue[value]
+			completions = append(completions, match.value+"\t"+match.detail)
 		}
 		return completions, completionDirective
 	}

@@ -60,6 +60,40 @@ func TestValidateDigestAndSafeInstall(t *testing.T) {
 	}
 }
 
+func TestQualifiedCatalogSkillInstallsToFlatDirectory(t *testing.T) {
+	t.Parallel()
+	source := skillFixtureWithDirectory(t, "code", "phillarmonkey/code")
+	if err := ValidateSkill(source, "phillarmonkey/code"); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetRoot := filepath.Join(t.TempDir(), "skills")
+	resolved := ResolvedSkill{Name: "phillarmonkey/code", Root: source, Digest: digest}
+	locations, err := Skill(resolved, []Target{{Name: "codex", Root: targetRoot}}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(targetRoot, "phillarmonkey-code")
+	if len(locations) != 1 || locations[0] != want {
+		t.Fatalf("locations = %v, want %s", locations, want)
+	}
+	if _, err := os.Stat(filepath.Join(want, "SKILL.md")); err != nil {
+		t.Fatalf("installed qualified skill: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(targetRoot, "phillarmonkey", "code")); !os.IsNotExist(err) {
+		t.Fatalf("qualified skill should not install to a nested path: %v", err)
+	}
+	if err := Remove("phillarmonkey/code", []Target{{Name: "codex", Root: targetRoot}}, state.LockSkill{Digest: digest}, false); err != nil {
+		t.Fatalf("remove qualified skill: %v", err)
+	}
+	if _, err := os.Stat(want); !os.IsNotExist(err) {
+		t.Fatalf("qualified skill was not removed: %v", err)
+	}
+}
+
 func TestEscapingSymlinkRejected(t *testing.T) {
 	t.Parallel()
 	source := skillFixture(t, "escape")
@@ -284,13 +318,51 @@ func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) 
 	}
 }
 
+func TestResolverAcceptsQualifiedCatalogSkillKeys(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	skill := filepath.Join(root, "skills", "code")
+	if err := os.MkdirAll(skill, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: phillarmonkey/code\ndescription: Test\n---\n"
+	if err := os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	catalogManifest := state.NewManifest()
+	catalogManifest.Catalog = &state.CatalogDefinition{
+		Name: "local", Skills: map[string]state.SkillEntry{"phillarmonkey/code": {Path: "skills/code"}},
+	}
+	if err := state.SaveManifest(filepath.Join(root, "repertoire.yaml"), catalogManifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest := state.NewManifest()
+	manifest.Catalogs["local"] = state.CatalogRegistration{Source: root}
+	manager, err := catalog.NewManager(filepath.Join(t.TempDir(), "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := Resolve(manager, manifest, "phillarmonkey/code", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Name != "phillarmonkey/code" || resolved.Catalog.Name != "local" {
+		t.Fatalf("resolved = %+v", resolved)
+	}
+}
+
 func skillFixture(t *testing.T, name string) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), name)
+	return skillFixtureWithDirectory(t, name, name)
+}
+
+func skillFixtureWithDirectory(t *testing.T, directoryName, skillName string) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), directoryName)
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	content := "---\nname: " + name + "\ndescription: Test skill\n---\n\n# Test\n"
+	content := "---\nname: " + skillName + "\ndescription: Test skill\n---\n\n# Test\n"
 	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -13,10 +13,17 @@ repertoire add zensical --catalog phillarmonic
 repertoire add github.com/phillarmonic/ai-skills/zensical
 ```
 
-Namespaced IDs are `{catalog-host-and-path}/{skill-name}` and always select one
+Source-qualified IDs are `{catalog-host-and-path}/{skill-name}` and always select one
 catalog source. When several visible catalogs define the same short skill name,
-Repertoire lists every matching catalog (with namespaced IDs) instead of
-choosing one. Repeat with `--catalog <name>` or a namespaced ID.
+Repertoire lists every matching catalog (with source-qualified IDs) instead of
+choosing one. Repeat with `--catalog <name>` or a source-qualified ID.
+
+Use owner-prefixed kebab-case skill names whenever a short name is generic. A
+skill named `code` may look fine inside one personal catalog, but agents and
+UIs can become ambiguous once several catalogs are enabled. Prefer
+`phillarmonkey-code` as the skill package name, and use a source-qualified ID
+such as `github.com/company/agent-skills/phillarmonkey-code` when the command
+or manifest also needs to pin the catalog source.
 
 ```bash
 repertoire catalog list

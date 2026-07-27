@@ -46,6 +46,25 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	}
 }
 
+func TestCatalogSkillNamesAllowQualifiedSegments(t *testing.T) {
+	t.Parallel()
+	manifest := NewManifest()
+	manifest.Catalog = &CatalogDefinition{
+		Name: "example",
+		Skills: map[string]SkillEntry{
+			"phillarmonkey/code": {Path: "skills/code"},
+		},
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatalf("qualified catalog skill name should validate: %v", err)
+	}
+
+	manifest.Catalog.Skills["Bad_Vendor/code"] = SkillEntry{Path: "skills/bad"}
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("expected invalid qualified catalog skill name to fail")
+	}
+}
+
 func TestLockMarshalDeterministic(t *testing.T) {
 	t.Parallel()
 	lock := NewLock()

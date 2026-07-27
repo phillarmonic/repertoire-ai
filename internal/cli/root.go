@@ -173,15 +173,12 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, source := range catalog.Sources(manifest) {
-				if len(args) == 1 && source.Name != args[0] {
-					continue
-				}
-				resolved, err := manager.Materialize(source, true)
-				if err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s\n", source.Name, resolved.Commit)
+			sources, err := refreshCatalogs(manager, manifest, optionalArg(args))
+			if err != nil {
+				return err
+			}
+			for _, resolved := range sources {
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s\n", resolved.Name, resolved.Commit)
 			}
 			return nil
 		},
@@ -189,6 +186,31 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 	update.ValidArgsFunction = completeCatalogs(globalScope, projectScope, false)
 	catalogCommand.AddCommand(add, remove, list, update)
 	return catalogCommand
+}
+
+func optionalArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
+}
+
+func refreshCatalogs(manager *catalog.Manager, manifest state.Manifest, name string) ([]catalog.Materialized, error) {
+	var resolved []catalog.Materialized
+	for _, source := range catalog.Sources(manifest) {
+		if name != "" && source.Name != name {
+			continue
+		}
+		materialized, err := manager.Materialize(source, true)
+		if err != nil {
+			return nil, err
+		}
+		resolved = append(resolved, materialized)
+	}
+	if name != "" && len(resolved) == 0 {
+		return nil, fmt.Errorf("catalog %q is not visible", name)
+	}
+	return resolved, nil
 }
 
 func loadScope(globalScope, projectScope bool) (state.Scope, state.Manifest, error) {

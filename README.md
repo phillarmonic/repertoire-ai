@@ -8,7 +8,7 @@ OpenClaw, or a shared `.agents` setup—without changing the open
 Use it to:
 
 - discover reusable skills from public catalogs, local paths, or private
-  company registries you host yourself;
+  company catalogs you host yourself;
 - install the same `SKILL.md` package across multiple AI coding agents;
 - keep managed skills updated without overwriting local changes;
 - automate team onboarding and agent setup with a checked-in
@@ -19,9 +19,9 @@ skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skill
 Its skills can be referenced without declaring the repository or specifying a
 catalog when their names are unique among the visible catalogs.
 
-### Private company registries
+### Private Company Catalogs
 
-You can point Repertoire at your own Git-backed catalog—a private registry of
+You can point Repertoire at your own Git-backed catalog: a private catalog of
 company-owned AI skills—just as you would a public one. Host the repository on
 GitHub, GitLab, Bitbucket, or any other Git remote your team already uses, then
 register it:
@@ -174,11 +174,11 @@ repertoire update --target all
 ## Set up a project in one command
 
 Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, Repertoire creates one that lists
-built-in catalog skills with namespaced IDs and `scope: global`—so the small manifest stays in the repo while skills
+built-in catalog skills with source-qualified IDs and `scope: global`—so the small manifest stays in the repo while skills
 install under home-directory agent roots.
 
 You can also commit a custom `.repertoire.yaml`, including a private company
-registry (reachable only with Git credentials that can read that remote):
+catalog (reachable only with Git credentials that can read that remote):
 
 ```yaml
 schema: 1
@@ -193,8 +193,7 @@ skills:
     scope: global
     targets: [ codex ]
 
-  shared-helpers:
-    catalog: company
+  github.com/example/company-skills/phillarmonkey-code:
     scope: project
     targets: [ agents ]
 ```
@@ -215,14 +214,20 @@ repertoire sync
 Project and global skills can be installed together. Removing an entry from the bootstrap manifest does not
 automatically delete an installed skill.
 
+For broad skills, prefer owner-prefixed kebab-case identifiers instead of
+generic names. For example, use a source-qualified manifest key such as
+`github.com/example/company-skills/phillarmonkey-code` rather than a bare
+`code`, so agents and UIs can tell which vendor or personal catalog owns the
+behavior.
+
 ## Everyday commands
 
 | Command                           | Purpose                                                                       |
 |-----------------------------------|-------------------------------------------------------------------------------|
-| `repertoire list --available`     | Browse skills visible in configured catalogs                                  |
+| `repertoire list --available`     | Refresh and browse skills visible in configured catalogs                      |
 | `repertoire add <skill>`          | Install a skill and declare it as a requirement                               |
 | `repertoire install [skill]`      | Install one skill or repair all requirements (`--target all` for every agent) |
-| `repertoire update [skill]`       | Refresh and update one or all managed skills (`--target all` for every agent) |
+| `repertoire update [skill\|catalog]` | Refresh catalogs and update managed skills (`--target all` for every agent)   |
 | `repertoire remove <skill>`       | Safely remove a managed skill                                                 |
 | `repertoire catalog add <source>` | Register a public, private, or local catalog                                  |
 | `repertoire bootstrap`            | Install the skills in `.repertoire.yaml`                                      |
@@ -259,7 +264,7 @@ Repertoire validates every catalog path and skill manifest before copying anythi
 atomically, symlinks may not escape their skill directory, and skill scripts are copied as data rather than executed.
 
 Managed content is tracked by digest. Repertoire refuses to replace or remove an unmanaged or locally modified target
-unless you explicitly pass `--force`. Private company registries rely on your existing Git credentials—SSH keys,
+unless you explicitly pass `--force`. Private company catalogs rely on your existing Git credentials—SSH keys,
 credential helpers, or provider CLIs—so tokens never belong in Repertoire manifests.
 
 ## Learn more

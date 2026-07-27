@@ -22,6 +22,7 @@ type ResolvedSkill struct {
 }
 
 func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogName string, refresh bool) (ResolvedSkill, error) {
+	name = strings.TrimSpace(name)
 	namespace, skillName, err := catalog.ParseSkillID(name)
 	if err != nil {
 		return ResolvedSkill{}, err
@@ -31,26 +32,25 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		if catalogName != "" && source.Name != catalogName {
 			continue
 		}
-		if namespace != "" && !catalog.SourceMatchesNamespace(source.Registration.Source, namespace) {
-			continue
-		}
 		materialized, err := manager.Materialize(source, refresh)
 		if err != nil {
 			return ResolvedSkill{}, err
 		}
-		entry, exists := materialized.Manifest.Catalog.Skills[skillName]
-		if !exists {
-			continue
+		for _, candidate := range skillCandidates(name, namespace, skillName, source) {
+			entry, exists := materialized.Manifest.Catalog.Skills[candidate]
+			if !exists {
+				continue
+			}
+			root := filepath.Join(materialized.Root, filepath.FromSlash(entry.Path))
+			if err := ValidateSkill(root, candidate); err != nil {
+				return ResolvedSkill{}, fmt.Errorf("catalog %q: %w", source.Name, err)
+			}
+			digest, err := Digest(root)
+			if err != nil {
+				return ResolvedSkill{}, err
+			}
+			matches = append(matches, ResolvedSkill{Name: candidate, Catalog: materialized, Root: root, Digest: digest})
 		}
-		root := filepath.Join(materialized.Root, filepath.FromSlash(entry.Path))
-		if err := ValidateSkill(root, skillName); err != nil {
-			return ResolvedSkill{}, fmt.Errorf("catalog %q: %w", source.Name, err)
-		}
-		digest, err := Digest(root)
-		if err != nil {
-			return ResolvedSkill{}, err
-		}
-		matches = append(matches, ResolvedSkill{Name: skillName, Catalog: materialized, Root: root, Digest: digest})
 	}
 	if len(matches) == 0 {
 		return ResolvedSkill{}, fmt.Errorf("skill %q was not found", name)
@@ -74,6 +74,28 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 	return matches[0], nil
 }
 
+func skillCandidates(requested, namespace, skillName string, source catalog.Source) []string {
+	candidates := make([]string, 0, 2)
+	seen := map[string]struct{}{}
+	add := func(candidate string) {
+		if candidate == "" {
+			return
+		}
+		if _, exists := seen[candidate]; exists {
+			return
+		}
+		seen[candidate] = struct{}{}
+		candidates = append(candidates, candidate)
+	}
+	if namespace == "" || catalog.SourceMatchesNamespace(source.Registration.Source, namespace) {
+		add(skillName)
+	}
+	if requested != skillName {
+		add(requested)
+	}
+	return candidates
+}
+
 type skillHeader struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
@@ -87,7 +109,7 @@ func ValidateSkill(root, expectedName string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("skill %q path is not a directory", expectedName)
 	}
-	if filepath.Base(root) != expectedName {
+	if filepath.Base(root) != catalogSkillLeaf(expectedName) {
 		return fmt.Errorf("skill %q directory name does not match", expectedName)
 	}
 	content, err := os.ReadFile(filepath.Join(root, "SKILL.md"))
@@ -112,4 +134,12 @@ func ValidateSkill(root, expectedName string) error {
 		return err
 	}
 	return nil
+}
+
+func catalogSkillLeaf(name string) string {
+	index := strings.LastIndex(name, "/")
+	if index < 0 {
+		return name
+	}
+	return name[index+1:]
 }

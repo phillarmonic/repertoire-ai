@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
 
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 )
@@ -12,7 +14,7 @@ import (
 func Skill(resolved ResolvedSkill, targets []Target, previous *state.LockSkill, force bool) ([]string, error) {
 	locations := make([]string, 0, len(targets))
 	for _, target := range targets {
-		destination := filepath.Join(target.Root, resolved.Name)
+		destination := filepath.Join(target.Root, installDirectoryName(resolved.Name))
 		if previous != nil && previous.Digest == resolved.Digest {
 			if digest, err := Digest(destination); err == nil && digest == resolved.Digest {
 				locations = append(locations, destination)
@@ -74,7 +76,7 @@ func installOne(source, destination string, previous *state.LockSkill, force boo
 
 func Remove(name string, targets []Target, previous state.LockSkill, force bool) error {
 	for _, target := range targets {
-		destination := filepath.Join(target.Root, name)
+		destination := filepath.Join(target.Root, installDirectoryName(name))
 		if _, err := os.Lstat(destination); os.IsNotExist(err) {
 			continue
 		} else if err != nil {
@@ -88,7 +90,7 @@ func Remove(name string, targets []Target, previous state.LockSkill, force bool)
 		if err != nil {
 			return err
 		}
-		removeErr := root.RemoveAll(name)
+		removeErr := root.RemoveAll(installDirectoryName(name))
 		closeErr := root.Close()
 		if removeErr != nil {
 			return removeErr
@@ -98,4 +100,37 @@ func Remove(name string, targets []Target, previous state.LockSkill, force bool)
 		}
 	}
 	return nil
+}
+
+func installDirectoryName(name string) string {
+	var builder strings.Builder
+	previousHyphen := false
+	for _, char := range name {
+		if ('a' <= char && char <= 'z') || ('0' <= char && char <= '9') {
+			builder.WriteRune(char)
+			previousHyphen = false
+			continue
+		}
+		if char == '-' {
+			if builder.Len() > 0 && !previousHyphen {
+				builder.WriteRune(char)
+				previousHyphen = true
+			}
+			continue
+		}
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			builder.WriteRune(unicode.ToLower(char))
+			previousHyphen = false
+			continue
+		}
+		if builder.Len() > 0 && !previousHyphen {
+			builder.WriteRune('-')
+			previousHyphen = true
+		}
+	}
+	result := strings.Trim(builder.String(), "-")
+	if result == "" {
+		return "skill"
+	}
+	return result
 }

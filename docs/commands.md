@@ -26,10 +26,10 @@ repertoire add code-reviewer --catalog company --target codex --target claude
 ```
 
 An unqualified short name resolves when exactly one visible catalog defines it.
-Namespaced IDs such as `github.com/phillarmonic/ai-skills/zensical` select the
+Source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical` select the
 catalog source and short skill name together. If several catalogs define a short
-name, Repertoire lists every definition (with namespaced IDs) and requires
-`--catalog` or a namespaced ID.
+name, Repertoire lists every definition (with source-qualified IDs) and requires
+`--catalog` or a source-qualified ID.
 
 ## Synchronize
 
@@ -57,7 +57,7 @@ repertoire bootstrap
 ```
 
 If `.repertoire.yaml` is missing, `bootstrap` creates one that lists every skill
-from the built-in `phillarmonic` catalog using namespaced IDs and
+from the built-in `phillarmonic` catalog using source-qualified IDs and
 `scope: global` (manifest stays in the repo; skills install under home-directory
 agent roots). `sync` does not create a missing file.
 
@@ -82,7 +82,8 @@ shared home installation.
 ## List
 
 The default view shows installed skills, their catalog, declared or ad-hoc
-status, and targets. `--available` reads catalog manifests instead.
+status, and targets. `--available` refreshes visible catalogs and reads their
+manifests instead.
 
 ```bash
 repertoire list
@@ -127,11 +128,14 @@ as the stub name.
 ## Update and remove
 
 `update` refreshes tracking catalogs and reinstalls one or every installed
-skill. Missing managed copies are repaired. Tags and commit refs remain pinned.
+skill. With a catalog name, it refreshes that catalog even when no installed
+skill has the same name. Missing managed copies are repaired. Tags and commit
+refs remain pinned.
 
 ```bash
 repertoire update
 repertoire update code-reviewer
+repertoire update company
 repertoire update --target all
 repertoire remove code-reviewer
 ```
@@ -150,11 +154,12 @@ default explicit.
 
 Repertoire generates context-aware completion scripts for Bash, Zsh, Fish, and
 PowerShell. Completions suggest installed skills, available skills from local or
-already-cached catalogs, agent targets, and registries Repertoire already knows
-about: the built-in catalog, registrations in global and project scope,
+already-cached catalogs, agent targets, and known catalogs: the built-in catalog,
+registrations in global and project scope,
 `.repertoire.yaml` bootstrap catalogs, lock-file sources, and cached remotes.
-`catalog add` also completes those known source URLs. Typing a namespaced skill
-prefix (with `/` or `.`) switches skill completion to namespaced IDs.
+`catalog add` also completes those known source URLs. Typing a source-qualified
+skill prefix (with `/` or `.`) switches skill completion to source-qualified
+IDs.
 Completion never clones or refreshes a catalog.
 
 Enable completion for the current shell session:
