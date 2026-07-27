@@ -1,6 +1,7 @@
 package install
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -67,6 +68,18 @@ func TestEscapingSymlinkRejected(t *testing.T) {
 	}
 	if _, err := Digest(source); err == nil || !strings.Contains(err.Error(), "escapes") {
 		t.Fatalf("expected escaping symlink error, got %v", err)
+	}
+}
+
+func TestValidateSkillRejectsInvalidStubManifest(t *testing.T) {
+	t.Parallel()
+	source := skillFixture(t, "demo")
+	content := "schema: 1\nstubs:\n  broken:\n    description: Broken\n    path: assets/missing\n    instructions: Use it.\n"
+	if err := os.WriteFile(filepath.Join(source, "stubs.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateSkill(source, "demo"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected missing stub asset error, got %v", err)
 	}
 }
 

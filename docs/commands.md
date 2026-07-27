@@ -90,6 +90,40 @@ repertoire list --available
 repertoire list --available --catalog phillarmonic
 ```
 
+## Discover and get stubs
+
+Installed skills may expose small file-backed stubs. List every stub in the
+selected scope, or limit the result to one installed skill:
+
+```bash
+repertoire stub list
+repertoire stub list common-stubs
+```
+
+Ask for a specific stub with its explicit `<skill>/<stub>` identifier:
+
+```bash
+repertoire stub get common-stubs/editorconfig
+```
+
+The command prints a stable handoff containing the stub identifier,
+description, absolute asset path, and authored instructions:
+
+```text
+Stub: common-stubs/editorconfig
+Description: Ensure text files end with a newline.
+Asset: /home/user/.agents/skills/common-stubs/assets/.editorconfig
+Instructions:
+Create or update the repository-root .editorconfig ...
+```
+
+Repertoire does not copy, merge, execute, or print the asset contents. It uses
+only installed state from the selected global or `--project` scope and returns
+a path only from a complete skill copy matching the lockfile digest. Run
+`repertoire install <skill>` to repair missing or locally modified copies.
+Namespaced installed skill IDs are supported by treating the final path segment
+as the stub name.
+
 ## Update and remove
 
 `update` refreshes tracking catalogs and reinstalls one or every installed

@@ -96,6 +96,32 @@ references). Repertoire copies the skill directory as data; it never executes
 skill scripts during install. Symlinks are allowed only when they resolve inside
 the skill directory.
 
+### Expose reusable file stubs
+
+Add an optional `stubs.yaml` beside `SKILL.md` when a skill should offer small
+starter files to agents:
+
+```yaml
+schema: 1
+stubs:
+  editorconfig:
+    description: Ensure text files end with a newline.
+    path: assets/.editorconfig
+    instructions: |
+      Create or merge the repository-root .editorconfig while preserving
+      existing settings.
+```
+
+Stub names use the same lowercase letters, digits, and single-hyphen rules as
+skill names. Every entry needs a non-empty description and instructions, and
+its contained relative path must resolve to one regular file inside the skill
+directory. Invalid manifests, missing files, directories, and escaping
+symlinks prevent the skill from being installed.
+
+After installing the skill, use `repertoire stub list [skill]` to discover its
+stubs and `repertoire stub get <skill>/<stub>` to give an agent the verified
+asset path and instructions.
+
 ### 5. Commit and push
 
 ```bash

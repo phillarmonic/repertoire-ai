@@ -189,6 +189,11 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 	if catalogUpdate.ValidArgsFunction == nil || catalogRemove.ValidArgsFunction == nil {
 		t.Fatal("catalog update/remove argument completion is not wired")
 	}
+	stubGet, _, _ := command.Find([]string{"stub", "get"})
+	stubList, _, _ := command.Find([]string{"stub", "list"})
+	if stubGet.ValidArgsFunction == nil || stubList.ValidArgsFunction == nil {
+		t.Fatal("stub get/list argument completion is not wired")
+	}
 }
 
 func writeCompletionCatalog(t *testing.T, root, name string, skills map[string]string) string {

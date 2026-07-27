@@ -72,6 +72,11 @@ root by default, and records the exact catalog source and content digest. Unlike
 `--target` with individual names when only a subset is needed. Use `--project` to install into a Git worktree
 instead.
 
+Installed skills can also expose small file-backed stubs. The
+`repertoire stub get <skill>/<stub>` command gives an agent a verified asset
+path and authored instructions without changing the project or printing the
+asset contents.
+
 For repeatable developer onboarding and CI-managed environments, commit a
 `.repertoire.yaml` manifest and run:
 
