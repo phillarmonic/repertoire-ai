@@ -7,9 +7,11 @@ import (
 	"testing"
 )
 
-const siblingCatalog = "/Users/andy/repos/phillarmonic/ai-skills"
-
 func TestSiblingCatalogProjectAndGlobalWorkflows(t *testing.T) {
+	siblingCatalog, err := filepath.Abs(filepath.Join("..", "..", "..", "ai-skills"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := os.Stat(filepath.Join(siblingCatalog, "repertoire.yaml")); err != nil {
 		t.Skipf("sibling catalog unavailable: %v", err)
 	}
