@@ -41,8 +41,15 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 	if err != nil {
 		return ResolvedSkill{}, err
 	}
+	sources := catalog.Sources(manifest)
+	preferMainline := namespace == "" && catalogName == ""
+	if preferMainline {
+		sort.SliceStable(sources, func(i, j int) bool {
+			return sources[i].Name == catalog.BuiltinName && sources[j].Name != catalog.BuiltinName
+		})
+	}
 	var matches []ResolvedSkill
-	for _, source := range catalog.Sources(manifest) {
+	for _, source := range sources {
 		if catalogName != "" && source.Name != catalogName {
 			continue
 		}
@@ -111,6 +118,9 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 			}
 			if err := resolveArtifacts("artifact", entry.Artifacts, resolved.Artifacts); err != nil {
 				return ResolvedSkill{}, err
+			}
+			if preferMainline && source.Name == catalog.BuiltinName {
+				return resolved, nil
 			}
 			matches = append(matches, resolved)
 		}

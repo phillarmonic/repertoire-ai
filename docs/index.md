@@ -14,9 +14,9 @@ when a skill should live inside a Git worktree.
 The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
 skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
 Its skills can be referenced without declaring the repository or specifying a
-catalog when their names are unique among the visible catalogs. If several
-catalogs define the same name, Repertoire lists them and requires an explicit
-`--catalog <name>`.
+catalog. Unqualified names prefer this official mainline catalog. Use
+`--catalog <name>` or a source-qualified ID to choose a different definition;
+ambiguity remains an error when only non-mainline catalogs match.
 
 ## Install one skill across multiple AI coding agents
 

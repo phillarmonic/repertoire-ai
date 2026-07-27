@@ -311,7 +311,7 @@ func TestOpenClawStateDirectoryOverride(t *testing.T) {
 	}
 }
 
-func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) {
+func TestResolverPrefersMainlineAndAcceptsQualification(t *testing.T) {
 	t.Parallel()
 	manifest := state.NewManifest()
 	for _, name := range []string{"one", "two"} {
@@ -335,6 +335,71 @@ func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) 
 	}
 	manifest.Catalogs[catalog.BuiltinName] = manifest.Catalogs["one"]
 	delete(manifest.Catalogs, "one")
+	manifest.Catalogs["broken"] = state.CatalogRegistration{Source: filepath.Join(t.TempDir(), "missing")}
+	manager, err := catalog.NewManager(filepath.Join(t.TempDir(), "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := Resolve(manager, manifest, "demo", "", false)
+	if err != nil || resolved.Catalog.Name != catalog.BuiltinName {
+		t.Fatalf("mainline resolution: %+v, %v", resolved, err)
+	}
+	delete(manifest.Catalogs, "broken")
+	resolved, err = Resolve(manager, manifest, "demo", "two", false)
+	if err != nil || resolved.Catalog.Name != "two" {
+		t.Fatalf("qualified resolution: %+v, %v", resolved, err)
+	}
+	namespaced := catalog.SkillID(manifest.Catalogs["two"].Source, "demo")
+	resolved, err = Resolve(manager, manifest, namespaced, "", false)
+	if err != nil || resolved.Catalog.Name != "two" || resolved.Name != "demo" {
+		t.Fatalf("namespaced resolution: %+v, %v", resolved, err)
+	}
+}
+
+func TestResolverListsAmbiguousNonMainlineDefinitions(t *testing.T) {
+	t.Parallel()
+	manifest := state.NewManifest()
+	for _, name := range []string{"one", "two"} {
+		root := t.TempDir()
+		skill := filepath.Join(root, "skills", "demo")
+		if err := os.MkdirAll(skill, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := "---\nname: demo\ndescription: Test\n---\n"
+		if err := os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		catalogManifest := state.NewManifest()
+		catalogManifest.Catalog = &state.CatalogDefinition{
+			Name: name, Skills: map[string]state.SkillEntry{"demo": {Path: "skills/demo"}},
+		}
+		if err := state.SaveManifest(filepath.Join(root, "repertoire.yaml"), catalogManifest); err != nil {
+			t.Fatal(err)
+		}
+		manifest.Catalogs[name] = state.CatalogRegistration{Source: root}
+	}
+	mainline := t.TempDir()
+	otherSkill := filepath.Join(mainline, "skills", "other")
+	if err := os.MkdirAll(otherSkill, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(otherSkill, "SKILL.md"),
+		[]byte("---\nname: other\ndescription: Test\n---\n"),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	mainlineManifest := state.NewManifest()
+	mainlineManifest.Catalog = &state.CatalogDefinition{
+		Name:   catalog.BuiltinName,
+		Skills: map[string]state.SkillEntry{"other": {Path: "skills/other"}},
+	}
+	if err := state.SaveManifest(filepath.Join(mainline, "repertoire.yaml"), mainlineManifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Catalogs[catalog.BuiltinName] = state.CatalogRegistration{Source: mainline}
+
 	manager, err := catalog.NewManager(filepath.Join(t.TempDir(), "cache"))
 	if err != nil {
 		t.Fatal(err)
@@ -345,22 +410,13 @@ func TestResolverListsAmbiguousDefinitionsAndAcceptsQualification(t *testing.T) 
 	}
 	for _, expected := range []string{
 		`skill "demo" is defined in multiple catalogs:`,
-		"  - phillarmonic (" + manifest.Catalogs[catalog.BuiltinName].Source + ")",
+		"  - one (" + manifest.Catalogs["one"].Source + ")",
 		"  - two (" + manifest.Catalogs["two"].Source + ")",
 		"specify a catalog with --catalog <name> or a namespaced skill id",
 	} {
 		if !strings.Contains(err.Error(), expected) {
 			t.Fatalf("ambiguity error %q does not contain %q", err, expected)
 		}
-	}
-	resolved, err := Resolve(manager, manifest, "demo", "two", false)
-	if err != nil || resolved.Catalog.Name != "two" {
-		t.Fatalf("qualified resolution: %+v, %v", resolved, err)
-	}
-	namespaced := catalog.SkillID(manifest.Catalogs["two"].Source, "demo")
-	resolved, err = Resolve(manager, manifest, namespaced, "", false)
-	if err != nil || resolved.Catalog.Name != "two" || resolved.Name != "demo" {
-		t.Fatalf("namespaced resolution: %+v, %v", resolved, err)
 	}
 }
 

@@ -4,8 +4,9 @@ A catalog is a Git repository with a `repertoire.yaml` catalog section. The
 built-in `phillarmonic` registration points to
 `https://github.com/phillarmonic/ai-skills.git`.
 
-The built-in catalog does not need to be declared separately. When `zensical`
-has a single visible definition, these commands are equivalent:
+The built-in catalog does not need to be declared separately. Because
+`phillarmonic` is the official mainline catalog, these commands select the same
+`zensical` definition even when another visible catalog uses that short name:
 
 ```bash
 repertoire add zensical
@@ -13,10 +14,11 @@ repertoire add zensical --catalog phillarmonic
 repertoire add github.com/phillarmonic/ai-skills/zensical
 ```
 
-Source-qualified IDs are `{catalog-host-and-path}/{skill-name}` and always select one
-catalog source. When several visible catalogs define the same short skill name,
-Repertoire lists every matching catalog (with source-qualified IDs) instead of
-choosing one. Repeat with `--catalog <name>` or a source-qualified ID.
+Source-qualified IDs are `{catalog-host-and-path}/{skill-name}` and always select
+one catalog source. An unqualified name prefers `phillarmonic` when the
+mainline catalog defines it. If several non-mainline catalogs define the same
+short name, Repertoire lists every match instead of choosing one. Repeat with
+`--catalog <name>` or a source-qualified ID.
 
 Use owner-prefixed kebab-case skill names whenever a short name is generic. A
 skill named `code` may look fine inside one personal catalog, but agents and

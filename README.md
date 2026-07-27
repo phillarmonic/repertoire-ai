@@ -15,7 +15,8 @@ Use it to:
 
 The built-in `phillarmonic` catalog provides Phillarmonic's official vendored skill set
 from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills). Its skills can be referenced without declaring
-the repository or specifying a catalog when their names are unique among the visible catalogs.
+the repository or specifying a catalog. An unqualified name prefers this official
+mainline catalog; use `--catalog` or a source-qualified ID to select another catalog explicitly.
 
 ### Private Company Catalogs
 
@@ -250,8 +251,10 @@ source-qualified manifest key such as
 | `repertoire bootstrap`               | Install the skills in `.repertoire.yaml`                                      |
 | `repertoire sync`                    | Refresh catalogs and synchronize `.repertoire.yaml`                           |
 
-An unqualified skill name resolves automatically when exactly one visible catalog defines it. If multiple catalogs
-define the same name, Repertoire lists every matching catalog and source; repeat the command with `--catalog <name>`.
+An unqualified skill name prefers the official `phillarmonic` catalog when it
+defines that skill. Otherwise, if multiple catalogs define the same name,
+Repertoire lists every match; repeat the command with `--catalog <name>` or use
+a source-qualified ID.
 
 ## Shell completion
 
