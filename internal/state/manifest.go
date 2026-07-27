@@ -29,7 +29,23 @@ type CatalogDefinition struct {
 }
 
 type SkillEntry struct {
-	Path string `yaml:"path"`
+	Path      string                     `yaml:"path"`
+	Variants  map[string]string          `yaml:"variants,omitempty"`
+	Artifacts map[string][]ArtifactEntry `yaml:"artifacts,omitempty"`
+}
+
+const (
+	ArtifactModeCopy            = "copy"
+	ArtifactModeMarkdownSection = "markdown-section"
+	ArtifactModeJSONMerge       = "json-merge"
+)
+
+type ArtifactEntry struct {
+	ID          string `yaml:"id"`
+	Source      string `yaml:"source"`
+	Destination string `yaml:"destination"`
+	Mode        string `yaml:"mode"`
+	Executable  bool   `yaml:"executable,omitempty"`
 }
 
 type CatalogRegistration struct {
@@ -40,6 +56,7 @@ type CatalogRegistration struct {
 type Requirement struct {
 	Catalog string   `yaml:"catalog"`
 	Targets []string `yaml:"targets,omitempty"`
+	Hooks   bool     `yaml:"hooks,omitempty"`
 }
 
 func NewManifest() Manifest {
@@ -97,6 +114,43 @@ func (m Manifest) Validate() error {
 			}
 			if err := ValidateRelativePath(entry.Path); err != nil {
 				return fmt.Errorf("skill %q path: %w", name, err)
+			}
+			for target, path := range entry.Variants {
+				if err := ValidateName(target); err != nil {
+					return fmt.Errorf("skill %q variant %q: %w", name, target, err)
+				}
+				if err := ValidateRelativePath(path); err != nil {
+					return fmt.Errorf("skill %q variant %q path: %w", name, target, err)
+				}
+			}
+			for target, artifacts := range entry.Artifacts {
+				if err := ValidateName(target); err != nil {
+					return fmt.Errorf("skill %q artifact target %q: %w", name, target, err)
+				}
+				seen := map[string]struct{}{}
+				for _, artifact := range artifacts {
+					if err := ValidateName(artifact.ID); err != nil {
+						return fmt.Errorf("skill %q artifact %q id: %w", name, artifact.ID, err)
+					}
+					if _, exists := seen[artifact.ID]; exists {
+						return fmt.Errorf("skill %q repeats artifact id %q for target %q", name, artifact.ID, target)
+					}
+					seen[artifact.ID] = struct{}{}
+					if err := ValidateRelativePath(artifact.Source); err != nil {
+						return fmt.Errorf("skill %q artifact %q source: %w", name, artifact.ID, err)
+					}
+					if err := ValidateRelativePath(artifact.Destination); err != nil {
+						return fmt.Errorf("skill %q artifact %q destination: %w", name, artifact.ID, err)
+					}
+					switch artifact.Mode {
+					case ArtifactModeCopy, ArtifactModeMarkdownSection, ArtifactModeJSONMerge:
+					default:
+						return fmt.Errorf("skill %q artifact %q has unknown mode %q", name, artifact.ID, artifact.Mode)
+					}
+					if artifact.Executable && artifact.Mode != ArtifactModeCopy {
+						return fmt.Errorf("skill %q artifact %q can only be executable in copy mode", name, artifact.ID)
+					}
+				}
 			}
 		}
 	}

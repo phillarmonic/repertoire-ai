@@ -23,6 +23,7 @@ or post-install verification restores the backup automatically.
 repertoire add code-reviewer
 repertoire add github.com/phillarmonic/ai-skills/zensical
 repertoire add code-reviewer --catalog company --target codex --target claude
+repertoire --project add graphify --target codex --with-hooks
 ```
 
 An unqualified short name resolves when exactly one visible catalog defines it.
@@ -30,6 +31,11 @@ Source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical` select
 catalog source and short skill name together. If several catalogs define a short
 name, Repertoire lists every definition (with source-qualified IDs) and requires
 `--catalog` or a source-qualified ID.
+
+Catalog skills can expose managed hooks and project instructions. Interactive
+`add` asks before installing them. Noninteractive use skips them unless
+`--with-hooks` is present; `--no-hooks` makes the skip explicit. The selected
+choice is stored for declared requirements.
 
 ## Synchronize
 
@@ -137,6 +143,8 @@ repertoire update
 repertoire update code-reviewer
 repertoire update company
 repertoire update --target all
+repertoire update graphify --with-hooks
+repertoire update graphify --no-hooks
 repertoire remove code-reviewer
 ```
 

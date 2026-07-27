@@ -25,6 +25,13 @@ Claude Code, GitHub Copilot, Cursor, Gemini CLI, Windsurf, Cline, Roo Code,
 Kiro, Junie, Kimi Code, OpenCode, OpenClaw, and the portable `.agents/skills`
 layout.
 
+Catalogs can also provide platform-specific variants and managed project hooks.
+Use `--with-hooks` in CI or another noninteractive environment:
+
+```bash
+repertoire --project add graphify --target codex --with-hooks
+```
+
 Repeat `--target` with individual names to install only a subset:
 
 ```bash
@@ -55,6 +62,11 @@ skills:
   github.com/example/company-skills/code-reviewer:
     scope: global
     targets: [codex, claude, cursor, gemini, copilot]
+  graphify:
+    catalog: company
+    scope: project
+    targets: [codex]
+    hooks: true
 ```
 
 Then bootstrap every declared skill:

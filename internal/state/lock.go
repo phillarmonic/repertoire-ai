@@ -18,15 +18,28 @@ type Lock struct {
 }
 
 type LockSkill struct {
-	Catalog   string   `json:"catalog"`
-	Source    string   `json:"source"`
-	Ref       string   `json:"ref,omitempty"`
-	Commit    string   `json:"commit"`
-	Digest    string   `json:"digest"`
-	Targets   []string `json:"targets"`
-	Locations []string `json:"locations"`
-	Declared  bool     `json:"declared"`
-	Origin    string   `json:"origin,omitempty"`
+	Catalog       string            `json:"catalog"`
+	Source        string            `json:"source"`
+	Ref           string            `json:"ref,omitempty"`
+	Commit        string            `json:"commit"`
+	Digest        string            `json:"digest"`
+	TargetDigests map[string]string `json:"target_digests,omitempty"`
+	Targets       []string          `json:"targets"`
+	Locations     []string          `json:"locations"`
+	Artifacts     []LockArtifact    `json:"artifacts,omitempty"`
+	Declared      bool              `json:"declared"`
+	Origin        string            `json:"origin,omitempty"`
+}
+
+type LockArtifact struct {
+	ID          string          `json:"id"`
+	Target      string          `json:"target"`
+	Destination string          `json:"destination"`
+	Mode        string          `json:"mode"`
+	Marker      string          `json:"marker,omitempty"`
+	Digest      string          `json:"digest"`
+	Created     bool            `json:"created,omitempty"`
+	ManagedJSON json.RawMessage `json:"managed_json,omitempty"`
 }
 
 func NewLock() Lock {

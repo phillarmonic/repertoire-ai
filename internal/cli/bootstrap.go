@@ -89,7 +89,12 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			lock = &globalLock
 			protectGlobal = true
 		}
-		if err := installManaged(
+		hooks := hookChoiceNo
+		if declaration.Hooks {
+			hooks = hookChoiceYes
+		}
+		if _, err := installManaged(
+			command,
 			scope,
 			resolutionManifest,
 			nil,
@@ -101,6 +106,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			force,
 			false,
 			protectGlobal,
+			hooks,
 		); err != nil {
 			return err
 		}

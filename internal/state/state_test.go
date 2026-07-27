@@ -14,7 +14,16 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	manifest.Catalog = &CatalogDefinition{
 		Name: "example",
 		Skills: map[string]SkillEntry{
-			"code-reviewer": {Path: "skills/code-reviewer"},
+			"code-reviewer": {
+				Path:     "skills/code-reviewer",
+				Variants: map[string]string{"codex": "platforms/codex"},
+				Artifacts: map[string][]ArtifactEntry{
+					"codex": {{
+						ID: "hooks", Source: "platforms/codex/hooks.json",
+						Destination: ".codex/hooks.json", Mode: ArtifactModeJSONMerge,
+					}},
+				},
+			},
 		},
 	}
 	manifest.Catalogs["private"] = CatalogRegistration{Source: "git@example.test:org/skills.git", Ref: "main"}
@@ -43,6 +52,39 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	loaded.Catalog.Skills["escape"] = SkillEntry{Path: "../escape"}
 	if _, err := loaded.Marshal(); err == nil {
 		t.Fatal("expected escaping path to fail")
+	}
+}
+
+func TestCatalogRejectsUnsafeVariantAndArtifactDeclarations(t *testing.T) {
+	t.Parallel()
+	base := func() Manifest {
+		manifest := NewManifest()
+		manifest.Catalog = &CatalogDefinition{
+			Name: "example",
+			Skills: map[string]SkillEntry{
+				"graphify": {Path: "skills/graphify"},
+			},
+		}
+		return manifest
+	}
+	variant := base()
+	entry := variant.Catalog.Skills["graphify"]
+	entry.Variants = map[string]string{"codex": "../escape"}
+	variant.Catalog.Skills["graphify"] = entry
+	if err := variant.Validate(); err == nil || !strings.Contains(err.Error(), "contained relative path") {
+		t.Fatalf("unsafe variant error = %v", err)
+	}
+
+	artifact := base()
+	entry = artifact.Catalog.Skills["graphify"]
+	entry.Artifacts = map[string][]ArtifactEntry{
+		"codex": {{
+			ID: "hooks", Source: "hooks.json", Destination: "../../escape", Mode: ArtifactModeJSONMerge,
+		}},
+	}
+	artifact.Catalog.Skills["graphify"] = entry
+	if err := artifact.Validate(); err == nil || !strings.Contains(err.Error(), "contained relative path") {
+		t.Fatalf("unsafe artifact error = %v", err)
 	}
 }
 
