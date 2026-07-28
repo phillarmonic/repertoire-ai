@@ -40,8 +40,8 @@ repertoire install --target all
 repertoire update --target all
 ```
 
-For automated team onboarding, declare the required skills and targets in
-`.repertoire.yaml`, commit it with the project, and run:
+For automated team onboarding, declare the required skills and targets in the
+`skills` section of `repertoire.yaml`, commit it with the project, and run:
 
 ```bash
 repertoire bootstrap

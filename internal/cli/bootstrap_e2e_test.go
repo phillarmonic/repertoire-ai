@@ -54,13 +54,15 @@ skills:
 			t.Fatalf("global list:\n%s", output)
 		}
 
+		projectManifest := filepath.Join(project, "repertoire.yaml")
+		manifestBeforeRemove := readFileForTest(t, projectManifest)
 		runCommandWithEnv(t, project, environment, binary, "--project", "remove", "project-demo")
 		runCommandWithEnv(t, project, environment, binary, "remove", "global-demo")
-		if _, err := os.Stat(filepath.Join(project, "repertoire.yaml")); !os.IsNotExist(err) {
-			t.Fatalf("removing bootstrap skill changed project requirements manifest: %v", err)
+		if after := readFileForTest(t, projectManifest); after != manifestBeforeRemove {
+			t.Fatalf("removing bootstrap skill changed project manifest:\n%s", after)
 		}
 		if _, err := os.Stat(filepath.Join(globalConfigRoot(home), "repertoire.yaml")); !os.IsNotExist(err) {
-			t.Fatalf("removing bootstrap skill changed global requirements manifest: %v", err)
+			t.Fatalf("removing bootstrap skill created a global requirements manifest: %v", err)
 		}
 		runCommandWithEnv(t, project, environment, binary, "bootstrap")
 
@@ -291,18 +293,18 @@ skills:
 			t.Fatal(err)
 		}
 		output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
-		if !strings.Contains(output, "created .repertoire.yaml") ||
+		if !strings.Contains(output, "created repertoire.yaml") ||
 			!strings.Contains(output, "bootstrapped github.com/phillarmonic/ai-skills/demo (global)") {
 			t.Fatalf("bootstrap create output:\n%s", output)
 		}
-		content, err := os.ReadFile(filepath.Join(project, ".repertoire.yaml"))
+		content, err := os.ReadFile(filepath.Join(project, "repertoire.yaml"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		body := string(content)
 		if !strings.Contains(body, "github.com/phillarmonic/ai-skills/demo:") ||
 			!strings.Contains(body, "scope: global") {
-			t.Fatalf("created bootstrap manifest:\n%s", body)
+			t.Fatalf("created manifest:\n%s", body)
 		}
 		if _, err := os.Stat(filepath.Join(home, ".codex", "skills", "demo", "SKILL.md")); err != nil {
 			t.Fatalf("expected global install of short skill name: %v", err)
@@ -312,9 +314,105 @@ skills:
 		}
 		emptyProject, _, emptyEnv := bootstrapEnvironment(t)
 		output = runCommandWithEnvError(t, emptyProject, emptyEnv, binary, "sync")
-		if !strings.Contains(output, "does not exist") {
+		if !strings.Contains(output, "declares no bootstrap skills") {
 			t.Fatalf("sync without manifest:\n%s", output)
 		}
+	})
+
+	t.Run("legacy bootstrap manifest is migrated into repertoire.yaml", func(t *testing.T) {
+		project, _, environment := bootstrapEnvironment(t)
+		catalogRoot := createBootstrapCatalog(t, "local", map[string]string{"legacy-demo": "v1"})
+		if err := os.WriteFile(filepath.Join(project, "repertoire.yaml"), []byte(`schema: 1
+requirements:
+  code-reviewer:
+    catalog: company
+    targets: [codex]
+`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		writeLegacyBootstrapFile(t, project, `schema: 1
+catalogs:
+  local:
+    source: `+catalogRoot+`
+skills:
+  legacy-demo:
+    catalog: local
+    scope: project
+    targets: [agents]
+`)
+		output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		if !strings.Contains(output, "migrated .repertoire.yaml into repertoire.yaml") ||
+			!strings.Contains(output, "bootstrapped legacy-demo (project)") {
+			t.Fatalf("migration output:\n%s", output)
+		}
+		if _, err := os.Stat(filepath.Join(project, state.BootstrapFileName)); !os.IsNotExist(err) {
+			t.Fatalf("legacy bootstrap manifest was not removed: %v", err)
+		}
+		manifestBody := readFileForTest(t, filepath.Join(project, "repertoire.yaml"))
+		if !strings.Contains(manifestBody, "legacy-demo:") || !strings.Contains(manifestBody, "code-reviewer:") {
+			t.Fatalf("migrated manifest lost declarations:\n%s", manifestBody)
+		}
+		if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "legacy-demo", "SKILL.md")); err != nil {
+			t.Fatalf("migrated skill was not installed: %v", err)
+		}
+	})
+
+	t.Run("repertoire.yaml skills take precedence over legacy file", func(t *testing.T) {
+		project, _, environment := bootstrapEnvironment(t)
+		catalogRoot := createBootstrapCatalog(t, "local", map[string]string{
+			"new-demo": "new-v1",
+			"old-demo": "old-v1",
+		})
+		writeBootstrapFile(t, project, `schema: 1
+catalogs:
+  local:
+    source: `+catalogRoot+`
+skills:
+  new-demo:
+    catalog: local
+    scope: project
+    targets: [agents]
+`)
+		writeLegacyBootstrapFile(t, project, `schema: 1
+skills:
+  old-demo:
+    catalog: local
+    scope: project
+    targets: [agents]
+`)
+		output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
+		if !strings.Contains(output, "deprecated and ignored") {
+			t.Fatalf("conflict warning output:\n%s", output)
+		}
+		if _, err := os.Stat(filepath.Join(project, state.BootstrapFileName)); err != nil {
+			t.Fatalf("legacy file should be left for manual cleanup: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "new-demo", "SKILL.md")); err != nil {
+			t.Fatalf("manifest skill was not installed: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "old-demo")); !os.IsNotExist(err) {
+			t.Fatalf("legacy skill should not be installed: %v", err)
+		}
+	})
+
+	t.Run("catalog remove is guarded by bootstrap skills", func(t *testing.T) {
+		project, _, environment := bootstrapEnvironment(t)
+		catalogRoot := createBootstrapCatalog(t, "local", map[string]string{"guarded": "v1"})
+		writeBootstrapFile(t, project, `schema: 1
+catalogs:
+  local:
+    source: `+catalogRoot+`
+skills:
+  guarded:
+    catalog: local
+    scope: project
+    targets: [agents]
+`)
+		output := runCommandWithEnvError(t, project, environment, binary, "--project", "catalog", "remove", "local")
+		if !strings.Contains(output, "required by bootstrap skill") {
+			t.Fatalf("guard output:\n%s", output)
+		}
+		runCommandWithEnv(t, project, environment, binary, "--project", "catalog", "remove", "local", "--force")
 	})
 }
 
@@ -488,7 +586,14 @@ func createTrackingCatalog(t *testing.T) (string, string, string) {
 
 func writeBootstrapFile(t *testing.T, project, content string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(project, ".repertoire.yaml"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(project, "repertoire.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeLegacyBootstrapFile(t *testing.T, project, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(project, state.BootstrapFileName), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

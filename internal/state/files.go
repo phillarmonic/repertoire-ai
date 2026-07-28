@@ -47,14 +47,6 @@ func SaveManifest(path string, manifest Manifest) error {
 	return WriteFileAtomic(path, content, 0o644)
 }
 
-func SaveBootstrapManifest(path string, manifest BootstrapManifest) error {
-	content, err := manifest.Marshal()
-	if err != nil {
-		return err
-	}
-	return WriteFileAtomic(path, content, 0o644)
-}
-
 func SaveLock(path string, lock Lock) error {
 	content, err := lock.Marshal()
 	if err != nil {

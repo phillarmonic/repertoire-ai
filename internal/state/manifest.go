@@ -23,6 +23,7 @@ type Manifest struct {
 	Tool         string                         `yaml:"tool,omitempty"`
 	Catalog      *CatalogDefinition             `yaml:"catalog,omitempty"`
 	Catalogs     map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
+	Skills       map[string]BootstrapSkill      `yaml:"skills,omitempty"`
 	Requirements map[string]Requirement         `yaml:"requirements,omitempty"`
 }
 
@@ -69,6 +70,7 @@ func NewManifest() Manifest {
 		Schema:       SchemaVersion,
 		Tool:         ManifestTool,
 		Catalogs:     map[string]CatalogRegistration{},
+		Skills:       map[string]BootstrapSkill{},
 		Requirements: map[string]Requirement{},
 	}
 }
@@ -86,6 +88,7 @@ func LoadManifest(path string) (Manifest, error) {
 	if err := yaml.Unmarshal(content, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("decode manifest: %w", err)
 	}
+	defaultSkillScopes(manifest.Skills)
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
 	}
@@ -139,12 +142,12 @@ func (m Manifest) Validate() error {
 		}
 	}
 	for name, catalog := range m.Catalogs {
-		if err := ValidateName(name); err != nil {
-			return fmt.Errorf("catalog registration %q: %w", name, err)
+		if err := validateCatalogRegistration(name, catalog); err != nil {
+			return err
 		}
-		if strings.TrimSpace(catalog.Source) == "" {
-			return fmt.Errorf("catalog registration %q has an empty source", name)
-		}
+	}
+	if err := validateSkillDeclarations(m.Skills); err != nil {
+		return err
 	}
 	for name, requirement := range m.Requirements {
 		if err := ValidateSkillReference(name); err != nil {

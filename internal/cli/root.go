@@ -136,6 +136,11 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 					return fmt.Errorf("catalog %q is required by %q; use --force to remove it", args[0], skill)
 				}
 			}
+			for skill, declaration := range manifest.Skills {
+				if declaration.Catalog == args[0] && !*force {
+					return fmt.Errorf("catalog %q is required by bootstrap skill %q; use --force to remove it", args[0], skill)
+				}
+			}
 			delete(manifest.Catalogs, args[0])
 			return state.SaveManifest(scope.ManifestPath, manifest)
 		},
