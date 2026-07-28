@@ -48,7 +48,7 @@ func knownCatalogs(activeGlobal, activeProject bool, cacheRoot string) []knownCa
 		}
 		addManifestCatalogs(remember, project, kind)
 		addLockCatalogs(remember, project)
-		addBootstrapCatalogs(remember, project.Root)
+		addBootstrapCatalogs(remember, project)
 	}
 
 	if manager, err := catalog.NewManager(cacheRoot); err == nil {
@@ -111,8 +111,14 @@ func addLockCatalogs(remember func(string, string, string), scope state.Scope) {
 	}
 }
 
-func addBootstrapCatalogs(remember func(string, string, string), projectRoot string) {
-	bootstrap, err := state.LoadBootstrapManifest(filepath.Join(projectRoot, state.BootstrapFileName))
+func addBootstrapCatalogs(remember func(string, string, string), scope state.Scope) {
+	// Bootstrap declarations live in the project repertoire.yaml; their
+	// catalogs are already surfaced by addManifestCatalogs. Only a legacy
+	// .repertoire.yaml awaiting migration needs a dedicated read.
+	if manifest, err := state.LoadManifest(scope.ManifestPath); err == nil && len(manifest.Skills) > 0 {
+		return
+	}
+	bootstrap, err := state.LoadBootstrapManifest(filepath.Join(scope.Root, state.BootstrapFileName))
 	if err != nil {
 		return
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLoadBootstrapManifestDefaultsAndRoundTrips(t *testing.T) {
+func TestLoadBootstrapManifestDefaultsScopes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), BootstrapFileName)
 	content := `schema: 1
 catalogs:
@@ -31,27 +31,8 @@ skills:
 	if manifest.Skills["reviewer"].Scope != BootstrapScopeGlobal {
 		t.Fatalf("default scope = %q", manifest.Skills["reviewer"].Scope)
 	}
-	first, err := manifest.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(first), "tool: https://github.com/phillarmonic/repertoire-ai\n") {
-		t.Fatalf("bootstrap manifest marker missing:\n%s", first)
-	}
-	loadedPath := filepath.Join(t.TempDir(), BootstrapFileName)
-	if err := os.WriteFile(loadedPath, first, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := LoadBootstrapManifest(loadedPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := loaded.Marshal()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(first) != string(second) {
-		t.Fatalf("bootstrap manifest is not deterministic:\n%s\n%s", first, second)
+	if manifest.Skills["github.com/phillarmonic/ai-skills/zensical"].Scope != BootstrapScopeGlobal {
+		t.Fatalf("explicit global scope = %q", manifest.Skills["github.com/phillarmonic/ai-skills/zensical"].Scope)
 	}
 }
 

@@ -52,17 +52,14 @@ func TestParseSkillID(t *testing.T) {
 	}
 }
 
-func TestDefaultBootstrapManifest(t *testing.T) {
+func TestDefaultBootstrapSkills(t *testing.T) {
 	t.Parallel()
-	manifest := DefaultBootstrapManifest(BuiltinSource, []string{"zensical", "repertoire"})
-	if err := manifest.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	zensical := manifest.Skills["github.com/phillarmonic/ai-skills/zensical"]
+	skills := DefaultBootstrapSkills(BuiltinSource, []string{"zensical", "repertoire"})
+	zensical := skills["github.com/phillarmonic/ai-skills/zensical"]
 	if zensical.Scope != state.BootstrapScopeGlobal {
 		t.Fatalf("scope = %q", zensical.Scope)
 	}
-	if _, ok := manifest.Skills["github.com/phillarmonic/ai-skills/repertoire"]; !ok {
+	if _, ok := skills["github.com/phillarmonic/ai-skills/repertoire"]; !ok {
 		t.Fatal("expected repertoire skill id")
 	}
 }

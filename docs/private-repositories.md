@@ -104,7 +104,7 @@ Instructions for the agent go here.
 
 Keep the `name` specific when the skill covers a broad domain. For example,
 use `phillarmonkey-code` instead of `code`, and reserve the description for the
-human-readable explanation. Project `.repertoire.yaml` files may still refer to
+human-readable explanation. Project `repertoire.yaml` files may still refer to
 the skill with a full source-qualified ID such as
 `github.com/company/agent-skills/phillarmonkey-code` when that makes the source
 clearer.
@@ -204,8 +204,8 @@ repertoire update
 
 ## Share the catalog with your team
 
-Commit a project `.repertoire.yaml` so contributors install the same private
-skills after they can authenticate to the Git remote:
+Commit a project `repertoire.yaml` with a `skills` section so contributors
+install the same private skills after they can authenticate to the Git remote:
 
 ```yaml
 schema: 1

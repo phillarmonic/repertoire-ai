@@ -57,17 +57,20 @@ install form above.
 
 ## Bootstrap and synchronize a project
 
-From a Git worktree, install every skill declared in `.repertoire.yaml` into its
-configured project or global scope:
+From a Git worktree, install every skill declared in the `skills` section of
+the project `repertoire.yaml` into its configured project or global scope:
 
 ```bash
 repertoire bootstrap
 ```
 
-If `.repertoire.yaml` is missing, `bootstrap` creates one that lists every skill
-from the built-in `phillarmonic` catalog using source-qualified IDs and
-`scope: global` (manifest stays in the repo; skills install under home-directory
-agent roots). `sync` does not create a missing file.
+If `repertoire.yaml` declares no bootstrap skills, `bootstrap` adds a starter
+`skills` section that lists every skill from the built-in `phillarmonic`
+catalog using source-qualified IDs and `scope: global` (manifest stays in the
+repo; skills install under home-directory agent roots). `sync` does not create
+missing declarations. A legacy `.repertoire.yaml` is merged into
+`repertoire.yaml` and removed automatically on either command; when both files
+declare skills, the legacy file is ignored with a warning.
 
 `bootstrap` uses local catalogs and the current catalog cache without fetching.
 It skips intact installations and repairs missing managed copies. Use `sync`
@@ -85,7 +88,7 @@ optional hooks and integrations into that worktree.
 
 Both commands process skills by name and stop at the first error. Work completed
 before an error remains installed and locked. They never remove skills omitted
-from the bootstrap manifest.
+from the `skills` section.
 
 Because scope belongs to each declaration, `bootstrap` and `sync` reject
 `--global` and `--project`. They continue to honor `--force`. Replacing a
@@ -175,8 +178,9 @@ default explicit.
 Repertoire generates context-aware completion scripts for Bash, Zsh, Fish, and
 PowerShell. Completions suggest installed skills, available skills from local or
 already-cached catalogs, agent targets, and known catalogs: the built-in catalog,
-registrations in global and project scope,
-`.repertoire.yaml` bootstrap catalogs, lock-file sources, and cached remotes.
+registrations in global and project scope, bootstrap catalogs declared in the
+project `repertoire.yaml` (or a legacy `.repertoire.yaml` awaiting migration),
+lock-file sources, and cached remotes.
 `catalog add` also completes those known source URLs. Typing a source-qualified
 skill prefix (with `/` or `.`) switches skill completion to source-qualified
 IDs.

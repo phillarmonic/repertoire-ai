@@ -1,8 +1,8 @@
 # Manifests and state
 
 Repertoire uses one human-edited YAML format for catalogs, catalog
-registrations, and declared requirements. A file may contain any combination of
-the sections.
+registrations, bootstrap skills, and declared requirements. A file may contain
+any combination of the sections.
 
 ```yaml
 schema: 1
@@ -56,12 +56,11 @@ logical targets, installed locations, managed artifact destinations and
 digests, and whether an installation came from a declared requirement or an
 ad-hoc install.
 
-## Project bootstrap manifest
+## Project bootstrap skills
 
-A Git project may also carry a standalone `.repertoire.yaml` at its worktree
-root. This small onboarding manifest is separate from `repertoire.yaml`: it
-declares which skills a contributor needs and whether each skill belongs in the
-project or the contributor's home directory.
+A Git project declares the skills a contributor needs in the top-level
+`skills` section of its `repertoire.yaml`, next to any `catalogs` and
+`requirements` sections:
 
 ```yaml
 schema: 1
@@ -84,7 +83,7 @@ skills:
     hooks: true
 ```
 
-`skills` must contain at least one skill. Keys may be skill names or
+`skills` keys may be skill names or
 source-qualified IDs (`{catalog-host-and-path}/{skill-name}`). Prefer
 owner-prefixed kebab-case skill names for broad or generic skills, such as
 `phillarmonkey-code`. A catalog skill with that name can be referenced from a
@@ -108,12 +107,22 @@ Removing the globally managed skill also removes its recorded project
 instructions and optional artifacts, subject to the normal local-modification
 checks.
 
-When `repertoire bootstrap` runs without `.repertoire.yaml`, it writes a starter
-manifest that declares every built-in `phillarmonic` skill with a
-source-qualified ID and `scope: global`.
+When `repertoire bootstrap` runs in a project whose `repertoire.yaml` declares
+no skills, it adds a starter `skills` section that declares every built-in
+`phillarmonic` skill with a source-qualified ID and `scope: global`.
 
 Bootstrap installations are recorded with a `bootstrap` origin in the normal
-project or global lock. They do not add requirements to either
-`repertoire.yaml`, and removing one does not edit the bootstrap manifest.
-Removing a declaration from `.repertoire.yaml` is additive: existing installed
+project or global lock. They do not add requirements to
+`repertoire.yaml`, and removing one does not edit the manifest.
+Removing a declaration from the `skills` section is additive: existing installed
 copies remain until explicitly removed.
+
+### Migrating from `.repertoire.yaml`
+
+Repertoire previously read bootstrap declarations from a standalone
+`.repertoire.yaml` at the worktree root. When `repertoire bootstrap` or
+`repertoire sync` finds that legacy file and `repertoire.yaml` declares no
+skills, it merges the legacy `catalogs` and `skills` sections into
+`repertoire.yaml` and deletes `.repertoire.yaml`. When both files declare
+skills, `repertoire.yaml` wins and the legacy file is ignored with a warning so
+you can merge and delete it manually.

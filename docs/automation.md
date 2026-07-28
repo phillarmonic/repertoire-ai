@@ -50,7 +50,7 @@ repertoire add shared-helpers --project --target agents
 
 ## Automate developer and CI setup
 
-Commit `.repertoire.yaml` at the project root:
+Commit `repertoire.yaml` with a `skills` section at the project root:
 
 ```yaml
 schema: 1
@@ -78,7 +78,7 @@ Then bootstrap every declared skill:
 repertoire bootstrap
 ```
 
-If `.repertoire.yaml` is missing, `bootstrap` creates a starter from the built-in
+If `repertoire.yaml` declares no bootstrap skills, `bootstrap` creates a starter from the built-in
 catalog (source-qualified IDs, `scope: global`) and installs those skills. The command
 repairs missing managed copies. Run `repertoire sync` when the automation should
 fetch catalog changes and update the declared installations.

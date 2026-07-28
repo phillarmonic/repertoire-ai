@@ -84,19 +84,14 @@ func SourceMatchesNamespace(source, namespace string) bool {
 	return SourceNamespace(source) == namespace
 }
 
-// DefaultBootstrapManifest builds a starter bootstrap manifest that installs the
+// DefaultBootstrapSkills builds starter bootstrap declarations that install the
 // given short skill names from source under global scope using namespaced IDs.
-func DefaultBootstrapManifest(source string, skillNames []string) state.BootstrapManifest {
-	manifest := state.BootstrapManifest{
-		Schema:   state.SchemaVersion,
-		Tool:     state.ManifestTool,
-		Catalogs: map[string]state.CatalogRegistration{},
-		Skills:   map[string]state.BootstrapSkill{},
-	}
+func DefaultBootstrapSkills(source string, skillNames []string) map[string]state.BootstrapSkill {
+	skills := map[string]state.BootstrapSkill{}
 	for _, name := range skillNames {
-		manifest.Skills[SkillID(source, name)] = state.BootstrapSkill{
+		skills[SkillID(source, name)] = state.BootstrapSkill{
 			Scope: state.BootstrapScopeGlobal,
 		}
 	}
-	return manifest
+	return skills
 }

@@ -33,6 +33,13 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 		},
 	}
 	manifest.Catalogs["private"] = CatalogRegistration{Source: "git@example.test:org/skills.git", Ref: "main"}
+	manifest.Skills["github.com/phillarmonic/ai-skills/zensical"] = BootstrapSkill{Scope: BootstrapScopeGlobal}
+	manifest.Skills["shared-helpers"] = BootstrapSkill{
+		Catalog: "private",
+		Scope:   BootstrapScopeProject,
+		Targets: []string{"agents"},
+		Hooks:   true,
+	}
 	manifest.Requirements["code-reviewer"] = Requirement{Catalog: "example", Targets: []string{"codex"}}
 
 	first, err := manifest.Marshal()
@@ -83,6 +90,51 @@ catalog:
 	}
 	if manifest.Tool != ManifestTool {
 		t.Fatalf("legacy manifest default tool marker = %q", manifest.Tool)
+	}
+}
+
+func TestLoadManifestDefaultsSkillScopes(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	content := `schema: 1
+skills:
+  demo:
+    targets: [codex]
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Skills["demo"].Scope != BootstrapScopeGlobal {
+		t.Fatalf("default skill scope = %q", manifest.Skills["demo"].Scope)
+	}
+}
+
+func TestLoadManifestRejectsInvalidSkillDeclarations(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "scope", body: "schema: 1\nskills:\n  demo:\n    scope: elsewhere\n", want: "scope must be"},
+		{name: "target", body: "schema: 1\nskills:\n  demo:\n    targets: [unknown]\n", want: "unknown target"},
+		{name: "credentials", body: "schema: 1\ncatalogs:\n  private:\n    source: https://token@example.test/skills.git\n", want: "embedded credentials"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "repertoire.yaml")
+			if err := os.WriteFile(path, []byte(test.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := LoadManifest(path); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
 	}
 }
 

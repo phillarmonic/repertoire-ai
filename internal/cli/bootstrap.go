@@ -41,17 +41,16 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 	if err != nil {
 		return err
 	}
-	bootstrapPath := filepath.Join(projectScope.Root, state.BootstrapFileName)
-	bootstrap, created, err := loadOrCreateBootstrapManifest(bootstrapPath, refresh)
+	manifest, err := state.LoadManifest(projectScope.ManifestPath)
 	if err != nil {
 		return err
 	}
-	if created {
-		_, _ = fmt.Fprintf(command.OutOrStdout(), "created %s\n", state.BootstrapFileName)
+	legacyPath := filepath.Join(projectScope.Root, state.BootstrapFileName)
+	if err := ensureBootstrapSkills(command, &manifest, projectScope.ManifestPath, legacyPath, refresh); err != nil {
+		return err
 	}
-	resolutionManifest := bootstrap.ResolutionManifest()
 	if refresh {
-		if err := refreshBootstrapCatalogs(bootstrap, resolutionManifest); err != nil {
+		if err := refreshBootstrapCatalogs(manifest); err != nil {
 			return err
 		}
 	}
@@ -64,13 +63,13 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 	var globalLock state.Lock
 	globalLoaded := false
 
-	names := make([]string, 0, len(bootstrap.Skills))
-	for name := range bootstrap.Skills {
+	names := make([]string, 0, len(manifest.Skills))
+	for name := range manifest.Skills {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		declaration := bootstrap.Skills[name]
+		declaration := manifest.Skills[name]
 		scope := projectScope
 		lock := &projectLock
 		protectGlobal := false
@@ -97,7 +96,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		if _, err := installManaged(
 			command,
 			scope,
-			resolutionManifest,
+			manifest,
 			nil,
 			lock,
 			name,
@@ -116,7 +115,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			if err := installBootstrapProjectArtifacts(
 				projectScope,
 				globalScope.LockPath,
-				resolutionManifest,
+				manifest,
 				&globalLock,
 				name,
 				declaration.Catalog,
@@ -196,17 +195,65 @@ func installBootstrapProjectArtifacts(
 	return state.SaveLock(globalLockPath, *globalLock)
 }
 
-func loadOrCreateBootstrapManifest(path string, refresh bool) (state.BootstrapManifest, bool, error) {
-	bootstrap, err := state.LoadBootstrapManifest(path)
-	if err == nil {
-		return bootstrap, false, nil
+// ensureBootstrapSkills guarantees the project repertoire.yaml carries
+// bootstrap declarations before bootstrap/sync runs. A legacy .repertoire.yaml
+// is migrated into repertoire.yaml (and removed); a project without any
+// declarations gets a generated starter on bootstrap, while sync errors.
+func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, manifestPath, legacyPath string, refresh bool) error {
+	out := command.OutOrStdout()
+	_, statErr := os.Stat(legacyPath)
+	legacyExists := statErr == nil
+
+	if len(manifest.Skills) > 0 {
+		if legacyExists {
+			_, _ = fmt.Fprintf(
+				out,
+				"warning: %s is deprecated and ignored; merge its declarations into %s and delete it\n",
+				state.BootstrapFileName,
+				filepath.Base(manifestPath),
+			)
+		}
+		return nil
 	}
-	if refresh || !errors.Is(err, os.ErrNotExist) {
-		return state.BootstrapManifest{}, false, err
+
+	if legacyExists {
+		legacy, err := state.LoadBootstrapManifest(legacyPath)
+		if err != nil {
+			return err
+		}
+		for name, registration := range legacy.Catalogs {
+			if existing, ok := manifest.Catalogs[name]; ok && existing.Source != registration.Source {
+				_, _ = fmt.Fprintf(
+					out,
+					"warning: keeping catalog %q from %s; %s registers a different source\n",
+					name,
+					filepath.Base(manifestPath),
+					state.BootstrapFileName,
+				)
+				continue
+			}
+			manifest.Catalogs[name] = registration
+		}
+		for name, skill := range legacy.Skills {
+			manifest.Skills[name] = skill
+		}
+		if err := state.SaveManifest(manifestPath, *manifest); err != nil {
+			return err
+		}
+		if err := os.Remove(legacyPath); err != nil {
+			return fmt.Errorf("remove legacy bootstrap manifest: %w", err)
+		}
+		_, _ = fmt.Fprintf(out, "migrated %s into %s\n", state.BootstrapFileName, filepath.Base(manifestPath))
+		return nil
 	}
+
+	if refresh {
+		return fmt.Errorf("%s declares no bootstrap skills", filepath.Base(manifestPath))
+	}
+
 	manager, err := catalog.NewManager("")
 	if err != nil {
-		return state.BootstrapManifest{}, false, err
+		return err
 	}
 	materialized, err := manager.Materialize(catalog.Source{
 		Name:    catalog.BuiltinName,
@@ -216,27 +263,36 @@ func loadOrCreateBootstrapManifest(path string, refresh bool) (state.BootstrapMa
 		},
 	}, false)
 	if err != nil {
-		return state.BootstrapManifest{}, false, err
+		return err
 	}
 	if materialized.Manifest.Catalog == nil || len(materialized.Manifest.Catalog.Skills) == 0 {
-		return state.BootstrapManifest{}, false, errors.New("built-in catalog declares no skills")
+		return errors.New("built-in catalog declares no skills")
 	}
 	names := make([]string, 0, len(materialized.Manifest.Catalog.Skills))
 	for name := range materialized.Manifest.Catalog.Skills {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	bootstrap = catalog.DefaultBootstrapManifest(catalog.BuiltinSource, names)
-	if err := state.SaveBootstrapManifest(path, bootstrap); err != nil {
-		return state.BootstrapManifest{}, false, err
+	for name, skill := range catalog.DefaultBootstrapSkills(catalog.BuiltinSource, names) {
+		manifest.Skills[name] = skill
 	}
-	return bootstrap, true, nil
+	_, statErr = os.Stat(manifestPath)
+	manifestExists := statErr == nil
+	if err := state.SaveManifest(manifestPath, *manifest); err != nil {
+		return err
+	}
+	if manifestExists {
+		_, _ = fmt.Fprintf(out, "added bootstrap skills to %s\n", filepath.Base(manifestPath))
+	} else {
+		_, _ = fmt.Fprintf(out, "created %s\n", filepath.Base(manifestPath))
+	}
+	return nil
 }
 
-func refreshBootstrapCatalogs(bootstrap state.BootstrapManifest, manifest state.Manifest) error {
+func refreshBootstrapCatalogs(manifest state.Manifest) error {
 	refreshAll := false
 	used := map[string]struct{}{}
-	for _, skill := range bootstrap.Skills {
+	for _, skill := range manifest.Skills {
 		if skill.Catalog == "" {
 			refreshAll = true
 		} else {

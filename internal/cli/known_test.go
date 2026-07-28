@@ -44,6 +44,21 @@ skills:
     targets: [agents]
 `)
 
+	legacyProject := t.TempDir()
+	if err := exec.Command("git", "-C", legacyProject, "init", "-q").Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+	writeLegacyBootstrapFile(t, legacyProject, `schema: 1
+catalogs:
+  legacy-team:
+    source: https://github.com/example/legacy-team-skills.git
+skills:
+  demo:
+    catalog: legacy-team
+    scope: global
+    targets: [agents]
+`)
+
 	cacheParent := filepath.Join(userCacheRoot(home), "repertoire", "catalogs")
 	if err := os.MkdirAll(cacheParent, 0o755); err != nil {
 		t.Fatal(err)
@@ -76,11 +91,28 @@ skills:
 	if byName["company"].Kind != "registered" || !strings.Contains(byName["company"].Source, "company-skills") {
 		t.Fatalf("company = %+v", byName["company"])
 	}
-	if byName["team"].Kind != "bootstrap" {
+	if byName["team"].Kind != "project" {
 		t.Fatalf("team = %+v", byName["team"])
 	}
 	if byName["cached"].Kind != "cached" {
 		t.Fatalf("cached = %+v", byName["cached"])
+	}
+
+	if err := os.Chdir(legacyProject); err != nil {
+		t.Fatal(err)
+	}
+	legacyKnown := knownCatalogs(false, false, "")
+	legacyKind := ""
+	for _, item := range legacyKnown {
+		if item.Name == "legacy-team" {
+			legacyKind = item.Kind
+		}
+	}
+	if legacyKind != "bootstrap" {
+		t.Fatalf("legacy-team kind = %q, want bootstrap fallback", legacyKind)
+	}
+	if err := os.Chdir(project); err != nil {
+		t.Fatal(err)
 	}
 
 	global, projectFlag := false, false

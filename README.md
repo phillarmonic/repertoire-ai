@@ -11,7 +11,7 @@ Use it to:
 - install the same `SKILL.md` package across multiple AI coding agents;
 - keep managed skills updated without overwriting local changes;
 - automate team onboarding and agent setup with a checked-in
-  `.repertoire.yaml`.
+  `repertoire.yaml`.
 
 The built-in `phillarmonic` catalog provides Phillarmonic's official vendored skill set
 from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills). Its skills can be referenced without declaring
@@ -88,7 +88,7 @@ Installed skills can also expose small file-backed stubs. The
 changing the project or printing the asset contents.
 
 For repeatable developer onboarding and CI-managed environments, commit a
-`.repertoire.yaml` manifest and run:
+`repertoire.yaml` manifest with a `skills` section and run:
 
 ```shell
 repertoire bootstrap
@@ -185,11 +185,11 @@ repertoire update --target all
 
 ## Set up a project in one command
 
-Run `repertoire bootstrap` in a Git worktree. If `.repertoire.yaml` is missing, Repertoire creates one that lists
-built-in catalog skills with source-qualified IDs and `scope: global`—so the small manifest stays in the repo while
-skills install under home-directory agent roots.
+Run `repertoire bootstrap` in a Git worktree. If `repertoire.yaml` declares no bootstrap skills, Repertoire adds a
+starter `skills` section that lists built-in catalog skills with source-qualified IDs and `scope: global`—so the small
+manifest stays in the repo while skills install under home-directory agent roots.
 
-You can also commit a custom `.repertoire.yaml`, including a private company catalog (reachable only with Git
+You can also commit a custom `repertoire.yaml`, including a private company catalog (reachable only with Git
 credentials that can read that remote):
 
 ```yaml
@@ -224,8 +224,12 @@ refreshing an existing tracking cache. To fetch catalog updates before updating 
 repertoire sync
 ```
 
-Project and global skills can be installed together. Removing an entry from the bootstrap manifest does not
+Project and global skills can be installed together. Removing an entry from the `skills` section does not
 automatically delete an installed skill.
+
+Repertoire previously read project bootstrap declarations from a separate `.repertoire.yaml` file. When `bootstrap`
+or `sync` finds that legacy file and `repertoire.yaml` has no `skills` section, it merges the declarations into
+`repertoire.yaml` and removes `.repertoire.yaml` automatically.
 
 Catalogs may distinguish always-on project instructions from optional hooks.
 Bootstrap installs instruction pointers into the worktree even for
@@ -249,8 +253,8 @@ source-qualified manifest key such as
 | `repertoire update [skill\|catalog]` | Refresh catalogs and update managed skills (`--target all` for every agent)   |
 | `repertoire remove <skill>`          | Safely remove a managed skill                                                 |
 | `repertoire catalog add <source>`    | Register a public, private, or local catalog                                  |
-| `repertoire bootstrap`               | Install the skills in `.repertoire.yaml`                                      |
-| `repertoire sync`                    | Refresh catalogs and synchronize `.repertoire.yaml`                           |
+| `repertoire bootstrap`               | Install the skills declared in `repertoire.yaml`                              |
+| `repertoire sync`                    | Refresh catalogs and synchronize the declared skills                          |
 
 An unqualified skill name prefers the official `phillarmonic` catalog when it
 defines that skill. Otherwise, if multiple catalogs define the same name,
