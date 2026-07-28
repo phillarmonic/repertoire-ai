@@ -27,6 +27,7 @@ var bootstrapTargets = map[string]struct{}{
 
 type BootstrapManifest struct {
 	Schema   int                            `yaml:"schema"`
+	Tool     string                         `yaml:"tool,omitempty"`
 	Catalogs map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
 	Skills   map[string]BootstrapSkill      `yaml:"skills"`
 }
@@ -48,6 +49,7 @@ func LoadBootstrapManifest(path string) (BootstrapManifest, error) {
 	}
 	manifest := BootstrapManifest{
 		Schema:   SchemaVersion,
+		Tool:     ManifestTool,
 		Catalogs: map[string]CatalogRegistration{},
 		Skills:   map[string]BootstrapSkill{},
 	}

@@ -41,6 +41,7 @@ root and must stay inside the repo.
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalog:
   name: company
@@ -53,6 +54,8 @@ catalog:
 Rules:
 
 - `schema` must be `1`.
+- `tool` is an optional informational marker. Use the Repertoire repository URL
+  so developers know where to find the tool that owns the manifest.
 - Catalog names use 1–64 lowercase letters, digits, or single hyphens
   (`company-skills` is valid; `Company_Skills` is not).
 - Skill names use the same lowercase-and-hyphen rule. Prefer owner-prefixed
@@ -206,6 +209,7 @@ skills after they can authenticate to the Git remote:
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalogs:
   company:

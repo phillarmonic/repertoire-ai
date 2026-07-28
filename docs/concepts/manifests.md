@@ -6,6 +6,7 @@ the sections.
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalog:
   name: phillarmonic
@@ -26,6 +27,10 @@ requirements:
       - codex
     hooks: true
 ```
+
+`tool` is an informational marker for people who find the file outside its
+original context. Repertoire writes it as the project repository URL, but it
+does not affect schema validation or installation behavior.
 
 Catalog names use lowercase letters, digits, and hyphens. Catalog skill names
 use the same kebab-case rule. Prefer owner-prefixed names such as
@@ -60,6 +65,7 @@ project or the contributor's home directory.
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalogs:
   company:

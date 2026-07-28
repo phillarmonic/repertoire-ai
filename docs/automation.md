@@ -54,6 +54,7 @@ Commit `.repertoire.yaml` at the project root:
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalogs:
   company:

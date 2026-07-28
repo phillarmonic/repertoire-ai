@@ -89,6 +89,7 @@ func SourceMatchesNamespace(source, namespace string) bool {
 func DefaultBootstrapManifest(source string, skillNames []string) state.BootstrapManifest {
 	manifest := state.BootstrapManifest{
 		Schema:   state.SchemaVersion,
+		Tool:     state.ManifestTool,
 		Catalogs: map[string]state.CatalogRegistration{},
 		Skills:   map[string]state.BootstrapSkill{},
 	}

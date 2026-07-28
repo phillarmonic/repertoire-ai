@@ -35,6 +35,9 @@ skills:
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !strings.Contains(string(first), "tool: https://github.com/phillarmonic/repertoire-ai\n") {
+		t.Fatalf("bootstrap manifest marker missing:\n%s", first)
+	}
 	loadedPath := filepath.Join(t.TempDir(), BootstrapFileName)
 	if err := os.WriteFile(loadedPath, first, 0o644); err != nil {
 		t.Fatal(err)
@@ -49,6 +52,26 @@ skills:
 	}
 	if string(first) != string(second) {
 		t.Fatalf("bootstrap manifest is not deterministic:\n%s\n%s", first, second)
+	}
+}
+
+func TestLoadBootstrapManifestAcceptsLegacyFileWithoutToolMarker(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), BootstrapFileName)
+	content := `schema: 1
+skills:
+  demo:
+    scope: global
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := LoadBootstrapManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Tool != ManifestTool {
+		t.Fatalf("legacy bootstrap manifest default tool marker = %q", manifest.Tool)
 	}
 }
 

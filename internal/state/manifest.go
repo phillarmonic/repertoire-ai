@@ -11,12 +11,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const SchemaVersion = 1
+const (
+	SchemaVersion = 1
+	ManifestTool  = "https://github.com/phillarmonic/repertoire-ai"
+)
 
 var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type Manifest struct {
 	Schema       int                            `yaml:"schema"`
+	Tool         string                         `yaml:"tool,omitempty"`
 	Catalog      *CatalogDefinition             `yaml:"catalog,omitempty"`
 	Catalogs     map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
 	Requirements map[string]Requirement         `yaml:"requirements,omitempty"`
@@ -63,6 +67,7 @@ type Requirement struct {
 func NewManifest() Manifest {
 	return Manifest{
 		Schema:       SchemaVersion,
+		Tool:         ManifestTool,
 		Catalogs:     map[string]CatalogRegistration{},
 		Requirements: map[string]Requirement{},
 	}

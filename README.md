@@ -194,6 +194,7 @@ credentials that can read that remote):
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 
 catalogs:
   company:

@@ -53,6 +53,7 @@ target has no override:
 
 ```yaml
 schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
 catalog:
   name: graphify
   skills:

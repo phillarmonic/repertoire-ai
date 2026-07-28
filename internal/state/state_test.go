@@ -39,6 +39,9 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
+	if !strings.Contains(string(first), "tool: https://github.com/phillarmonic/repertoire-ai\n") {
+		t.Fatalf("manifest marker missing:\n%s", first)
+	}
 	path := filepath.Join(t.TempDir(), "repertoire.yaml")
 	if err := WriteFileAtomic(path, first, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
@@ -58,6 +61,28 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	loaded.Catalog.Skills["escape"] = SkillEntry{Path: "../escape"}
 	if _, err := loaded.Marshal(); err == nil {
 		t.Fatal("expected escaping path to fail")
+	}
+}
+
+func TestLoadManifestAcceptsLegacyFileWithoutToolMarker(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	content := `schema: 1
+catalog:
+  name: example
+  skills:
+    demo:
+      path: skills/demo
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := LoadManifest(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Tool != ManifestTool {
+		t.Fatalf("legacy manifest default tool marker = %q", manifest.Tool)
 	}
 }
 
