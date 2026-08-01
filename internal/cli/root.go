@@ -57,6 +57,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	command.Flags().BoolVar(&selfUpdate, "self-update", false, "update Repertoire to the latest stable release")
 	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force))
 	command.AddCommand(newCompletionCommand())
+	command.AddCommand(newDoctorCommand(&globalScope, &projectScope, &force))
 	command.AddCommand(newStubCommand(&globalScope, &projectScope))
 	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force) {
 		command.AddCommand(child)

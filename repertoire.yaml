@@ -1,0 +1,13 @@
+schema: 1
+tool: https://github.com/phillarmonic/repertoire-ai
+skills:
+    github.com/phillarmonic/ai-skills/common-stubs:
+        scope: global
+    github.com/phillarmonic/ai-skills/drun:
+        scope: global
+    github.com/phillarmonic/ai-skills/repertoire:
+        scope: global
+    github.com/phillarmonic/ai-skills/zensical:
+        scope: global
+    github.com/phillarmonic/ai-skills/zensical-glossary:
+        scope: global

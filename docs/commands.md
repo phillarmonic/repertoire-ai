@@ -96,6 +96,48 @@ user-global skill that is already managed from another catalog source or ref
 also requires `--force`; this prevents one project from silently changing a
 shared home installation.
 
+## Diagnose and repair
+
+`doctor` audits the current project and the global installation for broken or
+stale managed state: missing or locally modified managed files, files managed
+by multiple skills with conflicting content, managed Markdown sections no
+lock entry claims, identical sections duplicated under per-target markers,
+declarations in `repertoire.yaml` whose lock state does not match,
+global-lock entries for projects that no longer exist, and broken global
+skill installs.
+
+```bash
+repertoire doctor
+```
+
+Report mode lists every issue with a suggested remedy and exits non-zero when
+anything is found, so it can gate CI. `repertoire doctor --fix` repairs what
+it finds: managed content is reinstalled from the catalog cache, orphaned and
+duplicated sections are collapsed or removed, drift is reconciled through the
+same path as `repertoire bootstrap`, and stale lock entries are pruned. When
+the current directory is not a Git worktree, project checks are skipped and
+only global hygiene runs.
+
+A `conflicting-destination` report means two skills copy-manage the same
+file with different content, so no reinstall can satisfy both. Doctor repairs
+it only once the catalogs resolve compatibly (for example after the skills
+switch to `markdown-section`); until then it reports the conflict instead of
+flip-flopping modification warnings.
+
+`repertoire doctor --reset` is the clean-slate escape hatch: it removes every
+managed artifact for the current project and reinstalls from `repertoire.yaml`.
+It asks for confirmation unless `--yes` is given.
+
+```bash
+repertoire doctor --fix
+repertoire doctor --reset --yes
+repertoire doctor --format json
+```
+
+Output is a table in a terminal, TSV when redirected, or JSON with
+`--format json`. Like `bootstrap` and `sync`, `doctor` rejects `--global` and
+`--project`; it always inspects both scopes.
+
 ## List
 
 In a terminal, the default view shows a compact table of installed skills,

@@ -29,3 +29,13 @@ credential-helper access, then run `repertoire catalog update`.
 
 Run `repertoire install <name>` or `repertoire update <name>`. Missing managed
 copies are recreated from the locked catalog source.
+
+## Managed files are missing, modified, or duplicated
+
+Run `repertoire doctor`. It reports missing or locally modified managed
+files, managed sections that no lock entry claims, identical sections
+duplicated under per-target markers, declarations whose lock state has
+drifted, and global-lock entries for projects that no longer exist, each with
+a suggested remedy. `repertoire doctor --fix` repairs them, and
+`repertoire doctor --reset --yes` reinstalls every managed artifact for the
+project from scratch.

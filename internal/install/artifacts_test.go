@@ -276,6 +276,229 @@ func TestAllArtifactsInstallOnceAcrossTargets(t *testing.T) {
 	}
 }
 
+func TestIdenticalMarkdownArtifactsCollapseToAllMarker(t *testing.T) {
+	project := t.TempDir()
+	source := filepath.Join(t.TempDir(), "agents.md")
+	if err := os.WriteFile(source, []byte("Graphify v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(project, "AGENTS.md")
+	original := "# User instructions\n"
+	if err := os.WriteFile(destination, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolved := artifactFixture("markdown-section", source, "AGENTS.md")
+	targets := []Target{{Name: "codex"}, {Name: "cursor"}}
+	installed, err := InstallArtifacts(resolved, targets, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 1 || installed[0].Target != "all" || installed[0].Marker != "repertoire:graphify:all:guidance" {
+		t.Fatalf("installed artifacts = %+v, want one target=all entry", installed)
+	}
+	content := readTestFile(t, destination)
+	if strings.Count(content, ":start -->") != 1 || !strings.Contains(content, "repertoire:graphify:all:guidance:start") {
+		t.Fatalf("installed Markdown:\n%s", content)
+	}
+	if !strings.Contains(content, "# User instructions") {
+		t.Fatalf("user content missing:\n%s", content)
+	}
+
+	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 1 || updated[0].Target != "all" {
+		t.Fatalf("updated artifacts = %+v, want one target=all entry", updated)
+	}
+	if again := readTestFile(t, destination); again != content {
+		t.Fatalf("reinstall changed content:\n%s", again)
+	}
+	if err := RemoveArtifacts(updated, project, false); err != nil {
+		t.Fatal(err)
+	}
+	if content := readTestFile(t, destination); content != original {
+		t.Fatalf("removed Markdown = %q, want original %q", content, original)
+	}
+}
+
+func TestMarkdownDeduplicationGating(t *testing.T) {
+	project := t.TempDir()
+	source := filepath.Join(t.TempDir(), "agents.md")
+	if err := os.WriteFile(source, []byte("Graphify v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(project, "AGENTS.md")
+	if err := os.WriteFile(destination, []byte("# User instructions\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolved := artifactFixture("markdown-section", source, "AGENTS.md")
+
+	installed, err := InstallArtifacts(resolved, []Target{{Name: "codex"}}, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 1 || installed[0].Target != "codex" || installed[0].Marker != "repertoire:graphify:codex:guidance" {
+		t.Fatalf("single-target artifacts = %+v, want one per-target entry", installed)
+	}
+
+	targets := []Target{{Name: "codex"}, {Name: "cursor"}}
+	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 1 || updated[0].Target != "all" {
+		t.Fatalf("widened artifacts = %+v, want one target=all entry", updated)
+	}
+	content := readTestFile(t, destination)
+	if strings.Count(content, ":start -->") != 1 || !strings.Contains(content, "repertoire:graphify:all:guidance:start") {
+		t.Fatalf("migrated Markdown:\n%s", content)
+	}
+	if strings.Contains(content, "repertoire:graphify:codex:") || !strings.Contains(content, "# User instructions") {
+		t.Fatalf("migrated Markdown:\n%s", content)
+	}
+}
+
+func TestMarkdownDeduplicationMixedDigests(t *testing.T) {
+	project := t.TempDir()
+	sources := t.TempDir()
+	sourceA := filepath.Join(sources, "agents-a.md")
+	sourceB := filepath.Join(sources, "agents-b.md")
+	if err := os.WriteFile(sourceA, []byte("Variant A\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sourceB, []byte("Variant B\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resolved := ResolvedSkill{
+		Name: "graphify",
+		Artifacts: map[string][]ResolvedArtifact{
+			"codex": {{
+				ArtifactEntry: state.ArtifactEntry{
+					ID: "guidance", Source: filepath.Base(sourceA), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
+				},
+				SourcePath: sourceA, Digest: "digest-a",
+			}},
+			"cursor": {{
+				ArtifactEntry: state.ArtifactEntry{
+					ID: "guidance", Source: filepath.Base(sourceB), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
+				},
+				SourcePath: sourceB, Digest: "digest-b",
+			}},
+		},
+	}
+	targets := []Target{{Name: "codex"}, {Name: "cursor"}}
+	installed, err := InstallArtifacts(resolved, targets, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 2 {
+		t.Fatalf("installed artifacts = %+v, want two per-target entries", installed)
+	}
+	content := readTestFile(t, filepath.Join(project, "AGENTS.md"))
+	for _, marker := range []string{"repertoire:graphify:codex:guidance", "repertoire:graphify:cursor:guidance"} {
+		if !strings.Contains(content, marker+":start") {
+			t.Fatalf("missing %s in:\n%s", marker, content)
+		}
+	}
+	if !strings.Contains(content, "Variant A") || !strings.Contains(content, "Variant B") {
+		t.Fatalf("mixed Markdown:\n%s", content)
+	}
+}
+
+func TestMarkdownDeduplicationMigration(t *testing.T) {
+	testCases := map[string]struct {
+		userContent string
+		created     bool
+	}{
+		"file with user content":          {userContent: "# User instructions\n", created: false},
+		"file created by repertoire only": {userContent: "", created: true},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			project := t.TempDir()
+			source := filepath.Join(t.TempDir(), "agents.md")
+			if err := os.WriteFile(source, []byte("Graphify v1\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			destination := filepath.Join(project, "AGENTS.md")
+			targetNames := []string{"codex", "cursor"}
+			var content strings.Builder
+			content.WriteString(testCase.userContent)
+			var previous []state.LockArtifact
+			for _, target := range targetNames {
+				marker := "repertoire:graphify:" + target + ":guidance"
+				separator := "\n"
+				if content.Len() == 0 {
+					separator = ""
+				}
+				content.WriteString(separator)
+				fmt.Fprintf(&content, "<!-- %s:start -->\nGraphify v1\n<!-- %s:end -->\n", marker, marker)
+				previous = append(previous, state.LockArtifact{
+					ID: "guidance", Target: target, Destination: destination,
+					Mode: state.ArtifactModeMarkdownSection, Marker: marker,
+					Digest: digestBytes([]byte("Graphify v1")), Created: testCase.created,
+					MarkdownSeparator: separator,
+				})
+			}
+			if err := os.WriteFile(destination, []byte(content.String()), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			resolved := artifactFixture("markdown-section", source, "AGENTS.md")
+			targets := []Target{{Name: "codex"}, {Name: "cursor"}}
+			installed, err := InstallArtifacts(resolved, targets, project, previous, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(installed) != 1 || installed[0].Target != "all" || installed[0].Created != testCase.created {
+				t.Fatalf("migrated artifacts = %+v, want one target=all entry with created=%v", installed, testCase.created)
+			}
+			migrated := readTestFile(t, destination)
+			if strings.Count(migrated, ":start -->") != 1 || !strings.Contains(migrated, "repertoire:graphify:all:guidance:start") {
+				t.Fatalf("migrated Markdown:\n%s", migrated)
+			}
+			if strings.Contains(migrated, ":codex:guidance") || strings.Contains(migrated, ":cursor:guidance") {
+				t.Fatalf("old markers remain:\n%s", migrated)
+			}
+			if !strings.HasPrefix(migrated, testCase.userContent) {
+				t.Fatalf("user content missing:\n%s", migrated)
+			}
+		})
+	}
+}
+
+func TestAllDeclaredAndPerTargetIdenticalDoNotDuplicate(t *testing.T) {
+	project := t.TempDir()
+	source := filepath.Join(t.TempDir(), "agents.md")
+	if err := os.WriteFile(source, []byte("Graphify v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	entry := state.ArtifactEntry{
+		ID: "guidance", Source: filepath.Base(source), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
+	}
+	resolved := ResolvedSkill{
+		Name: "graphify",
+		Artifacts: map[string][]ResolvedArtifact{
+			"all":    {{ArtifactEntry: entry, SourcePath: source}},
+			"codex":  {{ArtifactEntry: entry, SourcePath: source}},
+			"cursor": {{ArtifactEntry: entry, SourcePath: source}},
+		},
+	}
+	targets := []Target{{Name: "codex"}, {Name: "cursor"}}
+	installed, err := InstallArtifacts(resolved, targets, project, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 1 || installed[0].Target != "all" {
+		t.Fatalf("installed artifacts = %+v, want one target=all entry", installed)
+	}
+	content := readTestFile(t, filepath.Join(project, "AGENTS.md"))
+	if strings.Count(content, ":start -->") != 1 {
+		t.Fatalf("duplicated Markdown:\n%s", content)
+	}
+}
+
 func artifactFixture(mode, source, destination string) ResolvedSkill {
 	return ResolvedSkill{
 		Name: "graphify",

@@ -41,7 +41,7 @@ func InstallArtifacts(
 		destination string
 		mode        string
 	}
-	installations := artifactInstallations(resolved, targets)
+	installations := deduplicateMarkdownInstallations(artifactInstallations(resolved, targets))
 	desired := map[string]desiredArtifact{}
 	for _, installation := range installations {
 		artifact := installation.artifact
@@ -148,6 +148,75 @@ func artifactInstallations(resolved ResolvedSkill, targets []Target) []artifactI
 		}
 	}
 	return installations
+}
+
+// deduplicateMarkdownInstallations collapses groups of identical
+// markdown-section artifacts — same destination, artifact id, and source
+// digest — into a single installation under the shared "all" target. Catalogs
+// commonly declare one lightweight pointer per target for files like
+// AGENTS.md that many agents read; without this, the same section would be
+// inlined once per selected target. Groups with a single member keep their
+// per-target marker so existing installs are not churned, and groups whose
+// sources differ keep separate per-target sections.
+func deduplicateMarkdownInstallations(installations []artifactInstallation) []artifactInstallation {
+	type markdownGroup struct {
+		destination string
+		artifact    ResolvedArtifact
+		digests     map[string]struct{}
+		members     int
+		firstIndex  int
+		collapsed   bool
+	}
+	groups := map[string]*markdownGroup{}
+	var ordered []*markdownGroup
+	for index, installation := range installations {
+		artifact := installation.artifact
+		if artifact.Mode != state.ArtifactModeMarkdownSection {
+			continue
+		}
+		key := artifact.Destination + "\x00" + artifact.ID
+		group, seen := groups[key]
+		if !seen {
+			group = &markdownGroup{
+				destination: artifact.Destination,
+				artifact:    artifact,
+				digests:     map[string]struct{}{},
+				firstIndex:  index,
+			}
+			groups[key] = group
+			ordered = append(ordered, group)
+		}
+		group.digests[artifact.Digest] = struct{}{}
+		group.members++
+	}
+	claimedAllKeys := map[string]string{}
+	for _, group := range ordered {
+		if group.members < 2 || len(group.digests) != 1 {
+			continue
+		}
+		// Two collapsible groups that share an artifact id but target
+		// different destinations would both claim the ("all", id) key;
+		// keep the first and leave the rest per-target.
+		if destination, claimed := claimedAllKeys[group.artifact.ID]; claimed && destination != group.destination {
+			continue
+		}
+		claimedAllKeys[group.artifact.ID] = group.destination
+		group.collapsed = true
+	}
+	var deduplicated []artifactInstallation
+	for index, installation := range installations {
+		artifact := installation.artifact
+		if artifact.Mode == state.ArtifactModeMarkdownSection {
+			if group, seen := groups[artifact.Destination+"\x00"+artifact.ID]; seen && group.collapsed {
+				if index == group.firstIndex {
+					deduplicated = append(deduplicated, artifactInstallation{targetName: "all", artifact: group.artifact})
+				}
+				continue
+			}
+		}
+		deduplicated = append(deduplicated, installation)
+	}
+	return deduplicated
 }
 
 func RemoveArtifacts(artifacts []state.LockArtifact, projectRoot string, force bool) error {
@@ -469,7 +538,10 @@ func removeMarkedSection(content []byte, start, end, separator string, force boo
 			return nil, errors.New("managed Markdown separator is invalid")
 		}
 		if !bytes.HasSuffix(content[:startIndex], []byte(separator)) {
-			if !force {
+			// A block at the very start of the file has no preceding
+			// separator, whatever the lock recorded at install time —
+			// removing an adjacent earlier block consumes it.
+			if startIndex != 0 && !force {
 				return nil, errors.New("managed Markdown separator is locally modified; use --force")
 			}
 		} else {

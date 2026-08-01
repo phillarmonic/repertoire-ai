@@ -255,6 +255,7 @@ source-qualified manifest key such as
 | `repertoire catalog add <source>`    | Register a public, private, or local catalog                                  |
 | `repertoire bootstrap`               | Install the skills declared in `repertoire.yaml`                              |
 | `repertoire sync`                    | Refresh catalogs and synchronize the declared skills                          |
+| `repertoire doctor`                  | Diagnose broken or stale installs; `--fix` repairs, `--reset` reinstalls       |
 
 An unqualified skill name prefers the official `phillarmonic` catalog when it
 defines that skill. Otherwise, if multiple catalogs define the same name,

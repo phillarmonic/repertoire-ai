@@ -89,11 +89,22 @@ contained relative project paths.
 Artifact modes are:
 
 - `copy` manages a whole file. Set `executable: true` for a copied hook script.
+  Because copy owns the whole file, two skills copying different content to
+  the same destination conflict; use `markdown-section` for shared
+  instruction files.
 - `markdown-section` inserts a marked section and preserves text outside it.
 - `json-merge` adds object keys and array entries while preserving unrelated
   configuration.
 
 The special target `all` applies to every selected target in either section.
+
+Identical `markdown-section` entries repeated across selected targets — the
+same id, destination, and source content — are installed once under the `all`
+marker rather than inlined once per target. This keeps shared instruction
+files such as `AGENTS.md` small when many AGENTS.md-reading agents are
+selected. Entries whose source content differs keep separate per-target
+sections. Existing per-target sections migrate to the shared
+`repertoire:<skill>:all:<id>` marker on the next install or sync.
 Repertoire copies artifact data and updates configuration; it does not execute
 hook scripts during installation.
 
