@@ -332,7 +332,9 @@ func TestDoctorStaleProjectEntries(t *testing.T) {
 
 func TestDoctorGlobalSkillHealth(t *testing.T) {
 	home := t.TempDir()
+	// os.UserHomeDir reads HOME on Unix and USERPROFILE on Windows.
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	skillRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte("---\nname: demo\ndescription: Test\n---\n"), 0o644); err != nil {
 		t.Fatal(err)
