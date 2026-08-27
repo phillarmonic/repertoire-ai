@@ -19,25 +19,25 @@ const (
 var skillNamePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type Manifest struct {
-	Schema       int                            `yaml:"schema"`
-	Tool         string                         `yaml:"tool,omitempty"`
 	Catalog      *CatalogDefinition             `yaml:"catalog,omitempty"`
 	Catalogs     map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
 	Skills       map[string]BootstrapSkill      `yaml:"skills,omitempty"`
 	Requirements map[string]Requirement         `yaml:"requirements,omitempty"`
+	Tool         string                         `yaml:"tool,omitempty"`
+	Schema       int                            `yaml:"schema"`
 }
 
 type CatalogDefinition struct {
+	Skills      map[string]SkillEntry `yaml:"skills"`
 	Name        string                `yaml:"name"`
 	Description string                `yaml:"description,omitempty"`
-	Skills      map[string]SkillEntry `yaml:"skills"`
 }
 
 type SkillEntry struct {
-	Path         string                     `yaml:"path"`
 	Variants     map[string]string          `yaml:"variants,omitempty"`
 	Instructions map[string][]ArtifactEntry `yaml:"instructions,omitempty"`
 	Artifacts    map[string][]ArtifactEntry `yaml:"artifacts,omitempty"`
+	Path         string                     `yaml:"path"`
 }
 
 const (
@@ -76,6 +76,7 @@ func NewManifest() Manifest {
 }
 
 func LoadManifest(path string) (Manifest, error) {
+	// #nosec G304 -- path is the resolved manifest path
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return NewManifest(), nil
@@ -217,8 +218,8 @@ func ValidateCatalogSkillName(name string) error {
 	if strings.TrimSpace(name) != name || name == "" {
 		return errors.New("skill name is required")
 	}
-	parts := strings.Split(name, "/")
-	for _, part := range parts {
+	parts := strings.SplitSeq(name, "/")
+	for part := range parts {
 		if err := ValidateName(part); err != nil {
 			return fmt.Errorf("segment %q: %w", part, err)
 		}

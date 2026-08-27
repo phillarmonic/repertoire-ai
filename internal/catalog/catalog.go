@@ -27,11 +27,11 @@ type Source struct {
 }
 
 type Materialized struct {
-	Source
+	Manifest state.Manifest
 	Root     string
 	Commit   string
+	Source
 	Tracking bool
-	Manifest state.Manifest
 }
 
 type Manager struct {
@@ -106,11 +106,12 @@ func (m *Manager) Materialize(source Source, refresh bool) (Materialized, error)
 
 	root := filepath.Join(m.CacheRoot, source.Name)
 	if _, err := os.Stat(filepath.Join(root, ".git")); errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(m.CacheRoot, 0o755); err != nil {
-			return Materialized{}, fmt.Errorf("create catalog cache: %w", err)
+		// #nosec G301 -- cache root keeps the shared 0755 directory convention
+		if mkdirErr := os.MkdirAll(m.CacheRoot, 0o755); mkdirErr != nil {
+			return Materialized{}, fmt.Errorf("create catalog cache: %w", mkdirErr)
 		}
-		if err := runGit("", "clone", "--quiet", source.Registration.Source, root); err != nil {
-			return Materialized{}, fmt.Errorf("clone catalog %q from %s: %w", source.Name, RedactSource(source.Registration.Source), err)
+		if runErr := runGit("", "clone", "--quiet", source.Registration.Source, root); runErr != nil {
+			return Materialized{}, fmt.Errorf("clone catalog %q from %s: %w", source.Name, RedactSource(source.Registration.Source), runErr)
 		}
 	} else if err != nil {
 		return Materialized{}, fmt.Errorf("inspect catalog cache: %w", err)
@@ -129,8 +130,8 @@ func (m *Manager) Materialize(source Source, refresh bool) (Materialized, error)
 	if err != nil {
 		return Materialized{}, fmt.Errorf("resolve catalog %q commit: %w", source.Name, err)
 	}
-	if err := runGit(root, "checkout", "--quiet", "--detach", commit); err != nil {
-		return Materialized{}, fmt.Errorf("checkout catalog %q: %w", source.Name, err)
+	if runErr := runGit(root, "checkout", "--quiet", "--detach", commit); runErr != nil {
+		return Materialized{}, fmt.Errorf("checkout catalog %q: %w", source.Name, runErr)
 	}
 	manifest, err := loadCatalog(root)
 	if err != nil {
@@ -204,6 +205,7 @@ func runGit(directory string, arguments ...string) error {
 	if directory != "" {
 		commandArguments = append([]string{"-C", directory}, arguments...)
 	}
+	// #nosec G204 -- argv is built from the catalog registration, not user input
 	command := exec.Command("git", commandArguments...)
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -214,6 +216,7 @@ func runGit(directory string, arguments ...string) error {
 
 func gitOutput(directory string, arguments ...string) (string, error) {
 	commandArguments := append([]string{"-C", directory}, arguments...)
+	// #nosec G204 -- argv is built from the catalog registration, not user input
 	output, err := exec.Command("git", commandArguments...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(output)))

@@ -409,8 +409,8 @@ func (duplicateSections) fix(env *Env, issues []Issue) error {
 // members is left alone (unlocked leftovers belong to orphaned-markers).
 func (env *Env) collapseGroup(group []fileSection) error {
 	type member struct {
+		entry state.LockArtifact
 		fileSection
-		entry  state.LockArtifact
 		global bool
 	}
 	var eligible []member
@@ -444,8 +444,8 @@ func (env *Env) collapseGroup(group []fileSection) error {
 	replacement := append([]byte(nil), updated[:first.section.Start]...)
 	replacement = append(replacement, block...)
 	replacement = append(replacement, updated[first.section.End:]...)
-	if err := state.WriteFileAtomic(first.destination, replacement, 0o644); err != nil {
-		return err
+	if writeErr := state.WriteFileAtomic(first.destination, replacement, 0o644); writeErr != nil {
+		return writeErr
 	}
 	digest, found, err := installer.MarkdownSectionDigest(first.destination, marker)
 	if err != nil || !found {

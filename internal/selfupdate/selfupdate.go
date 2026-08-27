@@ -44,9 +44,9 @@ type Options struct {
 
 type release struct {
 	TagName    string  `json:"tag_name"`
+	Assets     []asset `json:"assets"`
 	Draft      bool    `json:"draft"`
 	Prerelease bool    `json:"prerelease"`
-	Assets     []asset `json:"assets"`
 }
 
 type asset struct {
@@ -117,14 +117,14 @@ func Run(ctx context.Context, options Options) error {
 
 	if err := installBinary(tempPath, executablePath, options); err != nil {
 		if restoreErr := restoreBackup(backupPath, executablePath); restoreErr != nil {
-			return fmt.Errorf("install update: %v; restore backup: %w", err, restoreErr)
+			return fmt.Errorf("install update: %w; restore backup: %w", err, restoreErr)
 		}
 		return fmt.Errorf("install update (backup restored): %w", err)
 	}
 
 	if err := verifyBinary(ctx, executablePath, latest.TagName); err != nil {
 		if restoreErr := restoreBackup(backupPath, executablePath); restoreErr != nil {
-			return fmt.Errorf("verify installed update: %v; restore backup: %w", err, restoreErr)
+			return fmt.Errorf("verify installed update: %w; restore backup: %w", err, restoreErr)
 		}
 		return fmt.Errorf("verify installed update (backup restored): %w", err)
 	}
@@ -287,6 +287,7 @@ func downloadAndVerify(ctx context.Context, options Options, candidate release, 
 	if err := tempFile.Close(); err != nil {
 		return "", fmt.Errorf("close temporary executable: %w", err)
 	}
+	// #nosec G302 -- the downloaded binary needs the owner execute bit
 	if err := os.Chmod(tempPath, 0o700); err != nil {
 		return "", fmt.Errorf("make temporary file executable: %w", err)
 	}
@@ -451,6 +452,7 @@ func installBinary(sourcePath, targetPath string, options Options) error {
 	}
 
 	_, _ = fmt.Fprintln(options.Out, "Requesting elevated permissions...")
+	// #nosec G204 -- fixed argv; only the mode is formatted in
 	command := exec.Command("sudo", "install", "-m", fmt.Sprintf("%03o", targetMode), sourcePath, targetPath)
 	command.Stdin = options.In
 	command.Stdout = options.Out
@@ -480,12 +482,14 @@ func restoreBackup(backupPath, targetPath string) error {
 }
 
 func copyFile(sourcePath, targetPath string, mode os.FileMode) error {
+	// #nosec G304 -- paths come from the resolved update target
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = source.Close() }()
 
+	// #nosec G304 -- paths come from the resolved update target
 	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err

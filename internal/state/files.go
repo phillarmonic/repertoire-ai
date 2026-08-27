@@ -8,6 +8,7 @@ import (
 
 func WriteFileAtomic(path string, content []byte, mode os.FileMode) error {
 	parent := filepath.Dir(path)
+	// #nosec G301 -- state directories follow the shared 0755 convention
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return fmt.Errorf("create state directory: %w", err)
 	}

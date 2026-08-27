@@ -35,8 +35,8 @@ func TestMarkdownArtifactInstallUpdateAndRemovePreservesUserContent(t *testing.T
 		t.Fatalf("installed Markdown:\n%s", content)
 	}
 
-	if err := os.WriteFile(source, []byte("Graphify v2\n"), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(source, []byte("Graphify v2\n"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
 	if err != nil {
@@ -145,8 +145,8 @@ func TestJSONArtifactMergeUpdateAndRemovePreservesUnrelatedEntries(t *testing.T)
 		t.Fatalf("unrelated hook missing after merge:\n%s", readTestFile(t, destination))
 	}
 
-	if err := os.WriteFile(source, []byte(`{"hooks":{"PreToolUse":[{"command":"graphify hook-check --strict"}]}}`), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(source, []byte(`{"hooks":{"PreToolUse":[{"command":"graphify hook-check --strict"}]}}`), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
 	if err != nil {
@@ -204,10 +204,8 @@ func TestArtifactUpdateRemovesRetiredEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	resolved.Artifacts["codex"] = []ResolvedArtifact{{
-		ArtifactEntry: state.ArtifactEntry{
-			ID: "replacement", Source: filepath.Base(source),
-			Destination: "GRAPHIFY.md", Mode: state.ArtifactModeMarkdownSection,
-		},
+		ID: "replacement", Source: filepath.Base(source),
+		Destination: "GRAPHIFY.md", Mode: state.ArtifactModeMarkdownSection,
 		SourcePath: source,
 	}}
 	updated, err := InstallArtifacts(resolved, targets, project, installed, false)
@@ -235,14 +233,12 @@ func TestAllArtifactsInstallOnceAcrossTargets(t *testing.T) {
 		Name: "graphify",
 		Artifacts: map[string][]ResolvedArtifact{
 			"all": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID:          "git-post-commit",
-					Source:      filepath.Base(source),
-					Destination: ".git/hooks/post-commit",
-					Mode:        state.ArtifactModeCopy,
-					Executable:  true,
-				},
-				SourcePath: source,
+				ID:          "git-post-commit",
+				Source:      filepath.Base(source),
+				Destination: ".git/hooks/post-commit",
+				Mode:        state.ArtifactModeCopy,
+				Executable:  true,
+				SourcePath:  source,
 			}},
 		},
 	}
@@ -374,15 +370,11 @@ func TestMarkdownDeduplicationMixedDigests(t *testing.T) {
 		Name: "graphify",
 		Artifacts: map[string][]ResolvedArtifact{
 			"codex": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID: "guidance", Source: filepath.Base(sourceA), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
-				},
+				ID: "guidance", Source: filepath.Base(sourceA), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
 				SourcePath: sourceA, Digest: "digest-a",
 			}},
 			"cursor": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID: "guidance", Source: filepath.Base(sourceB), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
-				},
+				ID: "guidance", Source: filepath.Base(sourceB), Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
 				SourcePath: sourceB, Digest: "digest-b",
 			}},
 		},
@@ -504,15 +496,11 @@ func artifactFixture(mode, source, destination string) ResolvedSkill {
 		Name: "graphify",
 		Artifacts: map[string][]ResolvedArtifact{
 			"codex": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID: "guidance", Source: filepath.Base(source), Destination: destination, Mode: mode,
-				},
+				ID: "guidance", Source: filepath.Base(source), Destination: destination, Mode: mode,
 				SourcePath: source,
 			}},
 			"cursor": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID: "guidance", Source: filepath.Base(source), Destination: destination, Mode: mode,
-				},
+				ID: "guidance", Source: filepath.Base(source), Destination: destination, Mode: mode,
 				SourcePath: source,
 			}},
 		},

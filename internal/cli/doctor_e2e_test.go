@@ -120,20 +120,20 @@ skills:
 				Created: true, MarkdownSeparator: separator,
 			})
 		}
-		if err := os.WriteFile(destination, []byte(content.String()), 0o644); err != nil {
-			t.Fatal(err)
+		if writeErr := os.WriteFile(destination, []byte(content.String()), 0o644); writeErr != nil {
+			t.Fatal(writeErr)
 		}
 		for index := range artifacts {
-			digest, found, err := installer.MarkdownSectionDigest(destination, artifacts[index].Marker)
-			if err != nil || !found {
-				t.Fatalf("digest %s: %v", artifacts[index].Marker, err)
+			digest, found, markdownErr := installer.MarkdownSectionDigest(destination, artifacts[index].Marker)
+			if markdownErr != nil || !found {
+				t.Fatalf("digest %s: %v", artifacts[index].Marker, markdownErr)
 			}
 			artifacts[index].Digest = digest
 		}
 		entry.Artifacts = artifacts
 		lock.Projects[projectKey]["demo"] = entry
-		if err := state.SaveLock(lockPath, lock); err != nil {
-			t.Fatal(err)
+		if saveErr := state.SaveLock(lockPath, lock); saveErr != nil {
+			t.Fatal(saveErr)
 		}
 
 		output := runCommandWithEnvError(t, project, environment, binary, "doctor")
@@ -202,8 +202,8 @@ skills:
 		}
 		vanished := filepath.Join(project, "vanished")
 		lock.Projects[vanished] = map[string]state.LockProjectArtifacts{"demo": {Catalog: "demo"}}
-		if err := state.SaveLock(lockPath, lock); err != nil {
-			t.Fatal(err)
+		if saveErr := state.SaveLock(lockPath, lock); saveErr != nil {
+			t.Fatal(saveErr)
 		}
 
 		output := runCommandWithEnvError(t, project, environment, binary, "doctor")

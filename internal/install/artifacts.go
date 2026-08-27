@@ -160,9 +160,9 @@ func artifactInstallations(resolved ResolvedSkill, targets []Target) []artifactI
 // sources differ keep separate per-target sections.
 func deduplicateMarkdownInstallations(installations []artifactInstallation) []artifactInstallation {
 	type markdownGroup struct {
+		digests     map[string]struct{}
 		destination string
 		artifact    ResolvedArtifact
-		digests     map[string]struct{}
 		members     int
 		firstIndex  int
 		collapsed   bool
@@ -252,6 +252,7 @@ func installCopiedArtifact(source, destination string, executable bool, previous
 	} else if !os.IsNotExist(err) {
 		return err
 	}
+	// #nosec G304 -- source path comes from the resolved artifact
 	content, err := os.ReadFile(source)
 	if err != nil {
 		return err
@@ -302,7 +303,7 @@ func installMarkdownArtifact(
 	}
 	block := renderMarkedSection(start, end, source)
 	var updated []byte
-	separator := ""
+	var separator string
 	if found {
 		updated = replaceMarkedSection(existing, start, end, block)
 		separator = previous.MarkdownSeparator
@@ -361,14 +362,14 @@ func installJSONArtifact(
 	}
 	existing := map[string]any{}
 	if len(bytes.TrimSpace(existingBytes)) > 0 {
-		if err := json.Unmarshal(existingBytes, &existing); err != nil {
-			return nil, fmt.Errorf("decode destination JSON: %w", err)
+		if unmarshalErr := json.Unmarshal(existingBytes, &existing); unmarshalErr != nil {
+			return nil, fmt.Errorf("decode destination JSON: %w", unmarshalErr)
 		}
 	}
 	if hadPrevious && len(previous.ManagedJSON) > 0 {
-		oldFragment, _, err := decodeJSONObject(previous.ManagedJSON)
-		if err != nil {
-			return nil, fmt.Errorf("decode previous managed JSON: %w", err)
+		oldFragment, _, decodeErr := decodeJSONObject(previous.ManagedJSON)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode previous managed JSON: %w", decodeErr)
 		}
 		if !jsonFragmentMatches(existing, oldFragment) && !force {
 			return nil, errors.New("managed JSON entries are locally modified; use --force")
@@ -561,6 +562,7 @@ func removeMarkedSection(content []byte, start, end, separator string, force boo
 }
 
 func readOptionalFile(path string) ([]byte, error) {
+	// #nosec G304 -- path comes from the resolved skill, not user input
 	content, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -574,6 +576,7 @@ func digestBytes(content []byte) string {
 }
 
 func markdownArtifactDigest(path string) (string, error) {
+	// #nosec G304 -- path is the resolved artifact destination
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

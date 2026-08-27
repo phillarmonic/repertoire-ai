@@ -41,8 +41,8 @@ func newDoctorCommand(globalScope, projectScope, force *bool) *cobra.Command {
 				return err
 			}
 			if fix && hasDoctorCheck(result.Issues, "manifest-drift") {
-				if err := runBootstrap(command, false, false, true, false); err != nil {
-					return err
+				if runErr := runBootstrap(command, false, false, true, false); runErr != nil {
+					return runErr
 				}
 				env, err = doctorEnvironment()
 				if err != nil {
@@ -99,6 +99,7 @@ func doctorEnvironment() (*doctor.Env, error) {
 	}
 	projectScope, err := state.ResolveScope(state.ScopeOptions{Project: true})
 	if err != nil {
+		//nolint:nilerr // outside a Git worktree the project half stays empty; doctor runs global checks only
 		return env, nil
 	}
 	projectManifest, err := state.LoadManifest(projectScope.ManifestPath)
@@ -137,9 +138,9 @@ func runDoctorReset(command *cobra.Command, yes, force bool) error {
 			"Remove every managed artifact for %s and reinstall from repertoire.yaml? [y/N] ",
 			projectScope.Root,
 		)
-		answer, err := bufio.NewReader(command.InOrStdin()).ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
+		answer, readErr := bufio.NewReader(command.InOrStdin()).ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return readErr
 		}
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		if answer == "" {

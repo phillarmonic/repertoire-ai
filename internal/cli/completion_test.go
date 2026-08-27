@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -179,12 +180,7 @@ func TestNewAgentTargetCompletions(t *testing.T) {
 }
 
 func containsCompletion(completions []string, want string) bool {
-	for _, completion := range completions {
-		if completion == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(completions, want)
 }
 
 func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {

@@ -77,6 +77,7 @@ func installOne(source, destination, previousDigest string, force bool) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
+	// #nosec G301 -- install directories follow the shared 0755 convention
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
 	}

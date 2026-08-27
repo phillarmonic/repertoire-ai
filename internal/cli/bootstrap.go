@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -46,12 +47,12 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		return err
 	}
 	legacyPath := filepath.Join(projectScope.Root, state.BootstrapFileName)
-	if err := ensureBootstrapSkills(command, &manifest, projectScope.ManifestPath, legacyPath, refresh); err != nil {
-		return err
+	if ensureErr := ensureBootstrapSkills(command, &manifest, projectScope.ManifestPath, legacyPath, refresh); ensureErr != nil {
+		return ensureErr
 	}
 	if refresh {
-		if err := refreshBootstrapCatalogs(manifest); err != nil {
-			return err
+		if refreshErr := refreshBootstrapCatalogs(manifest); refreshErr != nil {
+			return refreshErr
 		}
 	}
 
@@ -234,9 +235,7 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 			}
 			manifest.Catalogs[name] = registration
 		}
-		for name, skill := range legacy.Skills {
-			manifest.Skills[name] = skill
-		}
+		maps.Copy(manifest.Skills, legacy.Skills)
 		if err := state.SaveManifest(manifestPath, *manifest); err != nil {
 			return err
 		}
@@ -273,9 +272,7 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	for name, skill := range catalog.DefaultBootstrapSkills(catalog.BuiltinSource, names) {
-		manifest.Skills[name] = skill
-	}
+	maps.Copy(manifest.Skills, catalog.DefaultBootstrapSkills(catalog.BuiltinSource, names))
 	_, statErr = os.Stat(manifestPath)
 	manifestExists := statErr == nil
 	if err := state.SaveManifest(manifestPath, *manifest); err != nil {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,7 +39,7 @@ func resolveSkillListFormat(value string, output io.Writer, wide bool) (skillLis
 		return skillListFormatTSV, nil
 	case skillListFormatTable, skillListFormatTSV, skillListFormatJSON:
 		if wide && format != skillListFormatTable {
-			return "", fmt.Errorf("--wide requires --format table")
+			return "", errors.New("--wide requires --format table")
 		}
 		return format, nil
 	default:

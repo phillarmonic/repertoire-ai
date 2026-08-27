@@ -70,8 +70,8 @@ func TestMaterializeLocalAndTrackingGitCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstCommit := tracking.Commit
-	if err := os.WriteFile(filepath.Join(repository, "change.txt"), []byte("next"), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(filepath.Join(repository, "change.txt"), []byte("next"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	run(t, repository, "add", "change.txt")
 	run(t, repository, "commit", "-qm", "next")

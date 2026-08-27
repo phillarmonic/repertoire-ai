@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/phillarmonic/repertoire-ai/internal/state"
@@ -37,11 +38,8 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 	}
 	if len(requested) > 0 {
 		expanded := requested
-		for _, name := range requested {
-			if name == "all" {
-				expanded = supportedTargetNames
-				break
-			}
+		if slices.Contains(requested, "all") {
+			expanded = supportedTargetNames
 		}
 		result := make([]Target, 0, len(expanded))
 		for _, name := range expanded {

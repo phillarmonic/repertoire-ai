@@ -424,8 +424,8 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 	environment := make([]string, 0, len(os.Environ())+7)
 	for _, value := range os.Environ() {
 		if strings.HasPrefix(value, "HOME=") || strings.HasPrefix(value, "XDG_CONFIG_HOME=") ||
-			strings.HasPrefix(value, "XDG_CACHE_HOME=") || strings.HasPrefix(value, "CODEX_HOME=") ||
-			strings.HasPrefix(value, "APPDATA=") || strings.HasPrefix(value, "LOCALAPPDATA=") ||
+			strings.HasPrefix(value, "XDG_CACHE_HOME=") || strings.HasPrefix(value, "CODEX_HOME=") || strings.HasPrefix(value, "DSH_HOME=") ||
+			strings.HasPrefix(value, "APPDATA=") || strings.HasPrefix(value, "LOCALAPPDATA=") || strings.HasPrefix(value, "KIMI_CODE_HOME=") || strings.HasPrefix(value, "OPENCLAW_STATE_DIR=") ||
 			strings.HasPrefix(value, "USERPROFILE=") {
 			continue
 		}

@@ -41,9 +41,7 @@ func markdownFixture(t *testing.T) installer.ResolvedSkill {
 		Name: "demo",
 		Instructions: map[string][]installer.ResolvedArtifact{
 			"agents": {{
-				ArtifactEntry: state.ArtifactEntry{
-					ID: "guidance", Source: "agents.md", Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
-				},
+				ID: "guidance", Source: "agents.md", Destination: "AGENTS.md", Mode: state.ArtifactModeMarkdownSection,
 				SourcePath: source,
 			}},
 		},
@@ -107,8 +105,8 @@ func TestDoctorModifiedSection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(destination, []byte(strings.Replace(string(content), "Demo guidance v1", "local edit", 1)), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(destination, []byte(strings.Replace(string(content), "Demo guidance v1", "local edit", 1)), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	report, err := Run(env, false)
@@ -142,8 +140,8 @@ func TestDoctorOrphanedMarkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	orphan := "\n<!-- repertoire:ghost:codex:x:start -->\nBoo\n<!-- repertoire:ghost:codex:x:end -->\n"
-	if err := os.WriteFile(destination, append(content, []byte(orphan)...), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(destination, append(content, []byte(orphan)...), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	report, err := Run(env, false)
@@ -277,8 +275,8 @@ func TestDoctorDuplicateWithLocallyModifiedMemberStays(t *testing.T) {
 		t.Fatal(err)
 	}
 	edited := strings.Replace(string(current), "Demo guidance v1", "local edit", 1)
-	if err := os.WriteFile(destination, []byte(edited), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(destination, []byte(edited), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	report, err := Run(env, false)
@@ -353,8 +351,8 @@ func TestDoctorGlobalSkillHealth(t *testing.T) {
 	env.GlobalLock.Skills["demo"] = state.LockSkill{
 		Catalog: "test", Targets: []string{"agents"}, Locations: locations, TargetDigests: digests, Digest: digest,
 	}
-	if err := env.saveGlobalLock(); err != nil {
-		t.Fatal(err)
+	if saveErr := env.saveGlobalLock(); saveErr != nil {
+		t.Fatal(saveErr)
 	}
 
 	healthy, err := Run(env, false)
@@ -365,8 +363,8 @@ func TestDoctorGlobalSkillHealth(t *testing.T) {
 		t.Fatalf("healthy report = %+v", healthy.Issues)
 	}
 
-	if err := os.RemoveAll(locations[0]); err != nil {
-		t.Fatal(err)
+	if removeErr := os.RemoveAll(locations[0]); removeErr != nil {
+		t.Fatal(removeErr)
 	}
 	report, err := Run(env, false)
 	if err != nil {
@@ -458,9 +456,7 @@ func TestDoctorConflictingDestination(t *testing.T) {
 			Name: name,
 			Instructions: map[string][]installer.ResolvedArtifact{
 				"claude": {{
-					ArtifactEntry: state.ArtifactEntry{
-						ID: "claude-registration", Source: "claude.md", Destination: ".claude/CLAUDE.md", Mode: state.ArtifactModeCopy,
-					},
+					ID: "claude-registration", Source: "claude.md", Destination: ".claude/CLAUDE.md", Mode: state.ArtifactModeCopy,
 					Digest: digest,
 				}},
 			},
@@ -523,9 +519,7 @@ func TestDoctorResolvableConflictMigratesLocks(t *testing.T) {
 			Name: name,
 			Instructions: map[string][]installer.ResolvedArtifact{
 				"claude": {{
-					ArtifactEntry: state.ArtifactEntry{
-						ID: "claude-registration", Source: name + ".md", Destination: ".claude/CLAUDE.md", Mode: state.ArtifactModeMarkdownSection,
-					},
+					ID: "claude-registration", Source: name + ".md", Destination: ".claude/CLAUDE.md", Mode: state.ArtifactModeMarkdownSection,
 					SourcePath: sourcesBySkill[name],
 				}},
 			},

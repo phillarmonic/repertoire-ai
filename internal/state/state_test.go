@@ -50,8 +50,8 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("manifest marker missing:\n%s", first)
 	}
 	path := filepath.Join(t.TempDir(), "repertoire.yaml")
-	if err := WriteFileAtomic(path, first, 0o644); err != nil {
-		t.Fatalf("write: %v", err)
+	if writeErr := WriteFileAtomic(path, first, 0o644); writeErr != nil {
+		t.Fatalf("write: %v", writeErr)
 	}
 	loaded, err := LoadManifest(path)
 	if err != nil {

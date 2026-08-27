@@ -11,13 +11,12 @@ func TestRootCommandHelpAndVersion(t *testing.T) {
 
 	for _, test := range []struct {
 		name string
-		args []string
 		want string
+		args []string
 	}{
 		{name: "help", args: []string{"--help"}, want: productDescription},
 		{name: "version", args: []string{"--version"}, want: "repertoire version test-version"},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

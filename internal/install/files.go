@@ -42,6 +42,7 @@ func Digest(root string) (string, error) {
 			}
 			_, _ = io.WriteString(hash, target)
 		} else if info.Mode().IsRegular() {
+			// #nosec G304 -- path is walked from a caller-supplied root
 			file, err := os.Open(path)
 			if err != nil {
 				return "", err
@@ -60,6 +61,7 @@ func Digest(root string) (string, error) {
 }
 
 func DigestFile(path string) (string, error) {
+	// #nosec G304 -- path is walked from a caller-supplied root
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err

@@ -40,16 +40,17 @@ type BootstrapSkill struct {
 // BootstrapManifest is the legacy .repertoire.yaml format, kept only so
 // existing projects can be migrated into repertoire.yaml.
 type BootstrapManifest struct {
-	Schema   int                            `yaml:"schema"`
-	Tool     string                         `yaml:"tool,omitempty"`
 	Catalogs map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
 	Skills   map[string]BootstrapSkill      `yaml:"skills"`
+	Tool     string                         `yaml:"tool,omitempty"`
+	Schema   int                            `yaml:"schema"`
 }
 
 // LoadBootstrapManifest reads a legacy .repertoire.yaml. Unlike LoadManifest
 // it reports an error when the file is missing, so callers can distinguish
 // "nothing to migrate" from "migrate this".
 func LoadBootstrapManifest(path string) (BootstrapManifest, error) {
+	// #nosec G304 -- path is the bootstrap manifest path
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return BootstrapManifest{}, fmt.Errorf("bootstrap manifest %s does not exist: %w", path, err)

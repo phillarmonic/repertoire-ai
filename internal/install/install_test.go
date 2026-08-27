@@ -34,12 +34,12 @@ func TestValidateDigestAndSafeInstall(t *testing.T) {
 	}
 	installedSkill := filepath.Join(locations[0], "SKILL.md")
 	preservedTime := time.Unix(1234, 0)
-	if err := os.Chtimes(installedSkill, preservedTime, preservedTime); err != nil {
-		t.Fatal(err)
+	if chtimesErr := os.Chtimes(installedSkill, preservedTime, preservedTime); chtimesErr != nil {
+		t.Fatal(chtimesErr)
 	}
 	previous := &state.LockSkill{Digest: digest}
-	if _, err := Skill(resolved, []Target{{Name: "codex", Root: targetRoot}}, previous, false); err != nil {
-		t.Fatalf("skip intact install: %v", err)
+	if _, skillErr := Skill(resolved, []Target{{Name: "codex", Root: targetRoot}}, previous, false); skillErr != nil {
+		t.Fatalf("skip intact install: %v", skillErr)
 	}
 	info, err := os.Stat(installedSkill)
 	if err != nil {

@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -17,8 +18,8 @@ func SourceNamespace(source string) string {
 		return ""
 	}
 	normalized := NormalizeSource(source)
-	if strings.HasPrefix(normalized, "git@") {
-		rest := strings.TrimPrefix(normalized, "git@")
+	if after, ok := strings.CutPrefix(normalized, "git@"); ok {
+		rest := after
 		host, path, ok := strings.Cut(rest, ":")
 		if ok {
 			return host + "/" + strings.TrimSuffix(strings.TrimPrefix(path, "/"), ".git")
@@ -53,7 +54,7 @@ func SkillID(source, skillName string) string {
 func ParseSkillID(id string) (namespace, skillName string, err error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return "", "", fmt.Errorf("skill id is required")
+		return "", "", errors.New("skill id is required")
 	}
 	if !strings.Contains(id, "/") {
 		if err := state.ValidateName(id); err != nil {
@@ -65,10 +66,10 @@ func ParseSkillID(id string) (namespace, skillName string, err error) {
 	namespace = id[:index]
 	skillName = id[index+1:]
 	if namespace == "" {
-		return "", "", fmt.Errorf("skill namespace is required")
+		return "", "", errors.New("skill namespace is required")
 	}
 	if strings.Contains(namespace, " ") {
-		return "", "", fmt.Errorf("skill namespace must not contain spaces")
+		return "", "", errors.New("skill namespace must not contain spaces")
 	}
 	if err := state.ValidateName(skillName); err != nil {
 		return "", "", fmt.Errorf("skill name: %w", err)

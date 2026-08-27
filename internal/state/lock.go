@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 )
 
@@ -13,25 +14,25 @@ const (
 )
 
 type Lock struct {
-	Schema   int                                        `json:"schema"`
 	Skills   map[string]LockSkill                       `json:"skills"`
 	Projects map[string]map[string]LockProjectArtifacts `json:"projects,omitempty"`
+	Schema   int                                        `json:"schema"`
 }
 
 type LockSkill struct {
-	Catalog       string            `json:"catalog"`
+	TargetDigests map[string]string `json:"target_digests,omitempty"`
+	Origin        string            `json:"origin,omitempty"`
 	Source        string            `json:"source"`
 	Ref           string            `json:"ref,omitempty"`
 	Commit        string            `json:"commit"`
 	Digest        string            `json:"digest"`
-	TargetDigests map[string]string `json:"target_digests,omitempty"`
+	Catalog       string            `json:"catalog"`
 	Targets       []string          `json:"targets"`
-	Locations     []string          `json:"locations"`
 	Artifacts     []LockArtifact    `json:"artifacts,omitempty"`
+	Locations     []string          `json:"locations"`
 	Instructions  bool              `json:"instructions,omitempty"`
 	Hooks         bool              `json:"hooks,omitempty"`
 	Declared      bool              `json:"declared"`
-	Origin        string            `json:"origin,omitempty"`
 }
 
 type LockProjectArtifacts struct {
@@ -52,9 +53,9 @@ type LockArtifact struct {
 	Mode              string          `json:"mode"`
 	Marker            string          `json:"marker,omitempty"`
 	Digest            string          `json:"digest"`
-	Created           bool            `json:"created,omitempty"`
 	MarkdownSeparator string          `json:"markdown_separator,omitempty"`
 	ManagedJSON       json.RawMessage `json:"managed_json,omitempty"`
+	Created           bool            `json:"created,omitempty"`
 }
 
 func NewLock() Lock {
@@ -66,6 +67,7 @@ func NewLock() Lock {
 }
 
 func LoadLock(path string) (Lock, error) {
+	// #nosec G304 -- path is the resolved lock path
 	content, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return NewLock(), nil
@@ -108,9 +110,7 @@ func (l Lock) Marshal() ([]byte, error) {
 		}
 		normalized.Skills[name] = skill
 	}
-	for projectRoot, artifacts := range l.Projects {
-		normalized.Projects[projectRoot] = artifacts
-	}
+	maps.Copy(normalized.Projects, l.Projects)
 	content, err := json.MarshalIndent(normalized, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("encode lock: %w", err)

@@ -18,8 +18,8 @@ const (
 )
 
 type Manifest struct {
-	Schema int                   `yaml:"schema"`
 	Stubs  map[string]Definition `yaml:"stubs"`
+	Schema int                   `yaml:"schema"`
 }
 
 type Definition struct {

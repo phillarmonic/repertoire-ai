@@ -15,13 +15,13 @@ import (
 )
 
 type ResolvedSkill struct {
-	Name         string
-	Catalog      catalog.Materialized
-	Root         string
-	Digest       string
 	Variants     map[string]ResolvedVariant
 	Instructions map[string][]ResolvedArtifact
 	Artifacts    map[string][]ResolvedArtifact
+	Name         string
+	Root         string
+	Digest       string
+	Catalog      catalog.Materialized
 }
 
 type ResolvedVariant struct {
@@ -30,9 +30,9 @@ type ResolvedVariant struct {
 }
 
 type ResolvedArtifact struct {
-	state.ArtifactEntry
 	SourcePath string
 	Digest     string
+	state.ArtifactEntry
 }
 
 func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogName string, refresh bool) (ResolvedSkill, error) {
@@ -203,6 +203,7 @@ func validateSkill(root, expectedName string, requireMatchingDirectory bool) err
 	if requireMatchingDirectory && filepath.Base(root) != catalogSkillLeaf(expectedName) {
 		return fmt.Errorf("skill %q directory name does not match", expectedName)
 	}
+	// #nosec G304 -- root is the resolved skill directory
 	content, err := os.ReadFile(filepath.Join(root, "SKILL.md"))
 	if err != nil {
 		return fmt.Errorf("read skill %q SKILL.md: %w", expectedName, err)

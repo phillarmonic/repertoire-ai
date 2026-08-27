@@ -54,8 +54,8 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 		return nil
 	}
 	type skillMatch struct {
-		catalogs []string
 		source   string
+		catalogs []string
 	}
 	byName := map[string]skillMatch{}
 	wantNamespaced := strings.Contains(toComplete, "/") || strings.Contains(toComplete, ".")

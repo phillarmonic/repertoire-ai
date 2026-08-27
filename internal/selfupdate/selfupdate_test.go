@@ -27,7 +27,6 @@ func TestReleaseBinaryName(t *testing.T) {
 		{goos: "linux", goarch: "386", wantErr: "unsupported architecture"},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.goos+"-"+test.goarch, func(t *testing.T) {
 			t.Parallel()
 			got, err := releaseBinaryName(test.goos, test.goarch)

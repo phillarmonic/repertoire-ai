@@ -39,16 +39,16 @@ type Result struct {
 // worktree, in which case project checks are skipped. ResolveSkill resolves
 // a skill from the catalog cache; nil uses installer.Resolve.
 type Env struct {
-	ProjectRoot     string
-	HasProject      bool
-	ProjectScope    state.Scope
-	GlobalScope     state.Scope
-	ProjectManifest state.Manifest
-	GlobalManifest  state.Manifest
-	ProjectLock     state.Lock
-	GlobalLock      state.Lock
 	Manager         *catalog.Manager
 	ResolveSkill    func(manifest state.Manifest, name, catalogName string) (installer.ResolvedSkill, error)
+	ProjectLock     state.Lock
+	GlobalLock      state.Lock
+	ProjectRoot     string
+	ProjectManifest state.Manifest
+	GlobalManifest  state.Manifest
+	ProjectScope    state.Scope
+	GlobalScope     state.Scope
+	HasProject      bool
 }
 
 const (
@@ -91,8 +91,8 @@ func Run(env *Env, fix bool) (Result, error) {
 			result.Issues = append(result.Issues, issues...)
 			continue
 		}
-		if err := current.fix(env, issues); err != nil {
-			return result, fmt.Errorf("fix %s: %w", current.id(), err)
+		if fixErr := current.fix(env, issues); fixErr != nil {
+			return result, fmt.Errorf("fix %s: %w", current.id(), fixErr)
 		}
 		residual, err := current.audit(env)
 		if err != nil {
@@ -158,8 +158,8 @@ func (env *Env) saveGlobalLock() error {
 // lockedArtifact pairs a lock entry with the skill and lock that own it.
 type lockedArtifact struct {
 	skill    string
-	global   bool
 	artifact state.LockArtifact
+	global   bool
 }
 
 // lockedProjectArtifacts returns every artifact locked against the current
@@ -231,10 +231,10 @@ func (env *Env) scanDestinations() []string {
 
 type fileSection struct {
 	destination string
-	section     installer.MarkedSection
 	skill       string
 	target      string
 	id          string
+	section     installer.MarkedSection
 }
 
 // scanSections reads every scan destination and returns its managed
@@ -243,6 +243,7 @@ type fileSection struct {
 func (env *Env) scanSections() ([]fileSection, error) {
 	var sections []fileSection
 	for _, destination := range env.scanDestinations() {
+		// #nosec G304 -- destination comes from the resolved lock entry
 		content, err := os.ReadFile(destination)
 		if os.IsNotExist(err) {
 			continue

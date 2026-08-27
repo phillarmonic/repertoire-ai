@@ -10,17 +10,17 @@ import (
 )
 
 type ScopeOptions struct {
-	Global    bool
-	Project   bool
 	Directory string
 	ConfigDir string
+	Global    bool
+	Project   bool
 }
 
 type Scope struct {
-	Global       bool
 	Root         string
 	ManifestPath string
 	LockPath     string
+	Global       bool
 }
 
 func ResolveScope(options ScopeOptions) (Scope, error) {
@@ -66,6 +66,7 @@ func ResolveScope(options ScopeOptions) (Scope, error) {
 }
 
 func gitRoot(directory string) (string, error) {
+	// #nosec G204 -- fixed argv with a caller-supplied working directory
 	command := exec.Command("git", "-C", directory, "rev-parse", "--show-toplevel")
 	output, err := command.Output()
 	if err != nil {

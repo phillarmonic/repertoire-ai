@@ -20,8 +20,8 @@ func TestResolveStubUsesIntactCopyAndNamespacedID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(modified, "local.txt"), []byte("modified"), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(filepath.Join(modified, "local.txt"), []byte("modified"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	name := "github.com/example/skills/common-stubs"
 	lock := state.NewLock()
