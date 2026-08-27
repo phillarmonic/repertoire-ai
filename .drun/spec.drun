@@ -10,6 +10,7 @@ project "repertoire-ai" version "1.0":
 		golangci-lint provision
 		gosec provision
 		govulncheck
+        gofumpt provision
 
 task "vet" means "Run Go static analysis":
 	run "go vet -tags sqlite_fts5 ./..."
