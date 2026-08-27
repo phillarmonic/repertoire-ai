@@ -15,8 +15,8 @@ Use it to:
 
 The built-in `phillarmonic` catalog provides Phillarmonic's official vendored skill set
 from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills). Its skills can be referenced without declaring
-the repository or specifying a catalog. An unqualified name prefers this official
-mainline catalog; use `--catalog` or a source-qualified ID to select another catalog explicitly.
+the repository or specifying a catalog. An unqualified name prefers this official mainline catalog; use `--catalog` or a
+source-qualified ID to select another catalog explicitly.
 
 ### Private Company Catalogs
 
@@ -52,6 +52,7 @@ See
 | Cursor                         | `cursor`              |
 | Devin                          | `devin`               |
 | Factory Droid                  | `droid`               |
+| DeepSeek Harness               | `dsh`                 |
 | Gemini CLI                     | `gemini`              |
 | Hermes                         | `hermes`              |
 | Junie                          | `junie`               |
@@ -95,9 +96,8 @@ repertoire bootstrap
 ```
 
 This gives teams one command to install or repair the required AI agent skills across supported tools without
-maintaining separate setup scripts for every agent. Catalog-provided project
-instructions remain small and project-local even when the full skill is
-installed globally.
+maintaining separate setup scripts for every agent. Catalog-provided project instructions remain small and project-local
+even when the full skill is installed globally.
 
 ## Install
 
@@ -189,8 +189,8 @@ Run `repertoire bootstrap` in a Git worktree. If `repertoire.yaml` declares no b
 starter `skills` section that lists built-in catalog skills with source-qualified IDs and `scope: global`—so the small
 manifest stays in the repo while skills install under home-directory agent roots.
 
-You can also commit a custom `repertoire.yaml`, including a private company catalog (reachable only with Git
-credentials that can read that remote):
+You can also commit a custom `repertoire.yaml`, including a private company catalog (reachable only with Git credentials
+that can read that remote):
 
 ```yaml
 schema: 1
@@ -224,19 +224,18 @@ refreshing an existing tracking cache. To fetch catalog updates before updating 
 repertoire sync
 ```
 
-Project and global skills can be installed together. Removing an entry from the `skills` section does not
-automatically delete an installed skill.
+Project and global skills can be installed together. Removing an entry from the `skills` section does not automatically
+delete an installed skill.
 
 Repertoire previously read project bootstrap declarations from a separate `.repertoire.yaml` file. When `bootstrap`
 or `sync` finds that legacy file and `repertoire.yaml` has no `skills` section, it merges the declarations into
 `repertoire.yaml` and removes `.repertoire.yaml` automatically.
 
-Catalogs may distinguish always-on project instructions from optional hooks.
-Bootstrap installs instruction pointers into the worktree even for
-`scope: global` skills, while keeping their management state in Repertoire's
-global lock. Set `hooks: true` only when that repository should also receive
-the catalog's hook and integration artifacts. Removing the global skill also
-removes its recorded project artifacts without touching unrelated content.
+Catalogs may distinguish always-on project instructions from optional hooks. Bootstrap installs instruction pointers
+into the worktree even for
+`scope: global` skills, while keeping their management state in Repertoire's global lock. Set `hooks: true` only when
+that repository should also receive the catalog's hook and integration artifacts. Removing the global skill also removes
+its recorded project artifacts without touching unrelated content.
 
 For broad skills, prefer owner-prefixed kebab-case identifiers instead of generic names. For example, use a
 source-qualified manifest key such as
@@ -255,12 +254,11 @@ source-qualified manifest key such as
 | `repertoire catalog add <source>`    | Register a public, private, or local catalog                                  |
 | `repertoire bootstrap`               | Install the skills declared in `repertoire.yaml`                              |
 | `repertoire sync`                    | Refresh catalogs and synchronize the declared skills                          |
-| `repertoire doctor`                  | Diagnose broken or stale installs; `--fix` repairs, `--reset` reinstalls       |
+| `repertoire doctor`                  | Diagnose broken or stale installs; `--fix` repairs, `--reset` reinstalls      |
 
-An unqualified skill name prefers the official `phillarmonic` catalog when it
-defines that skill. Otherwise, if multiple catalogs define the same name,
-Repertoire lists every match; repeat the command with `--catalog <name>` or use
-a source-qualified ID.
+An unqualified skill name prefers the official `phillarmonic` catalog when it defines that skill. Otherwise, if multiple
+catalogs define the same name, Repertoire lists every match; repeat the command with `--catalog <name>` or use a
+source-qualified ID.
 
 ## Shell completion
 

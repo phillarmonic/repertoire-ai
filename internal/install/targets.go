@@ -18,7 +18,7 @@ type Target struct {
 var supportedTargetNames = []string{
 	"agents", "aider", "amp", "antigravity", "antigravity-windows", "claude",
 	"claw", "cline", "codebuddy", "codex", "copilot", "cursor", "devin",
-	"droid", "gemini", "hermes", "junie", "kilo", "kimi", "kiro",
+	"droid", "dsh", "gemini", "hermes", "junie", "kilo", "kimi", "kiro",
 	"openclaw", "opencode", "pi", "roo", "trae", "trae-cn", "vscode",
 	"windows", "windsurf",
 }
@@ -117,6 +117,13 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(home, ".config", "devin", "skills"), nil
 		case "droid":
 			return filepath.Join(home, ".factory", "skills"), nil
+		case "dsh":
+			// DeepSeek Harness roots under $DSH_HOME and otherwise ~/.dsh.
+			base := os.Getenv("DSH_HOME")
+			if base == "" {
+				base = filepath.Join(home, ".dsh")
+			}
+			return filepath.Join(base, "skills"), nil
 		case "hermes":
 			return filepath.Join(home, ".hermes", "skills"), nil
 		case "junie":
@@ -185,6 +192,8 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			return filepath.Join(scope.Root, ".devin", "skills"), nil
 		case "droid":
 			return filepath.Join(scope.Root, ".factory", "skills"), nil
+		case "dsh":
+			return filepath.Join(scope.Root, ".dsh", "skills"), nil
 		case "hermes":
 			return filepath.Join(scope.Root, ".hermes", "skills"), nil
 		case "junie":

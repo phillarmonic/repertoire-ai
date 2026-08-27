@@ -187,6 +187,7 @@ func TestExplicitTargetRoots(t *testing.T) {
 	t.Setenv("CODEX_HOME", "")
 	t.Setenv("KIMI_CODE_HOME", "")
 	t.Setenv("OPENCLAW_STATE_DIR", "")
+	t.Setenv("DSH_HOME", "")
 
 	tests := []struct {
 		name        string
@@ -204,6 +205,7 @@ func TestExplicitTargetRoots(t *testing.T) {
 		{"cursor", filepath.Join(project, ".cursor", "skills"), filepath.Join(home, ".cursor", "skills")},
 		{"devin", filepath.Join(project, ".devin", "skills"), filepath.Join(home, ".config", "devin", "skills")},
 		{"droid", filepath.Join(project, ".factory", "skills"), filepath.Join(home, ".factory", "skills")},
+		{"dsh", filepath.Join(project, ".dsh", "skills"), filepath.Join(home, ".dsh", "skills")},
 		{"gemini", filepath.Join(project, ".gemini", "skills"), filepath.Join(home, ".gemini", "skills")},
 		{"hermes", filepath.Join(project, ".hermes", "skills"), filepath.Join(home, ".hermes", "skills")},
 		{"junie", filepath.Join(project, ".junie", "skills"), filepath.Join(home, ".junie", "skills")},
@@ -308,6 +310,15 @@ func TestOpenClawStateDirectoryOverride(t *testing.T) {
 	targets, err := ResolveTargets(state.Scope{Global: true}, []string{"openclaw"}, t.TempDir())
 	if err != nil || len(targets) != 1 || targets[0].Root != filepath.Join(stateDirectory, "skills") {
 		t.Fatalf("openclaw override target = %+v, %v", targets, err)
+	}
+}
+
+func TestDSHHomeOverride(t *testing.T) {
+	dshHome := t.TempDir()
+	t.Setenv("DSH_HOME", dshHome)
+	targets, err := ResolveTargets(state.Scope{Global: true}, []string{"dsh"}, t.TempDir())
+	if err != nil || len(targets) != 1 || targets[0].Root != filepath.Join(dshHome, "skills") {
+		t.Fatalf("dsh override target = %+v, %v", targets, err)
 	}
 }
 

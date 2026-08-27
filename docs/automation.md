@@ -22,7 +22,7 @@ Repertoire resolves the skill from its Git-backed catalog, validates the
 package, and installs a managed copy into every target even when a client's
 configuration directory does not exist yet. It supports Codex,
 Claude Code, GitHub Copilot, Cursor, Gemini CLI, Windsurf, Cline, Roo Code,
-Kiro, Junie, Kimi Code, OpenCode, OpenClaw, and the portable `.agents/skills`
+Kiro, Junie, Kimi Code, OpenCode, OpenClaw, DeepSeek Harness, and the portable `.agents/skills`
 layout.
 
 Catalogs can also provide platform-specific variants, always-on project

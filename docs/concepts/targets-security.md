@@ -21,6 +21,7 @@ special `--target all` value expands to every target in the table, including cli
 | `cursor`              | `.cursor/skills`                               | `~/.cursor/skills`                                   |
 | `devin`               | `.devin/skills`                                | `~/.config/devin/skills`                             |
 | `droid`               | `.factory/skills`                              | `~/.factory/skills`                                  |
+| `dsh`                 | `.dsh/skills`                                  | `$DSH_HOME/skills` or `~/.dsh/skills`                |
 | `gemini`              | `.gemini/skills`                               | `~/.gemini/skills`                                   |
 | `hermes`              | `.hermes/skills`                               | `~/.hermes/skills`                                   |
 | `junie`               | `.junie/skills`                                | `~/.junie/skills`                                    |

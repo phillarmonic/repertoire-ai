@@ -23,7 +23,7 @@ const (
 var bootstrapTargets = map[string]struct{}{
 	"agents": {}, "aider": {}, "amp": {}, "antigravity": {}, "antigravity-windows": {},
 	"claude": {}, "claw": {}, "cline": {}, "codebuddy": {}, "codex": {}, "copilot": {},
-	"cursor": {}, "devin": {}, "droid": {}, "gemini": {}, "hermes": {}, "junie": {},
+	"cursor": {}, "devin": {}, "droid": {}, "dsh": {}, "gemini": {}, "hermes": {}, "junie": {},
 	"kilo": {}, "kimi": {}, "kiro": {}, "opencode": {}, "openclaw": {}, "pi": {},
 	"roo": {}, "trae": {}, "trae-cn": {}, "vscode": {}, "windows": {}, "windsurf": {},
 }

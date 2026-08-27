@@ -162,7 +162,7 @@ func TestNewAgentTargetCompletions(t *testing.T) {
 	got, directive := completeTargets(nil, nil, "")
 	for _, target := range []string{
 		"aider", "amp", "antigravity", "claude", "cline", "codebuddy",
-		"cursor", "devin", "droid", "gemini", "hermes", "junie", "kilo",
+		"cursor", "devin", "droid", "dsh", "gemini", "hermes", "junie", "kilo",
 		"kimi", "kiro", "opencode", "openclaw", "pi", "roo", "trae",
 		"trae-cn", "vscode", "windows", "windsurf",
 	} {
