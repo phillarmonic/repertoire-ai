@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 const (
@@ -100,7 +100,10 @@ func (m Manifest) Marshal() ([]byte, error) {
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
-	content, err := yaml.Marshal(m)
+	// Encode with a fixed 2-space indent and sequences nested under their
+	// parent key so generated manifests keep one consistent indentation
+	// style instead of the mixed alignment yaml.v3 produced.
+	content, err := yaml.MarshalWithOptions(m, yaml.Indent(2), yaml.IndentSequence(true))
 	if err != nil {
 		return nil, fmt.Errorf("encode manifest: %w", err)
 	}
