@@ -181,12 +181,22 @@ Instructions:
 Create or update the repository-root .editorconfig ...
 ```
 
-Repertoire does not copy, merge, execute, or print the asset contents. It uses
-only installed state from the selected global or `--project` scope and returns
-a path only from a complete skill copy matching the lockfile digest. Run
-`repertoire install <skill>` to repair missing or locally modified copies.
-Namespaced installed skill IDs are supported by treating the final path segment
-as the stub name.
+Repertoire does not copy, merge, execute, or print the asset contents by
+default. It uses only installed state from the selected global or `--project`
+scope and returns a path only from a complete skill copy matching the lockfile
+digest. Run `repertoire install <skill>` to repair missing or locally modified
+copies. Namespaced installed skill IDs are supported by treating the final path
+segment as the stub name.
+
+When an agent needs to materialize the asset directly, pass `--raw` to write
+only the asset bytes to stdout, which is safe to redirect into a file:
+
+```bash
+repertoire stub get --raw common-stubs/gitattributes > .gitattributes
+```
+
+Use the default advisory output when the stub instructions require merging into
+an existing file rather than a wholesale replacement.
 
 ## Update and remove
 

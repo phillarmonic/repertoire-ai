@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -23,6 +24,7 @@ func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
 		Short: "Discover file stubs from installed skills",
 	}
 
+	var raw bool
 	get := &cobra.Command{
 		Use:   "get <skill>/<stub>",
 		Short: "Show an agent how to use an installed stub",
@@ -36,6 +38,14 @@ func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if raw {
+				content, err := os.ReadFile(resolved.AssetPath)
+				if err != nil {
+					return fmt.Errorf("read stub %q asset: %w", resolved.ID, err)
+				}
+				_, err = command.OutOrStdout().Write(content)
+				return err
+			}
 			_, _ = fmt.Fprintf(
 				command.OutOrStdout(),
 				"Stub: %s\nDescription: %s\nAsset: %s\nInstructions:\n%s\n",
@@ -47,6 +57,7 @@ func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
 			return nil
 		},
 	}
+	get.Flags().BoolVar(&raw, "raw", false, "Write only the stub asset content to stdout, suitable for redirection")
 	get.ValidArgsFunction = completeInstalledStubs(globalScope, projectScope)
 
 	list := &cobra.Command{

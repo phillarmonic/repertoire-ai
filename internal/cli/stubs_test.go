@@ -151,6 +151,36 @@ func TestInstalledStubCompletion(t *testing.T) {
 	}
 }
 
+func TestStubGetRawWritesOnlyAssetContent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	root := stubSkillFixture(t, filepath.Join(home, ".agents", "skills", "common-stubs"), true)
+	scope, err := state.ResolveScope(state.ScopeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest, err := installer.Digest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock := state.NewLock()
+	lock.Skills["common-stubs"] = state.LockSkill{Digest: digest, Locations: []string{root}}
+	if err := state.SaveLock(scope.LockPath, lock); err != nil {
+		t.Fatal(err)
+	}
+
+	output := executeStubCommand(t, t.TempDir(), "stub", "get", "--raw", "common-stubs/editorconfig")
+	if output != "root = true\n" {
+		t.Fatalf("raw output = %q, want only asset content", output)
+	}
+	for _, forbidden := range []string{"Stub:", "Description:", "Asset:", "Instructions:"} {
+		if strings.Contains(output, forbidden) {
+			t.Fatalf("raw output leaked metadata %q:\n%s", forbidden, output)
+		}
+	}
+}
+
 func stubSkillFixture(t *testing.T, root string, withStub bool) string {
 	t.Helper()
 	if err := os.MkdirAll(root, 0o755); err != nil {
