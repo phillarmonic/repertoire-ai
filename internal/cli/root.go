@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
 	"github.com/phillarmonic/repertoire-ai/internal/selfupdate"
@@ -27,6 +28,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	var globalScope bool
 	var projectScope bool
 	var force bool
+	var overrideFlags []string
 	var selfUpdate bool
 	command := &cobra.Command{
 		Use:           "repertoire",
@@ -51,25 +53,37 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	command.SetOut(stdout)
 	command.SetErr(stderr)
 	command.SetVersionTemplate("repertoire version {{.Version}}\n")
+	// Validate --override syntax eagerly so a malformed pair fails even for
+	// commands that never materialize a catalog (for example `list`).
+	command.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
+		for _, pair := range overrideFlags {
+			name, path, ok := strings.Cut(pair, "=")
+			if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(path) == "" {
+				return fmt.Errorf("invalid --override %q: expected name=path or source=path", pair)
+			}
+		}
+		return nil
+	}
 	command.PersistentFlags().BoolVar(&globalScope, "global", false, "use user-global state (default)")
 	command.PersistentFlags().BoolVar(&projectScope, "project", false, "use the current Git project")
 	command.PersistentFlags().BoolVar(&force, "force", false, "replace protected managed state")
+	command.PersistentFlags().StringArrayVar(&overrideFlags, "override", nil, "resolve a catalog from a local path (name=path or source=path; repeatable)")
 	command.Flags().BoolVar(&selfUpdate, "self-update", false, "update Repertoire to the latest stable release")
-	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force))
+	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force, &overrideFlags))
 	command.AddCommand(newCompletionCommand())
-	command.AddCommand(newDoctorCommand(&globalScope, &projectScope, &force))
+	command.AddCommand(newDoctorCommand(&globalScope, &projectScope, &force, &overrideFlags))
 	command.AddCommand(newStubCommand(&globalScope, &projectScope))
-	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force) {
+	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force, &overrideFlags) {
 		command.AddCommand(child)
 	}
-	for _, child := range newSkillCommands(&globalScope, &projectScope, &force) {
+	for _, child := range newSkillCommands(&globalScope, &projectScope, &force, &overrideFlags) {
 		command.AddCommand(child)
 	}
 
 	return command
 }
 
-func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
+func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]string) *cobra.Command {
 	catalogCommand := &cobra.Command{Use: "catalog", Short: "Manage skill catalogs"}
 	var name, ref string
 	add := &cobra.Command{
@@ -81,7 +95,7 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			manager, err := catalog.NewManager("")
+			manager, err := newCatalogManager("", *overrideFlags)
 			if err != nil {
 				return err
 			}
@@ -156,10 +170,17 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			manager, err := newCatalogManager("", *overrideFlags)
+			if err != nil {
+				return err
+			}
 			for _, source := range catalog.Sources(manifest) {
 				marker := ""
 				if source.Builtin {
 					marker = " (built-in)"
+				}
+				if path, overridden := manager.OverrideFor(source); overridden {
+					marker += " (overridden -> " + path + ")"
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s%s\n", source.Name, catalog.RedactSource(source.Registration.Source), marker)
 			}
@@ -175,7 +196,7 @@ func newCatalogCommand(globalScope, projectScope, force *bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			manager, err := catalog.NewManager("")
+			manager, err := newCatalogManager("", *overrideFlags)
 			if err != nil {
 				return err
 			}
@@ -217,6 +238,29 @@ func refreshCatalogs(manager *catalog.Manager, manifest state.Manifest, name str
 		return nil, fmt.Errorf("catalog %q is not visible", name)
 	}
 	return resolved, nil
+}
+
+// newCatalogManager builds a catalog manager that honors local overrides from
+// the REPERTOIRE_OVERRIDES environment variable plus the --override flags
+// (flags win over environment values).
+func newCatalogManager(cacheRoot string, overrideFlags []string) (*catalog.Manager, error) {
+	manager, err := catalog.NewManager(cacheRoot)
+	if err != nil {
+		return nil, err
+	}
+	overrides, err := catalog.OverridesFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	for _, pair := range overrideFlags {
+		name, path, ok := strings.Cut(pair, "=")
+		if !ok || strings.TrimSpace(name) == "" || strings.TrimSpace(path) == "" {
+			return nil, fmt.Errorf("invalid --override %q: expected name=path or source=path", pair)
+		}
+		overrides[strings.TrimSpace(name)] = strings.TrimSpace(path)
+	}
+	manager.Overrides = overrides
+	return manager, nil
 }
 
 func loadScope(globalScope, projectScope bool) (state.Scope, state.Manifest, error) {

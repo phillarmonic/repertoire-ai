@@ -18,6 +18,22 @@ from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills). Its sk
 the repository or specifying a catalog. An unqualified name prefers this official mainline catalog; use `--catalog` or a
 source-qualified ID to select another catalog explicitly.
 
+### Testing skill repositories locally
+
+While developing a catalog, you can redirect any catalog to a local checkout so you do not have to push before testing.
+Set the `REPERTOIRE_OVERRIDES` environment variable to a comma-separated list of `name=path` or `source=path` pairs,
+or pass a repeatable `--override name=path` flag. Flags win over environment values.
+
+```shell
+REPERTOIRE_OVERRIDES="phillarmonic=/path/to/ai-skills" repertoire add zensical --target codex
+repertoire --override company=/path/to/company-skills add code-reviewer --catalog company
+repertoire catalog list   # marks overridden sources
+```
+
+The override path is read directly instead of the remote: `add`, `install`, `update`, `bootstrap`, `sync`, `list
+--available`, and completion all resolve from the local checkout. Remove the override to return to the registered remote
+source.
+
 ### Private Company Catalogs
 
 You can point Repertoire at your own Git-backed catalog: a private catalog of company-owned AI skills—just as you would

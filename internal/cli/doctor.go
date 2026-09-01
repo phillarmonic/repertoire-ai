@@ -9,14 +9,13 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/phillarmonic/repertoire-ai/internal/catalog"
 	"github.com/phillarmonic/repertoire-ai/internal/doctor"
 	installer "github.com/phillarmonic/repertoire-ai/internal/install"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 	"github.com/spf13/cobra"
 )
 
-func newDoctorCommand(globalScope, projectScope, force *bool) *cobra.Command {
+func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]string) *cobra.Command {
 	var fix, reset, yes bool
 	var format string
 	command := &cobra.Command{
@@ -28,11 +27,11 @@ func newDoctorCommand(globalScope, projectScope, force *bool) *cobra.Command {
 				return errors.New("doctor inspects the current project and global state; --global and --project are not supported")
 			}
 			if reset {
-				if err := runDoctorReset(command, yes, *force); err != nil {
+				if err := runDoctorReset(command, yes, *force, overrideFlags); err != nil {
 					return err
 				}
 			}
-			env, err := doctorEnvironment()
+			env, err := doctorEnvironment(overrideFlags)
 			if err != nil {
 				return err
 			}
@@ -41,10 +40,10 @@ func newDoctorCommand(globalScope, projectScope, force *bool) *cobra.Command {
 				return err
 			}
 			if fix && hasDoctorCheck(result.Issues, "manifest-drift") {
-				if runErr := runBootstrap(command, false, false, true, false); runErr != nil {
+				if runErr := runBootstrap(command, false, false, true, false, overrideFlags); runErr != nil {
 					return runErr
 				}
-				env, err = doctorEnvironment()
+				env, err = doctorEnvironment(overrideFlags)
 				if err != nil {
 					return err
 				}
@@ -74,8 +73,8 @@ func newDoctorCommand(globalScope, projectScope, force *bool) *cobra.Command {
 
 // doctorEnvironment loads both scopes. Outside a Git worktree the project
 // half stays empty and doctor runs its global checks only.
-func doctorEnvironment() (*doctor.Env, error) {
-	manager, err := catalog.NewManager("")
+func doctorEnvironment(overrideFlags *[]string) (*doctor.Env, error) {
+	manager, err := newCatalogManager("", *overrideFlags)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +126,7 @@ func hasDoctorCheck(issues []doctor.Issue, check string) bool {
 	return false
 }
 
-func runDoctorReset(command *cobra.Command, yes, force bool) error {
+func runDoctorReset(command *cobra.Command, yes, force bool, overrideFlags *[]string) error {
 	projectScope, err := state.ResolveScope(state.ScopeOptions{Project: true})
 	if err != nil {
 		return err
@@ -188,7 +187,7 @@ func runDoctorReset(command *cobra.Command, yes, force bool) error {
 		return err
 	}
 	_ = force // removal above already uses force semantics
-	return runBootstrap(command, false, false, true, false)
+	return runBootstrap(command, false, false, true, false, overrideFlags)
 }
 
 func writeDoctorReport(command *cobra.Command, env *doctor.Env, result doctor.Result, format string) error {

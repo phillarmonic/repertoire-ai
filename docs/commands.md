@@ -55,6 +55,11 @@ repertoire install --target all
 agent is currently detected. It can be used with a named skill or the bulk
 install form above.
 
+Every command accepts a repeatable `--override name=path` flag (or the
+`REPERTOIRE_OVERRIDES` environment variable) to redirect a catalog to a local
+checkout, so skills can be tested before pushing. Flags win over environment
+values; `catalog list` marks overridden sources.
+
 ## Bootstrap and synchronize a project
 
 From a Git worktree, install every skill declared in the `skills` section of

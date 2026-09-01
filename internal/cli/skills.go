@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
+func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]string) []*cobra.Command {
 	var catalogName string
 	var requestedTargets []string
 	var addWithHooks, addNoHooks bool
@@ -32,7 +32,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := installNamed(command, scope, &manifest, &lock, args[0], catalogName, requestedTargets, true, *force, false, hooks); err != nil {
+			if _, err := installNamed(command, scope, &manifest, &lock, args[0], catalogName, requestedTargets, true, *force, false, hooks, overrideFlags); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s\n", args[0], lock.Skills[args[0]].Catalog)
@@ -43,7 +43,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable)")
 	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
 	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
-	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName)
+	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName, overrideFlags)
 	_ = add.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = add.RegisterFlagCompletionFunc("target", completeTargets)
 
@@ -81,7 +81,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 						}
 					}
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks, overrideFlags); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", args[0])
@@ -101,7 +101,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 						requirementHooks = hookChoiceYes
 					}
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false, requirementHooks); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false, requirementHooks, overrideFlags); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", name)
@@ -113,7 +113,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 	installCommand.Flags().StringSliceVar(&installTargets, "target", nil, "agent target (repeatable)")
 	installCommand.Flags().BoolVar(&installWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
 	installCommand.Flags().BoolVar(&installNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
-	installCommand.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &installCatalog)
+	installCommand.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &installCatalog, overrideFlags)
 	_ = installCommand.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
 	_ = installCommand.RegisterFlagCompletionFunc("target", completeTargets)
 
@@ -149,7 +149,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 				}
 				return writeSkillList(command.OutOrStdout(), entries, format, listWide, false)
 			}
-			manager, err := catalog.NewManager("")
+			manager, err := newCatalogManager("", *overrideFlags)
 			if err != nil {
 				return err
 			}
@@ -200,7 +200,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 			if err != nil {
 				return err
 			}
-			manager, err := catalog.NewManager("")
+			manager, err := newCatalogManager("", *overrideFlags)
 			if err != nil {
 				return err
 			}
@@ -247,7 +247,7 @@ func newSkillCommands(globalScope, projectScope, force *bool) []*cobra.Command {
 					(entry.Hooks || (!entry.Instructions && len(entry.Artifacts) > 0)) {
 					hooks = hookChoiceYes
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks, overrideFlags); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "updated %s\n", name)
@@ -343,12 +343,13 @@ func installNamed(
 	requestedTargets []string,
 	declared, force, refresh bool,
 	hooks hookChoice,
+	overrideFlags *[]string,
 ) (bool, error) {
 	origin := state.LockOriginAdHoc
 	if declared {
 		origin = state.LockOriginDeclared
 	}
-	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks)
+	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks, overrideFlags)
 }
 
 func installManaged(
@@ -362,8 +363,9 @@ func installManaged(
 	origin string,
 	force, refresh, protectGlobal bool,
 	hooks hookChoice,
+	overrideFlags *[]string,
 ) (bool, error) {
-	manager, err := catalog.NewManager("")
+	manager, err := newCatalogManager("", *overrideFlags)
 	if err != nil {
 		return false, err
 	}

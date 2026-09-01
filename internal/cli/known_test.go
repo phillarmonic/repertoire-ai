@@ -135,16 +135,16 @@ func TestAvailableSkillCompletionsPreferNamespacedWhenTyped(t *testing.T) {
 	manifest := state.NewManifest()
 	manifest.Catalogs["phillarmonic"] = state.CatalogRegistration{Source: local}
 
-	short := availableSkillCompletions(manifest, "", "zen", "")
+	short := availableSkillCompletions(manifest, "", "zen", "", nil)
 	if len(short) != 1 || !strings.HasPrefix(short[0], "zensical\t") {
 		t.Fatalf("short completions = %#v", short)
 	}
 
 	idPrefix := catalog.SkillID(local, "zensical")
-	namespaced := availableSkillCompletions(manifest, "", idPrefix[:len(idPrefix)/2], "")
+	namespaced := availableSkillCompletions(manifest, "", idPrefix[:len(idPrefix)/2], "", nil)
 	if len(namespaced) != 1 || !strings.HasPrefix(namespaced[0], idPrefix) {
 		// local abs path namespace — ensure prefix match works with dotted/slash input
-		namespaced = availableSkillCompletions(manifest, "", strings.Split(idPrefix, "/")[0], "")
+		namespaced = availableSkillCompletions(manifest, "", strings.Split(idPrefix, "/")[0], "", nil)
 		if len(namespaced) == 0 {
 			t.Fatalf("namespaced completions = %#v (prefix %q)", namespaced, idPrefix)
 		}

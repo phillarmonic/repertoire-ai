@@ -40,16 +40,16 @@ func newCompletionCommand() *cobra.Command {
 	return command
 }
 
-func completeAvailableSkills(globalScope, projectScope *bool, catalogName *string) cobra.CompletionFunc {
+func completeAvailableSkills(globalScope, projectScope *bool, catalogName *string, overrideFlags *[]string) cobra.CompletionFunc {
 	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		manifest := knownManifest(*globalScope, *projectScope, "")
-		completions := availableSkillCompletions(manifest, *catalogName, toComplete, "")
+		completions := availableSkillCompletions(manifest, *catalogName, toComplete, "", *overrideFlags)
 		return completions, completionDirective
 	}
 }
 
-func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete, cacheRoot string) []string {
-	manager, err := catalog.NewManager(cacheRoot)
+func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete, cacheRoot string, overrideFlags []string) []string {
+	manager, err := newCatalogManager(cacheRoot, overrideFlags)
 	if err != nil {
 		return nil
 	}

@@ -40,6 +40,25 @@ system's user cache and refreshed with system Git. HTTPS credential helpers,
 SSH agents, and provider CLI integrations therefore work without Repertoire
 storing credentials.
 
+## Local overrides for testing
+
+While developing a catalog, redirect any catalog to a local checkout so you do
+not have to push before testing. Set the `REPERTOIRE_OVERRIDES` environment
+variable to a comma-separated list of `name=path` or `source=path` pairs, or
+pass a repeatable `--override name=path` flag:
+
+```bash
+REPERTOIRE_OVERRIDES="phillarmonic=/path/to/ai-skills" repertoire add zensical --target codex
+repertoire --override company=/path/to/company-skills add code-reviewer --catalog company
+repertoire catalog list   # marks overridden sources
+```
+
+An override matches a catalog by its registered name or by its normalized
+source URL, and flag values win over environment values. The local path is read
+directly instead of the remote, so `add`, `install`, `update`, `bootstrap`,
+`sync`, `list --available`, and shell completion all resolve from the local
+checkout. Remove the override to return to the registered remote source.
+
 An omitted ref tracks the remote default branch. Named branches advance during
 updates; tags and full commit hashes remain immutable. Registering an explicit
 catalog named `phillarmonic` overrides the built-in source, which is useful for

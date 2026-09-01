@@ -50,7 +50,7 @@ func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	manifest.Catalogs["remote"] = state.CatalogRegistration{Source: "https://example.invalid/skills.git"}
 	manifest.Catalogs["uncached"] = state.CatalogRegistration{Source: "https://example.invalid/missing.git"}
 
-	got := availableSkillCompletions(manifest, "", "", cacheRoot)
+	got := availableSkillCompletions(manifest, "", "", cacheRoot, nil)
 	want := []string{
 		"alpha\t[available] phillarmonic",
 		"phillarmonkey/code\t[available] phillarmonic",
@@ -60,11 +60,11 @@ func TestAvailableSkillCompletionsReadVisibleCatalogs(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("completions = %#v, want %#v", got, want)
 	}
-	filtered := availableSkillCompletions(manifest, "remote", "z", cacheRoot)
+	filtered := availableSkillCompletions(manifest, "remote", "z", cacheRoot, nil)
 	if !reflect.DeepEqual(filtered, []string{"zulu\t[available] remote"}) {
 		t.Fatalf("filtered completions = %#v", filtered)
 	}
-	qualified := availableSkillCompletions(manifest, "", "phillarmonkey/", cacheRoot)
+	qualified := availableSkillCompletions(manifest, "", "phillarmonkey/", cacheRoot, nil)
 	if !reflect.DeepEqual(qualified, []string{"phillarmonkey/code\t[available] phillarmonic"}) {
 		t.Fatalf("qualified completions = %#v", qualified)
 	}
