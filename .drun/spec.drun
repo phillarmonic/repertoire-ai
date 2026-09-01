@@ -6,7 +6,7 @@ version: 2.0
 
 project "repertoire-ai" version "1.0":
 	requires tools:
-		go >= "1.26.5"
+		go >= "1.27"
 		golangci-lint provision
 		gosec provision
 		govulncheck

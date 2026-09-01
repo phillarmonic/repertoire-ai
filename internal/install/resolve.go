@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 	"github.com/phillarmonic/repertoire-ai/internal/stub"
-	"gopkg.in/yaml.v3"
 )
 
 type ResolvedSkill struct {

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
-	"gopkg.in/yaml.v3"
 )
 
 const (

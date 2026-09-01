@@ -1,6 +1,6 @@
 # Contributing
 
-Repertoire requires Go 1.26.5, Drun, `golangci-lint`, `gosec`, and the
+Repertoire requires Go 1.27, Drun, `golangci-lint`, `gosec`, and the
 Zensical development environment captured by `uv.lock`.
 
 ```bash

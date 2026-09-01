@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 env:
-  GOSEC_VERSION: v2.28.0
-  GOVULNCHECK_VERSION: v1.6.0
+  GOSEC_VERSION: v2.29.0
+  GOVULNCHECK_VERSION: v1.7.0
 
 jobs:
   quality:
@@ -39,10 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -58,12 +58,12 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11
+          version: v2.13.2
           install-only: true
 
       - name: Restore security scanners
         id: security-tools-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/go/bin
           key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
@@ -127,13 +127,13 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11
+          version: v2.13.2
           install-only: true
           skip-cache: true
 
       - name: Restore security scanners
         id: security-tools-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/go/bin
           key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
