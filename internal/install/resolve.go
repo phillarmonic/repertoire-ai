@@ -63,13 +63,18 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		})
 	}
 	var matches []ResolvedSkill
+	var materializeErrs []error
 	for _, source := range sources {
 		if catalogName != "" && source.Name != catalogName {
 			continue
 		}
 		materialized, err := manager.Materialize(source, refresh)
 		if err != nil {
-			return ResolvedSkill{}, err
+			// One unreachable catalog must not brick resolving skills the
+			// remaining catalogs provide; the error is reported only when no
+			// catalog yields a match.
+			materializeErrs = append(materializeErrs, err)
+			continue
 		}
 		for _, candidate := range skillCandidates(name, namespace, skillName, source) {
 			entry, exists := materialized.Manifest.Catalog.Skills[candidate]
@@ -140,6 +145,9 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		}
 	}
 	if len(matches) == 0 {
+		if len(materializeErrs) > 0 {
+			return ResolvedSkill{}, materializeErrs[0]
+		}
 		return ResolvedSkill{}, fmt.Errorf("skill %q was not found", name)
 	}
 	if len(matches) > 1 {

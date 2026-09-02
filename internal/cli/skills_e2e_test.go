@@ -283,6 +283,22 @@ func TestUpdateRefreshesCatalogsAndAvailableDiscovery(t *testing.T) {
 	}
 }
 
+func TestUpdateWithNothingInstalledIsANoOp(t *testing.T) {
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+
+	project, _, environment := bootstrapEnvironment(t)
+	output := runCommandWithEnv(t, project, environment, binary, "--project", "update")
+	if !strings.Contains(output, "nothing to update") {
+		t.Fatalf("greenfield update output:\n%s", output)
+	}
+	output = runCommandWithEnv(t, project, environment, binary, "--global", "update")
+	if !strings.Contains(output, "nothing to update") {
+		t.Fatalf("greenfield global update output:\n%s", output)
+	}
+}
+
 func addSkillToTrackingCatalog(t *testing.T, root, name, marker string) {
 	t.Helper()
 	directory := filepath.Join(root, "skills", name)

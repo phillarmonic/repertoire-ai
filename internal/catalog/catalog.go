@@ -277,13 +277,31 @@ func resolveRef(root, requested string) (string, bool, error) {
 	return requested, false, nil
 }
 
-func runGit(directory string, arguments ...string) error {
-	commandArguments := arguments
-	if directory != "" {
-		commandArguments = append([]string{"-C", directory}, arguments...)
+// gitEnvironment disables interactive credential prompts so a catalog that
+// needs authentication fails with a clear error instead of blocking on a
+// username/password prompt the user cannot attribute to repertoire.
+func gitEnvironment() []string {
+	if _, ok := os.LookupEnv("GIT_TERMINAL_PROMPT"); ok {
+		return os.Environ()
 	}
+	return append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+}
+
+// gitArguments prefixes catalog operations with -c http.version=HTTP/1.1:
+// some networks answer GitHub's HTTP/2 POSTs with spurious 401s, which git
+// reports as a credential failure. HTTP/1.1 is unaffected.
+func gitArguments(directory string, arguments []string) []string {
+	commandArguments := []string{"-c", "http.version=HTTP/1.1"}
+	if directory != "" {
+		commandArguments = append(commandArguments, "-C", directory)
+	}
+	return append(commandArguments, arguments...)
+}
+
+func runGit(directory string, arguments ...string) error {
 	// #nosec G204 -- argv is built from the catalog registration, not user input
-	command := exec.Command("git", commandArguments...)
+	command := exec.Command("git", gitArguments(directory, arguments)...)
+	command.Env = gitEnvironment()
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(output)))
@@ -292,9 +310,11 @@ func runGit(directory string, arguments ...string) error {
 }
 
 func gitOutput(directory string, arguments ...string) (string, error) {
-	commandArguments := append([]string{"-C", directory}, arguments...)
+	commandArguments := gitArguments(directory, arguments)
 	// #nosec G204 -- argv is built from the catalog registration, not user input
-	output, err := exec.Command("git", commandArguments...).CombinedOutput()
+	command := exec.Command("git", commandArguments...)
+	command.Env = gitEnvironment()
+	output, err := command.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(output)))
 	}

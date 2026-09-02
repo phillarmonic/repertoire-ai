@@ -161,7 +161,11 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 				}
 				resolved, err := manager.Materialize(source, true)
 				if err != nil {
-					return err
+					if listCatalog != "" {
+						return err
+					}
+					_, _ = fmt.Fprintf(command.ErrOrStderr(), "warning: skipped catalog %s: %v\n", source.Name, err)
+					continue
 				}
 				for name := range resolved.Manifest.Catalog.Skills {
 					skills = append(skills, availableSkill{name: name, catalog: source.Name})
@@ -221,7 +225,11 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 				}
 				names = args
 			} else {
-				refreshed, err := refreshCatalogs(manager, manifest, "")
+				if len(lock.Skills) == 0 && len(manifest.Skills) == 0 && len(manifest.Requirements) == 0 {
+					_, _ = fmt.Fprintln(command.OutOrStdout(), "update: nothing installed; nothing to update")
+					return nil
+				}
+				refreshed, err := refreshCatalogsWarn(manager, manifest, "", command.ErrOrStderr())
 				if err != nil {
 					return err
 				}

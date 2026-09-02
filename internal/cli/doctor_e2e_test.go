@@ -265,10 +265,40 @@ skills:
 		}
 	})
 
+	t.Run("reset --global wipes the local configuration", func(t *testing.T) {
+		project, home, environment := bootstrapEnvironment(t)
+		configDir := filepath.Join(userConfigRoot(home), "repertoire")
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		stale := "catalogs:\n  stale:\n    source: https://example.com/gone.git\n"
+		if err := os.WriteFile(filepath.Join(configDir, "repertoire.yaml"), []byte(stale), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(configDir, "repertoire.lock.json"), []byte(`{"skills":{},"projects":{}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cacheDir := filepath.Join(userCacheRoot(home), "repertoire", "catalogs", "stale")
+		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Even with --fix the global reset must stay greenfield: nothing is
+		// reinstalled and no state is recreated afterwards.
+		runCommandWithEnv(t, project, environment, binary, "doctor", "--reset", "--global", "--yes", "--fix")
+
+		if _, err := os.Stat(configDir); !os.IsNotExist(err) {
+			t.Fatalf("global config directory still present: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(userCacheRoot(home), "repertoire", "catalogs")); !os.IsNotExist(err) {
+			t.Fatalf("catalog cache still present: %v", err)
+		}
+	})
+
 	t.Run("scope flags are rejected", func(t *testing.T) {
 		project, _, environment := bootstrapEnvironment(t)
 		output := runCommandWithEnvError(t, project, environment, binary, "doctor", "--global")
-		if !strings.Contains(output, "--global and --project are not supported") {
+		if !strings.Contains(output, "only supported together with --reset") {
 			t.Fatalf("scope flag output:\n%s", output)
 		}
 	})

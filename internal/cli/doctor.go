@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -23,10 +24,19 @@ func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]s
 		Short: "Diagnose and repair managed installations",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			if *globalScope || *projectScope {
-				return errors.New("doctor inspects the current project and global state; --global and --project are not supported")
+			if *globalScope && *projectScope {
+				return errors.New("--global and --project are mutually exclusive")
+			}
+			if (*globalScope || *projectScope) && !reset {
+				return errors.New("doctor inspects the current project and global state; --global and --project are only supported together with --reset")
 			}
 			if reset {
+				if *globalScope {
+					// A global reset is a clean-slate operation: it never
+					// falls through to doctor or bootstrap, so nothing gets
+					// reinstalled from a project manifest afterwards.
+					return runDoctorGlobalReset(command, yes, overrideFlags)
+				}
 				if err := runDoctorReset(command, yes, *force, overrideFlags); err != nil {
 					return err
 				}
@@ -65,7 +75,7 @@ func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]s
 		},
 	}
 	command.Flags().BoolVar(&fix, "fix", false, "repair the issues doctor finds")
-	command.Flags().BoolVar(&reset, "reset", false, "remove every managed artifact for the project and reinstall from repertoire.yaml")
+	command.Flags().BoolVar(&reset, "reset", false, "remove every managed artifact for the project and reinstall from repertoire.yaml; with --global, wipe the local configuration instead")
 	command.Flags().BoolVar(&yes, "yes", false, "skip the --reset confirmation prompt")
 	command.Flags().StringVar(&format, "format", "auto", "output format: auto, table, tsv, or json")
 	return command
@@ -188,6 +198,66 @@ func runDoctorReset(command *cobra.Command, yes, force bool, overrideFlags *[]st
 	}
 	_ = force // removal above already uses force semantics
 	return runBootstrap(command, false, false, true, false, overrideFlags)
+}
+
+// runDoctorGlobalReset completely resets the local configuration: it removes
+// every globally managed skill, wipes the global config directory
+// (repertoire.yaml and repertoire.lock.json), and clears the catalog cache.
+// It recreates nothing — the machine is left greenfield.
+func runDoctorGlobalReset(command *cobra.Command, yes bool, overrideFlags *[]string) error {
+	globalScope, err := state.ResolveScope(state.ScopeOptions{Global: true})
+	if err != nil {
+		return err
+	}
+	if !yes {
+		_, _ = fmt.Fprintf(
+			command.OutOrStdout(),
+			"Remove every globally managed skill and reset the local configuration at %s? [y/N] ",
+			globalScope.Root,
+		)
+		answer, readErr := bufio.NewReader(command.InOrStdin()).ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return readErr
+		}
+		answer = strings.ToLower(strings.TrimSpace(answer))
+		if answer == "" {
+			return errors.New("--reset requires --yes when standard input is not interactive")
+		}
+		if answer != "y" && answer != "yes" {
+			return errors.New("reset aborted")
+		}
+	}
+
+	globalLock, err := state.LoadLock(globalScope.LockPath)
+	if err != nil {
+		return err
+	}
+	for name, entry := range globalLock.Skills {
+		if removeErr := installer.RemoveArtifacts(entry.Artifacts, globalScope.Root, true); removeErr != nil {
+			return fmt.Errorf("reset %q: %w", name, removeErr)
+		}
+		targets, resolveErr := installer.ResolveTargets(globalScope, entry.Targets, "")
+		if resolveErr == nil {
+			if removeErr := installer.Remove(name, targets, entry, true); removeErr != nil {
+				return fmt.Errorf("reset %q: %w", name, removeErr)
+			}
+		}
+	}
+
+	manager, err := newCatalogManager("", *overrideFlags)
+	if err != nil {
+		return err
+	}
+	if manager.CacheRoot != "" {
+		if err := os.RemoveAll(manager.CacheRoot); err != nil {
+			return fmt.Errorf("clear catalog cache: %w", err)
+		}
+	}
+	if err := os.RemoveAll(globalScope.Root); err != nil {
+		return fmt.Errorf("remove %s: %w", globalScope.Root, err)
+	}
+	_, _ = fmt.Fprintf(command.OutOrStdout(), "reset local configuration at %s\n", globalScope.Root)
+	return nil
 }
 
 func writeDoctorReport(command *cobra.Command, env *doctor.Env, result doctor.Result, format string) error {
