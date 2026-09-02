@@ -168,7 +168,11 @@ git ls-remote https://github.com/company/agent-skills.git
 | HTTPS (`https://…`) | Git credential helpers, or provider CLIs such as `gh auth setup-git` |
 
 Without credentials that can read the remote, Repertoire cannot materialize the
-private catalog.
+private catalog. Repertoire runs Git with terminal prompts disabled, so a
+missing credential surfaces as an immediate `could not read Username` error
+instead of a silent username/password prompt. Catalog operations are also
+pinned to HTTP/1.1: some networks answer GitHub's HTTP/2 POSTs with spurious
+401 responses that Git misreports as an authentication failure.
 
 URLs that embed usernames, passwords, or tokens are rejected. Put credentials in
 your Git/SSH configuration—not in `repertoire.yaml`, lock files, or command

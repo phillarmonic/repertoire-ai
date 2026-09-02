@@ -10,6 +10,26 @@ import (
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 )
 
+func TestGitEnvironmentDisablesTerminalPrompts(t *testing.T) {
+	t.Setenv("GIT_TERMINAL_PROMPT", "")
+	_ = os.Unsetenv("GIT_TERMINAL_PROMPT")
+	found := false
+	for _, pair := range gitEnvironment() {
+		if pair == "GIT_TERMINAL_PROMPT=0" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("gitEnvironment did not disable terminal prompts")
+	}
+	t.Setenv("GIT_TERMINAL_PROMPT", "1")
+	for _, pair := range gitEnvironment() {
+		if pair == "GIT_TERMINAL_PROMPT=0" {
+			t.Fatal("gitEnvironment overrode an explicit GIT_TERMINAL_PROMPT")
+		}
+	}
+}
+
 func TestSourceUtilitiesAndBuiltinOverride(t *testing.T) {
 	t.Parallel()
 	if got := NormalizeSource("github.com/example/skills"); got != "https://github.com/example/skills.git" {

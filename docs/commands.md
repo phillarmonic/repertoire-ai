@@ -133,15 +133,28 @@ flip-flopping modification warnings.
 managed artifact for the current project and reinstalls from `repertoire.yaml`.
 It asks for confirmation unless `--yes` is given.
 
+`repertoire doctor --reset --global` goes further and completely resets the
+local configuration: it removes every globally managed skill, wipes the global
+config directory (`repertoire.yaml` and `repertoire.lock.json`), and clears the
+catalog cache. Nothing is reinstalled or recreated afterwards — even with
+`--fix` the machine is left greenfield. Use it when a stale global install
+points at catalogs that no longer exist. It asks for confirmation unless
+`--yes` is given. Skills are removed based on the global lock; if that lock
+was already lost, skill directories left behind in target roots are simply
+unmanaged — reinstall over them with `repertoire add <skill> --force` or
+delete them manually.
+
 ```bash
 repertoire doctor --fix
 repertoire doctor --reset --yes
+repertoire doctor --reset --global --yes
 repertoire doctor --format json
 ```
 
 Output is a table in a terminal, TSV when redirected, or JSON with
 `--format json`. Like `bootstrap` and `sync`, `doctor` rejects `--global` and
-`--project`; it always inspects both scopes.
+`--project`; it always inspects both scopes. The only exception is `--reset`,
+where `--global` selects the full local-configuration reset described above.
 
 ## List
 
@@ -208,7 +221,11 @@ an existing file rather than a wholesale replacement.
 `update` refreshes tracking catalogs and reinstalls one or every installed
 skill. With a catalog name, it refreshes that catalog even when no installed
 skill has the same name. Missing managed copies are repaired. Tags and commit
-refs remain pinned.
+refs remain pinned. When nothing is installed and the manifest declares no
+skills, `update` is a no-op and never touches the network. All of repertoire's
+git operations run with terminal prompts disabled, so a catalog that requires
+authentication fails with a clear error instead of blocking on a credential
+prompt.
 
 ```bash
 repertoire update

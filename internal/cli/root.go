@@ -222,20 +222,39 @@ func optionalArg(args []string) string {
 	return args[0]
 }
 
+// refreshCatalogs materializes every visible catalog, or the single catalog
+// named by name. Bulk refreshes tolerate unreachable catalogs (reporting them
+// to warningOutput) so one dead source cannot brick updates served by the
+// others; an explicitly named catalog still fails hard.
 func refreshCatalogs(manager *catalog.Manager, manifest state.Manifest, name string) ([]catalog.Materialized, error) {
+	return refreshCatalogsWarn(manager, manifest, name, nil)
+}
+
+func refreshCatalogsWarn(manager *catalog.Manager, manifest state.Manifest, name string, warningOutput io.Writer) ([]catalog.Materialized, error) {
 	var resolved []catalog.Materialized
+	var refreshErrs []error
 	for _, source := range catalog.Sources(manifest) {
 		if name != "" && source.Name != name {
 			continue
 		}
 		materialized, err := manager.Materialize(source, true)
 		if err != nil {
-			return nil, err
+			if name != "" {
+				return nil, err
+			}
+			refreshErrs = append(refreshErrs, err)
+			if warningOutput != nil {
+				_, _ = fmt.Fprintf(warningOutput, "warning: skipped catalog %s: %v\n", source.Name, err)
+			}
+			continue
 		}
 		resolved = append(resolved, materialized)
 	}
 	if name != "" && len(resolved) == 0 {
 		return nil, fmt.Errorf("catalog %q is not visible", name)
+	}
+	if len(resolved) == 0 && len(refreshErrs) > 0 {
+		return nil, refreshErrs[0]
 	}
 	return resolved, nil
 }
