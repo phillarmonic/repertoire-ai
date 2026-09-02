@@ -267,7 +267,7 @@ skills:
 
 	t.Run("reset --global wipes the local configuration", func(t *testing.T) {
 		project, home, environment := bootstrapEnvironment(t)
-		configDir := filepath.Join(home, "config", "repertoire")
+		configDir := filepath.Join(userConfigRoot(home), "repertoire")
 		if err := os.MkdirAll(configDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -278,7 +278,7 @@ skills:
 		if err := os.WriteFile(filepath.Join(configDir, "repertoire.lock.json"), []byte(`{"skills":{},"projects":{}}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		cacheDir := filepath.Join(home, "cache", "repertoire", "catalogs", "stale")
+		cacheDir := filepath.Join(userCacheRoot(home), "repertoire", "catalogs", "stale")
 		if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -290,7 +290,7 @@ skills:
 		if _, err := os.Stat(configDir); !os.IsNotExist(err) {
 			t.Fatalf("global config directory still present: %v", err)
 		}
-		if _, err := os.Stat(filepath.Join(home, "cache", "repertoire", "catalogs")); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(userCacheRoot(home), "repertoire", "catalogs")); !os.IsNotExist(err) {
 			t.Fatalf("catalog cache still present: %v", err)
 		}
 	})

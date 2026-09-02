@@ -468,6 +468,15 @@ func userCacheRoot(home string) string {
 	}
 }
 
+func userConfigRoot(home string) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support")
+	default:
+		return filepath.Join(home, "config")
+	}
+}
+
 func createBootstrapCatalog(t *testing.T, name string, skills map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
