@@ -68,10 +68,25 @@ jobs:
       - name: Run CI
         run: xdrun ci
 
-      - name: Build all release binaries
+      - name: Build Unix release binaries
         env:
           VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
         run: ./scripts/build-release.sh "$VERSION"
+
+      - name: Install NSIS
+        run: sudo apt-get update && sudo apt-get install -y nsis
+
+      - name: Build Windows binaries and installer
+        env:
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
+        run: xdrun installer version="$VERSION"
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd dist
+          rm -f checksums.txt
+          sha256sum repertoire-* > checksums.txt
 
       - name: Upload dry-run artifacts
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}

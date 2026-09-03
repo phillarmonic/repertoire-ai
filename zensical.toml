@@ -51,6 +51,7 @@ custom_fences = [
   { name = "bash", class = "language-bash", format = "pymdownx.superfences.fence_code_format" },
   { name = "sh", class = "language-sh", format = "pymdownx.superfences.fence_code_format" },
   { name = "shell", class = "language-shell", format = "pymdownx.superfences.fence_code_format" },
+  { name = "powershell", class = "language-powershell", format = "pymdownx.superfences.fence_code_format" },
   { name = "yaml", class = "language-yaml", format = "pymdownx.superfences.fence_code_format" },
   { name = "yml", class = "language-yml", format = "pymdownx.superfences.fence_code_format" },
   { name = "markdown", class = "language-markdown", format = "pymdownx.superfences.fence_code_format" },
