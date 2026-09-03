@@ -44,6 +44,12 @@
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
 
+; Branding images (uncompressed 24-bit BMP3, the format MUI expects).
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "assets\header.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "assets\welcome.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "assets\welcome.bmp"
+
 Name "${APP_NAME}"
 OutFile "..\dist\repertoire-setup-${VERSION}.exe"
 Unicode True
