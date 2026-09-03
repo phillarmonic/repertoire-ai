@@ -18,6 +18,70 @@ catalog. Unqualified names prefer this official mainline catalog. Use
 `--catalog <name>` or a source-qualified ID to choose a different definition;
 ambiguity remains an error when only non-mainline catalogs match.
 
+## Install
+
+Repertoire ships as a single self-contained binary. Choose the method that fits
+your platform.
+
+=== "Windows"
+
+    Install for the current user — no administrator rights required.
+
+    **Installer (recommended)**
+
+    Download `repertoire-setup-<version>.exe` from the
+    [latest release](https://github.com/phillarmonic/repertoire-ai/releases/latest)
+    and run it. The setup installs `repertoire.exe` under
+    `%LOCALAPPDATA%\Programs\Repertoire`, automatically selects the build for your
+    architecture (x64 or ARM64), and adds it to your user `PATH`. Open a new
+    terminal afterwards so the `repertoire` command resolves.
+
+    **PowerShell script**
+
+    Prefer the command line? Run the installer script in PowerShell:
+
+    ```powershell
+    irm https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.ps1 | iex
+    ```
+
+    It downloads the binary for your architecture, verifies its SHA-256
+    checksum, installs it to the same per-user location, and updates your `PATH`.
+    Pin a specific version by setting an environment variable first:
+
+    ```powershell
+    $env:REPERTOIRE_VERSION = "v1.2.3"; irm https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.ps1 | iex
+    ```
+
+=== "Linux and macOS"
+
+    Install the latest prebuilt binary:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.sh | bash
+    ```
+
+    Set `INSTALL_DIR` to change the target directory (default `~/.local/bin`), or
+    pass a tag to pin the version:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.sh | bash -s -- v1.2.3
+    ```
+
+=== "Go"
+
+    Build and install from source with Go 1.27 or newer:
+
+    ```bash
+    go install github.com/phillarmonic/repertoire-ai/cmd/repertoire@latest
+    ```
+
+Verify the installation, and update in place when needed:
+
+```bash
+repertoire --version
+repertoire --self-update
+```
+
 ## Install one skill across multiple AI coding agents
 
 Use one command instead of manually copying the same skill into every

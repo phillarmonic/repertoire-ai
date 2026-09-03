@@ -82,7 +82,11 @@ destination="${install_dir}/${installed_name}"
 install -m 0755 "${temporary_dir}/${asset}" "$destination"
 
 version_output="$("$destination" --version)"
-[[ "$version_output" == "repertoire version ${requested_version} ("* ]] ||
+# Release binaries stamp either the rich "vX.Y.Z (commit, date)" string (Unix,
+# built by scripts/build-release.sh) or the plain "vX.Y.Z" string (Windows,
+# built by the drun installer task), so accept both forms.
+[[ "$version_output" == "repertoire version ${requested_version}" || \
+   "$version_output" == "repertoire version ${requested_version} ("* ]] ||
     fail "installed binary reported an unexpected version: ${version_output}"
 
 printf 'Installed %s\n' "$destination"

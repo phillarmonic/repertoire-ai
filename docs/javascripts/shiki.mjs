@@ -6,8 +6,10 @@ const languageAliases = {
   yml: "yaml",
   plaintext: "text",
   txt: "text",
+  ps1: "powershell",
+  pwsh: "powershell",
 };
-const bundledLanguages = ["bash", "markdown", "text", "yaml"];
+const bundledLanguages = ["bash", "markdown", "powershell", "text", "yaml"];
 
 const highlighterPromise = createHighlighter({
   langs: bundledLanguages,
