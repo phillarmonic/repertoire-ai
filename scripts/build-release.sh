@@ -20,9 +20,11 @@ platforms=(
     "linux/arm64"
     "darwin/amd64"
     "darwin/arm64"
-    "windows/amd64"
-    "windows/arm64"
 )
+
+# Windows binaries (windows/amd64, windows/arm64) are produced by the drun
+# "installer" task, which also stamps the version via -ldflags and bundles them
+# into the per-user NSIS setup executable.
 
 printf 'Building Repertoire %s\n' "$display_version"
 

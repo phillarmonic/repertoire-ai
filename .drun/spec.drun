@@ -32,6 +32,18 @@ task "install" means "Install repertoire with local build information":
 	run "go install -ldflags=\"-X 'main.version=dev-$(git rev-parse --short HEAD) (built at $(date -u '+%Y-%m-%d %H:%M:%S UTC'))'\" ./cmd/repertoire"
 	success "repertoire installed"
 
+task "installer" means "Build fresh Windows binaries and package the per-user NSIS installer":
+	requires tools:
+		go
+		makensis
+	given $version defaults to "dev"
+	info "Building amd64 + arm64 Windows binaries ({$version}) into dist and packaging dist/repertoire-setup-{$version}.exe"
+	run "mkdir -p dist"
+	run "CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags=\"-s -w -buildid= -X 'main.version={$version}'\" -o dist/repertoire-windows-amd64.exe ./cmd/repertoire"
+	run "CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags=\"-s -w -buildid= -X 'main.version={$version}'\" -o dist/repertoire-windows-arm64.exe ./cmd/repertoire"
+	run "makensis \"-DVERSION={$version}\" installer/repertoire.nsi"
+	success "Windows installer built into dist/repertoire-setup-{$version}.exe"
+
 task "sec" means "Security checks (high)":
 	run "gosec -tags sqlite_fts5 -severity high -confidence medium ./..."
 
