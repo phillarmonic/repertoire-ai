@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -20,9 +21,9 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 	var requestedTargets []string
 	var addWithHooks, addNoHooks bool
 	add := &cobra.Command{
-		Use:   "add <skill>",
-		Short: "Declare and install a skill",
-		Args:  cobra.ExactArgs(1),
+		Use:   "add <skill>[,<skill>...]",
+		Short: "Declare and install skills (comma-separated names or glob patterns)",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
@@ -32,10 +33,16 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 			if err != nil {
 				return err
 			}
-			if _, err := installNamed(command, scope, &manifest, &lock, args[0], catalogName, requestedTargets, true, *force, false, hooks, overrideFlags); err != nil {
+			names, err := expandSkillSelectors(manifest, catalogName, args, overrideFlags)
+			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s\n", args[0], lock.Skills[args[0]].Catalog)
+			for _, name := range names {
+				if _, err := installNamed(command, scope, &manifest, &lock, name, catalogName, requestedTargets, true, *force, false, hooks, overrideFlags); err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s\n", name, lock.Skills[name].Catalog)
+			}
 			return nil
 		},
 	}
@@ -518,8 +525,91 @@ func interactiveInput(input io.Reader) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-func catalogVisible(manifest state.Manifest, name string) bool {
+// expandSkillSelectors turns add-command arguments into a concrete, ordered,
+// deduplicated list of skill names. Each argument may be a comma-separated
+// list, and any element containing glob metacharacters (* or ?) is expanded
+// against the skills offered by the visible catalogs. Plain names pass
+// through unvalidated; resolution reports unknown names later.
+func expandSkillSelectors(manifest state.Manifest, catalogName string, args []string, overrideFlags *[]string) ([]string, error) {
+	var selectors []string
+	for _, arg := range args {
+		for _, part := range strings.Split(arg, ",") {
+			part = strings.TrimSpace(part)
+			if part != "" {
+				selectors = append(selectors, part)
+			}
+		}
+	}
+	if len(selectors) == 0 {
+		return nil, errors.New("at least one skill name is required")
+	}
+	hasGlob := false
+	for _, selector := range selectors {
+		if strings.ContainsAny(selector, "*?") {
+			hasGlob = true
+			break
+		}
+	}
+	if !hasGlob {
+		return dedupeNames(selectors), nil
+	}
+	manager, err := newCatalogManager("", *overrideFlags)
+	if err != nil {
+		return nil, err
+	}
+	var available []string
+	var materializeErrs []error
 	for _, source := range catalog.Sources(manifest) {
+		if catalogName != "" && source.Name != catalogName {
+			continue
+		}
+		resolved, err := manager.Materialize(source, true)
+		if err != nil {
+			materializeErrs = append(materializeErrs, err)
+			continue
+		}
+		for name := range resolved.Manifest.Catalog.Skills {
+			available = append(available, name)
+		}
+	}
+	sort.Strings(available)
+	expanded := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		if !strings.ContainsAny(selector, "*?") {
+			expanded = append(expanded, selector)
+			continue
+		}
+		matched := false
+		for _, name := range available {
+			if ok, _ := path.Match(selector, name); ok {
+				expanded = append(expanded, name)
+				matched = true
+			}
+		}
+		if !matched {
+			if len(available) == 0 && len(materializeErrs) > 0 {
+				return nil, materializeErrs[0]
+			}
+			return nil, fmt.Errorf("pattern %q matched no available skills", selector)
+		}
+	}
+	return dedupeNames(expanded), nil
+}
+
+func dedupeNames(names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result
+}
+
+func catalogVisible(manifest state.Manifest, name string) bool {	for _, source := range catalog.Sources(manifest) {
 		if source.Name == name {
 			return true
 		}

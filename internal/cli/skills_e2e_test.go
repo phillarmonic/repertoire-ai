@@ -329,6 +329,49 @@ func testBinaryPath(t *testing.T) string {
 	return filepath.Join(t.TempDir(), name)
 }
 
+func TestAddCommaListAndGlobEndToEnd(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := t.TempDir()
+	for _, name := range []string{"product-ideation", "product-naming", "demo"} {
+		root := filepath.Join(catalogRoot, "skills", name)
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := "---\nname: " + name + "\ndescription: Test skill\n---\n"
+		if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := "schema: 1\ncatalog:\n  name: local\n  skills:\n    demo:\n      path: skills/demo\n    product-ideation:\n      path: skills/product-ideation\n    product-naming:\n      path: skills/product-naming\n"
+	if err := os.WriteFile(filepath.Join(catalogRoot, "repertoire.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "local")
+
+	output := runCommand(t, project, binary, "--project", "add", "demo,product-*", "--catalog", "local", "--target", "agents", "--no-hooks")
+	for _, expected := range []string{
+		"added demo from local",
+		"added product-ideation from local",
+		"added product-naming from local",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected %q in add output:\n%s", expected, output)
+		}
+	}
+
+	command := exec.Command(binary, "--project", "add", "nope-*", "--catalog", "local")
+	command.Dir = project
+	if failure, err := command.CombinedOutput(); err == nil ||
+		!strings.Contains(string(failure), `pattern "nope-*" matched no available skills`) {
+		t.Fatalf("expected unmatched pattern error, got err=%v\n%s", err, failure)
+	}
+}
+
 func runCommand(t *testing.T, directory, name string, arguments ...string) string {
 	t.Helper()
 	return runCommandWithEnv(t, directory, os.Environ(), name, arguments...)
