@@ -533,7 +533,7 @@ func interactiveInput(input io.Reader) bool {
 func expandSkillSelectors(manifest state.Manifest, catalogName string, args []string, overrideFlags *[]string) ([]string, error) {
 	var selectors []string
 	for _, arg := range args {
-		for _, part := range strings.Split(arg, ",") {
+		for part := range strings.SplitSeq(arg, ",") {
 			part = strings.TrimSpace(part)
 			if part != "" {
 				selectors = append(selectors, part)
@@ -609,7 +609,8 @@ func dedupeNames(names []string) []string {
 	return result
 }
 
-func catalogVisible(manifest state.Manifest, name string) bool {	for _, source := range catalog.Sources(manifest) {
+func catalogVisible(manifest state.Manifest, name string) bool {
+	for _, source := range catalog.Sources(manifest) {
 		if source.Name == name {
 			return true
 		}
