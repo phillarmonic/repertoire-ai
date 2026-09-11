@@ -26,6 +26,16 @@ repertoire add code-reviewer --catalog company --target codex --target claude
 repertoire --project add graphify --target codex --with-hooks
 ```
 
+`add` also accepts several skills at once: comma-separated names, multiple
+arguments, or glob patterns matched against the skills offered by the visible
+catalogs (quote patterns so the shell does not expand them first). A pattern
+that matches nothing is an error.
+
+```bash
+repertoire add code-reviewer,shared-helpers
+repertoire add "product-*"
+```
+
 An unqualified short name resolves when exactly one visible catalog defines it.
 Source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical` select the
 catalog source and short skill name together. If several catalogs define a short

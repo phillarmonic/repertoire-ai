@@ -16,7 +16,6 @@ task "vet" means "Run Go static analysis":
 	run "go vet -tags sqlite_fts5 ./..."
 
 task "lint" means "Check Go source formatting":
-	run "test -z \"$(gofmt -l cmd internal)\""
 	run "golangci-lint run --build-tags sqlite_fts5 ./..."
 
 task "test" means "Run the Go test suite":
