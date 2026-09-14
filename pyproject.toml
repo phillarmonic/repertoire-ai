@@ -9,4 +9,5 @@ dependencies = []
 [dependency-groups]
 dev = [
     "zensical>=0.0.51",
+    "zensical-glossary>=1.2.1",
 ]

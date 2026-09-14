@@ -370,7 +370,8 @@ func TestDoctorGlobalSkillHealth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Issues) != 1 || report.Issues[0].Check != "global-skill-health" {
+	if len(report.Issues) != 1 || report.Issues[0].Check != "global-skill-health" ||
+		report.Issues[0].Subject != "demo" || report.Issues[0].Detail != "installed location is missing" {
 		t.Fatalf("report = %+v", report.Issues)
 	}
 
@@ -383,6 +384,64 @@ func TestDoctorGlobalSkillHealth(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "demo", "SKILL.md")); err != nil {
 		t.Fatalf("reinstalled skill missing: %v", err)
+	}
+}
+
+func TestDoctorGlobalSkillHealthCollapsesLocations(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	skillRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte("---\nname: demo\ndescription: Test\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := installer.Digest(skillRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := installer.ResolvedSkill{Name: "demo", Root: skillRoot, Digest: digest}
+	env := doctorEnvironment(t, resolved)
+	targets := []installer.Target{
+		{Name: "agents", Root: filepath.Join(home, ".agents", "skills")},
+		{Name: "codex", Root: filepath.Join(home, ".codex", "skills")},
+		{Name: "claude", Root: filepath.Join(home, ".claude", "skills")},
+	}
+	locations, digests, err := installer.SkillWithDigests(resolved, targets, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.GlobalLock.Skills["demo"] = state.LockSkill{
+		Catalog: "test", Targets: []string{"agents", "codex", "claude"}, Locations: locations, TargetDigests: digests, Digest: digest,
+	}
+	if saveErr := env.saveGlobalLock(); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+	for _, location := range locations {
+		if removeErr := os.RemoveAll(location); removeErr != nil {
+			t.Fatal(removeErr)
+		}
+	}
+
+	report, err := Run(env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Issues) != 1 || report.Issues[0].Subject != "demo" ||
+		report.Issues[0].Detail != "stale in 3 locations" {
+		t.Fatalf("report = %+v", report.Issues)
+	}
+
+	fixed, err := Run(env, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fixed.Issues) != 0 {
+		t.Fatalf("residual = %+v", fixed.Issues)
+	}
+	for _, location := range locations {
+		if _, err := os.Stat(filepath.Join(location, "SKILL.md")); err != nil {
+			t.Fatalf("reinstalled %s: %v", location, err)
+		}
 	}
 }
 

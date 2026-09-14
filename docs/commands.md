@@ -1,59 +1,90 @@
-# Commands
+---
+title: Command reference
+description: Every Repertoire command with its purpose, common forms, and edge cases.
+---
 
-## Update Repertoire
+# Command reference
 
-Update the Repertoire executable to the newest stable GitHub release that
-contains a binary for the current operating system and architecture:
+Commands are listed in the order most people meet them. Each section opens
+with what the command is for and its common forms; less common behavior sits
+in collapsible notes. Terms such as catalog, target, and scope are defined in
+the [glossary](glossary.md).
 
-```bash
-repertoire --self-update
-```
+## Flags every command accepts
 
-The command asks for confirmation, verifies the downloaded binary against the
-release `checksums.txt`, checks its reported version, and then replaces the
-running executable. The previous executable is retained under
-`~/.repertoire/backups`; only the five newest backups are kept. A failed install
-or post-install verification restores the backup automatically.
+`--project` / `--global`
+:   Choose the scope. Global is the default: state lives in your user
+    configuration directory and skills install under home-directory agent
+    roots. `--project` reads `repertoire.yaml` and `repertoire.lock.json` from
+    the current Git worktree root and installs into project-local agent
+    directories. The two flags cannot be combined.
 
-## Declare and install
+`--force`
+:   Replace or remove a managed copy that Repertoire would otherwise protect
+    because it is locally modified, unmanaged, or managed from a different
+    catalog source. Review the destination before using it.
 
-`add` records a requirement in the selected scope and installs it immediately:
+`--override name=path`
+:   Resolve a catalog from a local checkout instead of its registered remote.
+    Repeatable, or set `REPERTOIRE_OVERRIDES="name=path,other=path"`. Flags win
+    over the environment variable, and `catalog list` marks overridden sources.
+    See [Local overrides for testing](concepts/catalogs.md#local-overrides-for-testing).
+
+## `add`: install a skill and remember it
+
+`add` records the skill as a requirement in the selected scope and installs it
+right away. Later, `install` and `update` know to keep it.
 
 ```bash
 repertoire add code-reviewer
+repertoire add code-reviewer --target codex --target claude
+repertoire add code-reviewer --catalog company --target all
 repertoire add github.com/phillarmonic/ai-skills/zensical
-repertoire add code-reviewer --catalog company --target codex --target claude
-repertoire --project add graphify --target codex --with-hooks
 ```
 
-`add` also accepts several skills at once: comma-separated names, multiple
-arguments, or glob patterns matched against the skills offered by the visible
-catalogs (quote patterns so the shell does not expand them first). A pattern
-that matches nothing is an error.
+Without `--target`, `add` installs into the agents it detects on your machine
+(an existing configuration directory, or a well-known CLI on `PATH` in global
+scope). `--target all` installs into every supported agent regardless of
+detection.
+
+Install several skills at once with comma-separated names, multiple
+arguments, or a glob pattern matched against the skills your catalogs offer.
+Quote patterns so the shell does not expand them; a pattern that matches
+nothing is an error.
 
 ```bash
 repertoire add code-reviewer,shared-helpers
 repertoire add "product-*"
 ```
 
-An unqualified short name resolves when exactly one visible catalog defines it.
-Source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical` select the
-catalog source and short skill name together. If several catalogs define a short
-name, Repertoire lists every definition (with source-qualified IDs) and requires
-`--catalog` or a source-qualified ID.
+### How skill names resolve
 
-Catalog skills can expose always-on project instructions plus optional hooks
-and integrations. Matching instructions are installed for every project-scope
-installation. Interactive `add` asks before installing optional artifacts.
-Noninteractive use skips optional artifacts unless `--with-hooks` is present;
-`--no-hooks` makes the skip explicit. The selected choice is stored for
-declared requirements.
+- A short name such as `code-reviewer` resolves when exactly one visible
+  catalog defines it. If the built-in `phillarmonic` catalog defines the name,
+  it wins over other catalogs.
+- A source-qualified ID such as `github.com/phillarmonic/ai-skills/zensical`
+  names the catalog source and the skill together and is never ambiguous.
+- If several non-mainline catalogs define the same short name, Repertoire
+  lists every match with its source-qualified ID and asks you to choose with
+  `--catalog <name>` or the qualified ID.
 
-## Synchronize
+### Optional hooks and integrations
 
-With no argument, `install` installs every declared requirement. A named skill
-that is not declared is installed as tracked ad-hoc state without changing the
-manifest.
+Some skills ship always-on project instructions (installed automatically for
+project scope) plus optional hooks or integration files. Interactive `add`
+asks before installing the optional ones. In scripts and CI, pass
+`--with-hooks` to accept or `--no-hooks` to skip; the choice is stored with
+the requirement.
+
+```bash
+repertoire --project add graphify --target codex --with-hooks
+```
+
+## `install`: reinstall or repair
+
+Where `add` declares a new requirement, `install` (re)installs what is already
+declared. With no argument it installs every requirement in the selected
+scope, repairing any managed copy that is missing or broken.
 
 ```bash
 repertoire install
@@ -61,145 +92,190 @@ repertoire install zensical
 repertoire install --target all
 ```
 
-`--target all` installs onto every supported agent target, whether or not that
-agent is currently detected. It can be used with a named skill or the bulk
-install form above.
+A named skill that is not declared is installed as tracked ad-hoc state; the
+manifest is not changed. `--target all` applies to every skill the command
+touches and replaces the stored target set.
 
-Every command accepts a repeatable `--override name=path` flag (or the
-`REPERTOIRE_OVERRIDES` environment variable) to redirect a catalog to a local
-checkout, so skills can be tested before pushing. Flags win over environment
-values; `catalog list` marks overridden sources.
+## `update`: pull newer versions
 
-## Bootstrap and synchronize a project
+`update` refreshes the tracking catalogs and reinstalls one or every installed
+skill. Missing managed copies are repaired along the way. Skills pinned to a
+tag or commit stay pinned.
 
-From a Git worktree, install every skill declared in the `skills` section of
-the project `repertoire.yaml` into its configured project or global scope:
+```bash
+repertoire update
+repertoire update code-reviewer
+repertoire update --target all
+```
+
+Give a catalog name to refresh that catalog even when no installed skill
+shares the name:
+
+```bash
+repertoire update company
+```
+
+`update` refuses to replace a locally modified copy. Review your changes, then
+either move them into your own catalog or rerun with `--force`. `--with-hooks`
+and `--no-hooks` add or remove a skill's optional hooks during the update.
+
+??? note "Network behavior"
+    When nothing is installed and the manifest declares no skills, `update`
+    does nothing and never touches the network. All Git operations run with
+    terminal prompts disabled, so a catalog that needs credentials fails with
+    a clear error instead of hanging on a password prompt.
+
+## `remove`: uninstall a skill
+
+```bash
+repertoire remove code-reviewer
+```
+
+Removes the managed copies from every target in the selected scope and drops
+the requirement. Like `update`, it refuses to delete a locally modified copy
+without `--force`.
+
+## `list`: what is installed, what is available
+
+```bash
+repertoire list
+repertoire list --wide
+repertoire list --available
+repertoire list --available --catalog phillarmonic
+```
+
+The default view is a compact table of installed skills with their catalog,
+whether they were declared or installed ad hoc, and a target summary; `--wide`
+shows every target. `--available` refreshes catalogs and lists the skills
+they offer, optionally limited to one catalog.
+
+Output is a table in a terminal and headerless TSV when redirected, so it is
+safe to pipe. Force a format with `--format table`, `--format tsv`, or
+`--format json`.
+
+## `catalog`: manage where skills come from
+
+```bash
+repertoire catalog list
+repertoire catalog add git@github.com:example/private-skills.git --name company
+repertoire catalog add github.com/example/public-skills --name public --ref main
+repertoire catalog add /path/to/ai-skills
+repertoire catalog update
+repertoire catalog remove company
+```
+
+`add` registers a Git URL or a local path. `--ref` pins a branch, tag, or
+commit; without it the remote default branch is tracked. `update` refreshes
+the cached clones. Remote catalogs are read with your system `git`, so SSH
+agents, credential helpers, and provider CLIs work without Repertoire storing
+anything. See [Private and company catalogs](private-repositories.md) to build
+one.
+
+## `bootstrap` and `sync`: install what a project declares
+
+From a Git worktree, `bootstrap` installs every skill in the `skills` section
+of the project `repertoire.yaml` into its declared scope and targets, without
+fetching. `sync` does the same after refreshing the tracking catalogs.
 
 ```bash
 repertoire bootstrap
-```
-
-If `repertoire.yaml` declares no bootstrap skills, `bootstrap` adds a starter
-`skills` section that lists every skill from the built-in `phillarmonic`
-catalog using source-qualified IDs and `scope: global` (manifest stays in the
-repo; skills install under home-directory agent roots). `sync` does not create
-missing declarations. A legacy `.repertoire.yaml` is merged into
-`repertoire.yaml` and removed automatically on either command; when both files
-declare skills, the legacy file is ignored with a warning.
-
-`bootstrap` uses local catalogs and the current catalog cache without fetching.
-It skips intact installations and repairs missing managed copies. Use `sync`
-when the project should refresh tracking catalogs before updating declarations:
-
-```bash
 repertoire sync
 ```
 
-For a global-scope skill, bootstrap may also manage small catalog-declared
-instruction pointers in the worktree. Their state is stored in the global
-Repertoire lock, so the repository does not gain a project lock merely for the
-pointer. `hooks: true` in the bootstrap declaration additionally installs
-optional hooks and integrations into that worktree.
+Both skip intact installations, repair missing copies, stop at the first
+error (work already done stays installed), and never remove skills that were
+dropped from the manifest. Because scope is declared per skill, they reject
+`--global` and `--project`. The full walkthrough, including the manifest
+format, is in [Set up a project or team](automation.md).
 
-Both commands process skills by name and stop at the first error. Work completed
-before an error remains installed and locked. They never remove skills omitted
-from the `skills` section.
+??? note "Starter manifest and legacy .repertoire.yaml"
+    If `repertoire.yaml` declares no skills, `bootstrap` (not `sync`) writes a
+    starter `skills` section listing every built-in `phillarmonic` skill with
+    source-qualified IDs and `scope: global`, then installs them.
 
-Because scope belongs to each declaration, `bootstrap` and `sync` reject
-`--global` and `--project`. They continue to honor `--force`. Replacing a
-user-global skill that is already managed from another catalog source or ref
-also requires `--force`; this prevents one project from silently changing a
-shared home installation.
+    A legacy `.repertoire.yaml` found beside a `repertoire.yaml` with no
+    skills is merged into `repertoire.yaml` and deleted by either command.
+    When both files declare skills, `repertoire.yaml` wins and the legacy file
+    is ignored with a warning.
 
-## Diagnose and repair
+??? note "Global skills, project pointers, and --force"
+    For a `scope: global` declaration the skill stays under the home
+    directory, but catalog-declared project instructions (small pointer
+    sections) are still written into the worktree and tracked in the global
+    lock. `hooks: true` also installs the skill's optional hooks there.
+    Replacing a home-directory skill already managed from a different catalog
+    source or ref requires `--force`, so one project cannot silently change an
+    installation shared by others.
 
-`doctor` audits the current project and the global installation for broken or
-stale managed state: missing or locally modified managed files, files managed
-by multiple skills with conflicting content, managed Markdown sections no
-lock entry claims, identical sections duplicated under per-target markers,
-declarations in `repertoire.yaml` whose lock state does not match,
-global-lock entries for projects that no longer exist, and broken global
-skill installs.
+## `doctor`: diagnose and repair
+
+`doctor` audits both the current project and the global installation and
+reports anything broken or stale, each with a suggested remedy. Start here
+when something looks wrong.
 
 ```bash
 repertoire doctor
 ```
 
-Report mode lists every issue with a suggested remedy and exits non-zero when
-anything is found, so it can gate CI. `repertoire doctor --fix` repairs what
-it finds: managed content is reinstalled from the catalog cache, orphaned and
-duplicated sections are collapsed or removed, drift is reconciled through the
-same path as `repertoire bootstrap`, and stale lock entries are pruned. When
-the current directory is not a Git worktree, project checks are skipped and
-only global hygiene runs.
+It checks for managed files that are missing or locally modified, files
+managed by two skills with conflicting content, managed Markdown sections that
+no lock entry claims, duplicated sections, declarations whose lock state has
+drifted, global-lock entries for projects that no longer exist, and broken
+global skill installs. It exits non-zero when anything is found, so it can
+gate CI. Outside a Git worktree only the global checks run.
 
-A `conflicting-destination` report means two skills copy-manage the same
-file with different content, so no reinstall can satisfy both. Doctor repairs
-it only once the catalogs resolve compatibly (for example after the skills
-switch to `markdown-section`); until then it reports the conflict instead of
-flip-flopping modification warnings.
-
-`repertoire doctor --reset` is the clean-slate escape hatch: it removes every
-managed artifact for the current project and reinstalls from `repertoire.yaml`.
-It asks for confirmation unless `--yes` is given.
-
-`repertoire doctor --reset --global` goes further and completely resets the
-local configuration: it removes every globally managed skill, wipes the global
-config directory (`repertoire.yaml` and `repertoire.lock.json`), and clears the
-catalog cache. Nothing is reinstalled or recreated afterwards — even with
-`--fix` the machine is left greenfield. Use it when a stale global install
-points at catalogs that no longer exist. It asks for confirmation unless
-`--yes` is given. Skills are removed based on the global lock; if that lock
-was already lost, skill directories left behind in target roots are simply
-unmanaged — reinstall over them with `repertoire add <skill> --force` or
-delete them manually.
+Escalate as needed:
 
 ```bash
-repertoire doctor --fix
-repertoire doctor --reset --yes
-repertoire doctor --reset --global --yes
+repertoire doctor --fix                 # repair what it finds
+repertoire doctor --reset --yes         # reinstall every managed artifact for this project
+repertoire doctor --reset --global --yes  # wipe all local Repertoire state
 repertoire doctor --format json
 ```
 
-Output is a table in a terminal, TSV when redirected, or JSON with
-`--format json`. Like `bootstrap` and `sync`, `doctor` rejects `--global` and
-`--project`; it always inspects both scopes. The only exception is `--reset`,
-where `--global` selects the full local-configuration reset described above.
+- `--fix` reinstalls managed content from the catalog cache, collapses or
+  removes orphaned and duplicated sections, reconciles drift the same way
+  `bootstrap` does, and prunes stale lock entries.
+- `--reset` removes every managed artifact for the current project and
+  reinstalls from `repertoire.yaml`. It asks for confirmation unless `--yes`
+  is given.
+- `--reset --global` removes every globally managed skill, wipes the global
+  configuration directory (`repertoire.yaml` and `repertoire.lock.json`), and
+  clears the catalog cache. Nothing is reinstalled afterwards, even with
+  `--fix`. Use it when a stale global install points at catalogs that no
+  longer exist.
 
-## List
+`doctor` always inspects both scopes, so it rejects `--global` and
+`--project` except in the `--reset --global` form above. Output is a table,
+TSV when redirected, or JSON with `--format json`.
 
-In a terminal, the default view shows a compact table of installed skills,
-their catalog, declared or ad-hoc origin, and a target summary. Use `--wide`
-to show every target. Redirected output remains headerless TSV for compatibility
-with scripts. `--format table`, `--format tsv`, and `--format json` select a
-format explicitly.
+??? note "conflicting-destination"
+    This report means two skills copy-manage the same file with different
+    content, so no reinstall can satisfy both. `doctor` repairs it only once
+    the catalogs resolve compatibly (for example after the skills switch to
+    `markdown-section` mode); until then it reports the conflict rather than
+    flip-flopping between the two.
 
-```bash
-repertoire list
-repertoire list --wide
-repertoire list --format json
-repertoire list --available
-repertoire list --available --catalog phillarmonic
-```
+??? note "After --reset --global"
+    Skills are removed based on the global lock. If that lock was already
+    lost, skill directories left in agent roots are simply unmanaged;
+    reinstall over them with `repertoire add <skill> --force` or delete them
+    by hand.
 
-## Discover and get stubs
+## `stub`: starter files from installed skills
 
-Installed skills may expose small file-backed stubs. List every stub in the
-selected scope, or limit the result to one installed skill:
+Some skills ship small file stubs (an `.editorconfig`, a `.gitattributes`)
+with instructions for how an agent should apply them.
 
 ```bash
 repertoire stub list
 repertoire stub list common-stubs
-```
-
-Ask for a specific stub with its explicit `<skill>/<stub>` identifier:
-
-```bash
 repertoire stub get common-stubs/editorconfig
+repertoire stub get --raw common-stubs/gitattributes > .gitattributes
 ```
 
-The command prints a stable handoff containing the stub identifier,
-description, absolute asset path, and authored instructions:
+`stub get` prints a handoff with the stub ID, description, absolute asset
+path, and the author's instructions:
 
 ```text
 Stub: common-stubs/editorconfig
@@ -209,65 +285,33 @@ Instructions:
 Create or update the repository-root .editorconfig ...
 ```
 
-Repertoire does not copy, merge, execute, or print the asset contents by
-default. It uses only installed state from the selected global or `--project`
-scope and returns a path only from a complete skill copy matching the lockfile
-digest. Run `repertoire install <skill>` to repair missing or locally modified
-copies. Namespaced installed skill IDs are supported by treating the final path
-segment as the stub name.
+By default Repertoire does not copy, merge, execute, or print the asset; the
+agent reads the path and follows the instructions, which matters when the
+stub has to be merged into an existing file. `--raw` writes only the asset
+bytes to stdout for direct redirection. Paths are returned only from a
+complete installed copy that matches the lock digest; run
+`repertoire install <skill>` to repair one that does not.
 
-When an agent needs to materialize the asset directly, pass `--raw` to write
-only the asset bytes to stdout, which is safe to redirect into a file:
-
-```bash
-repertoire stub get --raw common-stubs/gitattributes > .gitattributes
-```
-
-Use the default advisory output when the stub instructions require merging into
-an existing file rather than a wholesale replacement.
-
-## Update and remove
-
-`update` refreshes tracking catalogs and reinstalls one or every installed
-skill. With a catalog name, it refreshes that catalog even when no installed
-skill has the same name. Missing managed copies are repaired. Tags and commit
-refs remain pinned. When nothing is installed and the manifest declares no
-skills, `update` is a no-op and never touches the network. All of repertoire's
-git operations run with terminal prompts disabled, so a catalog that requires
-authentication fails with a clear error instead of blocking on a credential
-prompt.
+## `--self-update`: update Repertoire itself
 
 ```bash
-repertoire update
-repertoire update code-reviewer
-repertoire update company
-repertoire update --target all
-repertoire update graphify --with-hooks
-repertoire update graphify --no-hooks
-repertoire remove code-reviewer
+repertoire --self-update
 ```
 
-The update command also accepts `--target all` (or repeated individual
-`--target` flags) to replace the stored target set while updating.
-
-Updates and removals refuse locally modified targets. Review the changes before
-using `--force` to replace or delete them.
-
-All commands default to user-global scope (home-directory skill roots). Use
-`--project` to install into the current Git worktree, or `--global` to make the
-default explicit.
+Downloads the newest stable release for your OS and architecture, verifies it
+against the release `checksums.txt`, checks its reported version, and replaces
+the running executable after asking for confirmation. The previous executable
+is kept under `~/.repertoire/backups` (five newest), and a failed install or
+verification restores it automatically.
 
 ## Shell completion
 
-Repertoire generates context-aware completion scripts for Bash, Zsh, Fish, and
-PowerShell. Completions suggest installed skills, available skills from local or
-already-cached catalogs, agent targets, and known catalogs: the built-in catalog,
-registrations in global and project scope, bootstrap catalogs declared in the
-project `repertoire.yaml` (or a legacy `.repertoire.yaml` awaiting migration),
-lock-file sources, and cached remotes.
-`catalog add` also completes those known source URLs. Typing a source-qualified
-skill prefix (with `/` or `.`) switches skill completion to source-qualified
-IDs.
+Repertoire generates context-aware completion for Bash, Zsh, Fish, and
+PowerShell. Completions suggest installed skills, skills from local or cached
+catalogs, agent targets, and known catalogs (built-in, registered in either
+scope, declared in the project `repertoire.yaml`, recorded in lock files, or
+cached). `catalog add` completes known source URLs. Typing a prefix that
+contains `/` or `.` switches skill completion to source-qualified IDs.
 Completion never clones or refreshes a catalog.
 
 Enable completion for the current shell session:

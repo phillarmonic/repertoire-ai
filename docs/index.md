@@ -1,22 +1,34 @@
 ---
 icon: lucide/library
+description: Install one AI agent skill into every coding agent you use, keep it updated, and reproduce the setup for a whole team with one command.
 ---
+
+<p align="center">
+  <img src="images/repertoire500.png" alt="Repertoire logo" width="250">
+</p>
 
 # Repertoire
 
-Repertoire automates installing, syncing, and managing portable AI agent skills.
-It discovers `SKILL.md` packages in Git-backed catalogs and installs them into
-the native home-directory skill roots used by Codex, Claude Code, Cursor,
-Gemini CLI, Windsurf, Cline, Roo Code, Kiro, Junie, Kimi Code, OpenCode,
-GitHub Copilot, OpenClaw, DeepSeek Harness, and shared `.agents` setups. Use `--project` only
-when a skill should live inside a Git worktree.
+**The `apt-get` for AI agent skills.**
 
-The built-in `phillarmonic` catalog provides Phillarmonic's official vendored
-skill set from [phillarmonic/ai-skills](https://github.com/phillarmonic/ai-skills).
-Its skills can be referenced without declaring the repository or specifying a
-catalog. Unqualified names prefer this official mainline catalog. Use
-`--catalog <name>` or a source-qualified ID to choose a different definition;
-ambiguity remains an error when only non-mainline catalogs match.
+## What Repertoire does
+
+A *skill* is a folder with a `SKILL.md` file that teaches an AI coding agent how
+to do something: review code against your style guide, write docs for your
+static site generator, use an internal tool. Codex, Claude Code, Cursor, Gemini
+CLI, Copilot and many others all read the same format, but each one looks for
+skills in a different directory.
+
+Repertoire installs a skill into every agent you use with one command, keeps
+those copies up to date, and never overwrites edits you made by hand.
+
+```bash
+repertoire add zensical --target all
+```
+
+That one line finds `zensical` in a skill catalog, checks that the package is
+well formed, copies it into each agent's own skills folder, and records what
+was installed so a later `repertoire update` can refresh it safely.
 
 ## Install
 
@@ -82,55 +94,86 @@ repertoire --version
 repertoire --self-update
 ```
 
-## Install one skill across multiple AI coding agents
+## Quick start
 
-Use one command instead of manually copying the same skill into every
-client-specific directory:
-
-```bash
-repertoire add code-reviewer --target all
-```
-
-Repertoire validates the package, installs each managed copy safely, and tracks
-its catalog source and digest so later updates cannot silently overwrite local
-changes. `--target all` includes every supported agent target, whether or not
-that agent's configuration directory already exists.
-
-Repair all declared skills or update all managed skills across the same target
-set with:
+If you have used a Linux package manager, the model is familiar: a catalog is a
+repository, `add` installs a package, and `repertoire.yaml` is the manifest you
+commit so others get the same set. Underlined terms across these docs link to
+the [glossary](glossary.md); hover one for a short definition.
 
 ```bash
-repertoire install --target all
-repertoire update --target all
+repertoire list --available
 ```
 
-For automated team onboarding, declare the required skills and targets in the
-`skills` section of `repertoire.yaml`, commit it with the project, and run:
+Shows every skill offered by the catalogs you have configured. With a fresh
+install that is the built-in `phillarmonic` catalog.
 
 ```bash
-repertoire bootstrap
+repertoire add zensical --target all
 ```
 
-[See the complete automation workflow](automation.md), including private
-catalogs, project versus global installation, updates, and removal.
-
-## Project status
-
-Repertoire is built in four layers:
-
-1. a stable Go command-line interface and repeatable local CI;
-2. versioned catalog and installation state;
-3. safe catalog resolution and client installation;
-4. complete add, install, update, remove, and list workflows.
-
-## Development checks
-
-The project uses [Drun](https://github.com/phillarmonic/drun) for repeatable
-execution:
+Installs `zensical` into every supported agent and records it as something you
+want kept installed. Drop `--target all` to install only into agents Repertoire
+detects on your machine, or name agents explicitly with
+`--target codex --target claude`.
 
 ```bash
-xdrun ci
+repertoire list
 ```
 
-This runs Go vet, formatting and lint checks, unit tests, package builds, and
-high-confidence security checks.
+Shows what Repertoire manages on this machine, where each skill came from, and
+which agents have it.
+
+```bash
+repertoire update
+```
+
+Fetches catalog changes and refreshes every installed skill. If you edited an
+installed copy by hand, `update` stops with an error instead of overwriting
+it.
+
+## Which command do I want?
+
+- Install a skill and remember it: `repertoire add <skill>`
+- Reinstall or repair skills already declared: `repertoire install`
+- Pull newer versions: `repertoire update`
+- Install everything a project declares (new machine, CI): `repertoire bootstrap`
+- Same, but fetch catalog changes first: `repertoire sync`
+- Something looks broken: `repertoire doctor`, then `repertoire doctor --fix`
+- Use a private or local catalog: `repertoire catalog add <source>`
+- Remove a skill: `repertoire remove <skill>`
+
+Every command is described in the [command reference](commands.md).
+
+## Let your agent drive Repertoire
+
+Repertoire ships with a skill about itself. Install it once and your coding
+agent knows how to run Repertoire for you:
+
+```bash
+repertoire add repertoire --target all
+```
+
+Then ask in plain language: "install the `zensical` skill for Codex and
+Claude", "create a private skill catalog repository for our team", or "add a
+`repertoire.yaml` to this project". The agent knows the commands, the manifest
+formats, and the safety rules, and can scaffold a whole new catalog repository
+from scratch. See [Let your agent drive Repertoire](agent-skill.md) for what it
+covers and what it will refuse to do.
+
+## Next steps
+
+- [Set up a project or team](automation.md): commit a `repertoire.yaml` so
+  every contributor and CI job gets the same skills.
+- [Private and company catalogs](private-repositories.md): publish your own
+  skills from a private Git repository.
+- [Let your agent drive Repertoire](agent-skill.md): install the built-in
+  `repertoire` skill and delegate all of the above to your agent.
+- [Command reference](commands.md): every command, flag, and edge case.
+- [Troubleshooting](troubleshooting.md): what the common error messages mean
+  and how to fix them.
+- [Glossary](glossary.md): the handful of terms Repertoire uses, in one place.
+- Concepts: [Manifests and state](concepts/manifests.md),
+  [Catalogs](concepts/catalogs.md),
+  [Targets and security](concepts/targets-security.md).
+- [Contributing](contributing.md): build and test Repertoire itself.

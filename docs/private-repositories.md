@@ -1,18 +1,33 @@
-# Private repositories
+---
+title: Private and company catalogs
+description: Publish your own AI agent skills from a private Git repository and install them with Repertoire using your existing Git credentials.
+---
 
-A private Repertoire catalog is a normal Git repository that holds your
-company-owned AI skills. Make the repository private on GitHub, GitLab,
-Bitbucket, or any other Git host; Repertoire reads it with the same system `git`
-credentials that already work for `git clone` and `git ls-remote`. Repertoire
-does not implement its own authentication protocol and never stores tokens or
-passwords.
+# Private and company catalogs
+
+The built-in catalog covers general-purpose skills. Skills that encode your
+own conventions, internal tools, or review rules belong in a catalog you
+control, and usually one that only your team can read.
+
+A private catalog is an ordinary Git repository. Make it private on GitHub,
+GitLab, Bitbucket, or any other host; Repertoire reads it with the same system
+`git` credentials that already work for `git clone`. It has no authentication
+system of its own and never stores tokens or passwords.
+
+!!! tip "Let your agent build it"
+    The built-in `repertoire` skill teaches your coding agent everything on
+    this page. After `repertoire add repertoire`, you can ask the agent to
+    "create a private skill catalog repository for our team" and it will
+    scaffold the layout, `repertoire.yaml`, and `SKILL.md` files described
+    below, then test them locally before pushing. See
+    [Let your agent drive Repertoire](agent-skill.md).
 
 ## Build a private catalog
 
 ### 1. Create a Git repository
 
 Create an empty private repository on your Git host (for example
-`company/agent-skills`). Clone it locally:
+`company/agent-skills`) and clone it:
 
 ```bash
 git clone git@github.com:company/agent-skills.git
@@ -21,9 +36,8 @@ cd agent-skills
 
 ### 2. Lay out the catalog
 
-At the repository root, add a `repertoire.yaml` that declares the catalog and
-every skill. Put each skill in its own directory that contains a `SKILL.md`
-file. A minimal layout:
+Put each skill in its own directory containing a `SKILL.md`, and add a
+`repertoire.yaml` at the root that lists them:
 
 ```text
 agent-skills/
@@ -32,10 +46,6 @@ agent-skills/
     └── code-reviewer/
         └── SKILL.md
 ```
-
-Skill names should always be kebab-case. The directory name must match the
-skill name exactly. The path in `repertoire.yaml` is relative to the repository
-root and must stay inside the repo.
 
 ### 3. Declare the catalog in `repertoire.yaml`
 
@@ -49,47 +59,28 @@ catalog:
   skills:
     code-reviewer:
       path: skills/code-reviewer
-```
-
-Rules:
-
-- `schema` must be `1`.
-- `tool` is an optional informational marker. Use the Repertoire repository URL
-  so developers know where to find the tool that owns the manifest.
-- Catalog names use 1–64 lowercase letters, digits, or single hyphens
-  (`company-skills` is valid; `Company_Skills` is not).
-- Skill names use the same lowercase-and-hyphen rule. Prefer owner-prefixed
-  kebab-case for broad or generic skills (`code-reviewer` and
-  `phillarmonkey-code` are valid; `Code_Reviewer` is not).
-- Avoid generic skill names such as `code`, `docs`, or `review` in published
-  catalogs. Agents often display only the skill title or short identifier, so
-  generic names become confusing when several personal or vendor catalogs are
-  enabled. Prefer a clear owner-prefixed kebab-case identifier such as
-  `phillarmonkey-code`.
-- The catalog must declare at least one skill.
-- Each skill `path` must be a contained relative path (no absolute paths, no
-  `..` escape).
-
-Add more skills by creating another directory and listing it under `skills`:
-
-```yaml
-schema: 1
-
-catalog:
-  name: company
-  description: Company-owned AI agent skills
-  skills:
-    code-reviewer:
-      path: skills/code-reviewer
     shared-helpers:
       path: skills/shared-helpers
 ```
 
+Rules:
+
+- `schema` must be `1`. `tool` is optional and informational; pointing it at
+  the Repertoire repository tells readers which program owns the file.
+- Catalog and skill names are 1 to 64 lowercase letters, digits, or single
+  hyphens (`company-skills` is valid; `Company_Skills` is not). The skill
+  directory name must match the skill name exactly.
+- Avoid generic skill names such as `code`, `docs`, or `review`. Agents often
+  show only the short identifier, and once several catalogs are enabled those
+  labels collide. Prefer an owner-prefixed name such as `phillarmonkey-code`.
+- The catalog must declare at least one skill, and each `path` must be a
+  relative path inside the repository (no absolute paths, no `..`).
+
 ### 4. Author each skill's `SKILL.md`
 
-Every skill directory must contain a `SKILL.md` with YAML frontmatter. The
-`name` must match the key in `repertoire.yaml`, and the directory name must
-match too. `description` is required and must be non-empty:
+Every skill directory needs a `SKILL.md` with YAML frontmatter. `name` must
+match both the key in `repertoire.yaml` and the directory name; `description`
+is required and must not be empty:
 
 ```markdown
 ---
@@ -102,43 +93,32 @@ description: Review pull requests against the company style guide.
 Instructions for the agent go here.
 ```
 
-Keep the `name` specific when the skill covers a broad domain. For example,
-use `phillarmonkey-code` instead of `code`, and reserve the description for the
-human-readable explanation. Project `repertoire.yaml` files may still refer to
-the skill with a full source-qualified ID such as
-`github.com/company/agent-skills/phillarmonkey-code` when that makes the source
-clearer.
-
 You may include supporting files next to `SKILL.md` (scripts, templates,
-references). Repertoire copies the skill directory as data; it never executes
-skill scripts during install. Symlinks are allowed only when they resolve inside
-the skill directory.
+references). Repertoire copies the directory as data and never executes skill
+scripts during install. Symlinks are allowed only when they resolve inside the
+skill directory.
 
-### Expose reusable file stubs
+??? note "Offering starter files with stubs.yaml"
+    A skill can offer small starter files that agents fetch with
+    `repertoire stub get`. Add a `stubs.yaml` beside `SKILL.md`:
 
-Add an optional `stubs.yaml` beside `SKILL.md` when a skill should offer small
-starter files to agents:
+    ```yaml
+    schema: 1
+    stubs:
+      editorconfig:
+        description: Ensure text files end with a newline.
+        path: assets/.editorconfig
+        instructions: |
+          Create or merge the repository-root .editorconfig while preserving
+          existing settings.
+    ```
 
-```yaml
-schema: 1
-stubs:
-  editorconfig:
-    description: Ensure text files end with a newline.
-    path: assets/.editorconfig
-    instructions: |
-      Create or merge the repository-root .editorconfig while preserving
-      existing settings.
-```
-
-Stub names use the same lowercase letters, digits, and single-hyphen rules as
-skill names. Every entry needs a non-empty description and instructions, and
-its contained relative path must resolve to one regular file inside the skill
-directory. Invalid manifests, missing files, directories, and escaping
-symlinks prevent the skill from being installed.
-
-After installing the skill, use `repertoire stub list [skill]` to discover its
-stubs and `repertoire stub get <skill>/<stub>` to give an agent the verified
-asset path and instructions.
+    Stub names follow the same lowercase-and-hyphen rule as skill names. Every
+    entry needs a non-empty description and instructions, and its relative
+    path must resolve to one regular file inside the skill directory. Invalid
+    manifests, missing files, directories, and escaping symlinks stop the
+    skill from installing. See [`stub`](commands.md#stub-starter-files-from-installed-skills)
+    for how agents consume them.
 
 ### 5. Commit and push
 
@@ -148,13 +128,13 @@ git commit -m "Add company skill catalog"
 git push -u origin main
 ```
 
-Keep the repository **private** on your Git host so only authorized accounts can
+Keep the repository private on your Git host so only authorized accounts can
 clone it.
 
-## Authenticate with Git
+## Check Git access
 
-Before registering the catalog, confirm the remote is readable with your normal
-Git setup:
+Before registering the catalog, confirm the remote is readable with your
+normal Git setup:
 
 ```bash
 git ls-remote git@github.com:company/agent-skills.git
@@ -167,21 +147,21 @@ git ls-remote https://github.com/company/agent-skills.git
 | SSH (`git@…`) | Active SSH agent and `~/.ssh/config` host keys |
 | HTTPS (`https://…`) | Git credential helpers, or provider CLIs such as `gh auth setup-git` |
 
-Without credentials that can read the remote, Repertoire cannot materialize the
-private catalog. Repertoire runs Git with terminal prompts disabled, so a
-missing credential surfaces as an immediate `could not read Username` error
-instead of a silent username/password prompt. Catalog operations are also
-pinned to HTTP/1.1: some networks answer GitHub's HTTP/2 POSTs with spurious
-401 responses that Git misreports as an authentication failure.
+If `git ls-remote` fails, Repertoire will fail too. Fix the SSH agent or
+credential helper first.
 
-URLs that embed usernames, passwords, or tokens are rejected. Put credentials in
-your Git/SSH configuration—not in `repertoire.yaml`, lock files, or command
-arguments. That keeps secrets out of manifests, command output, and error
-snapshots.
+Never put usernames, passwords, or tokens in the URL. Repertoire rejects such
+URLs so that secrets stay out of manifests, lock files, command output, and
+error reports.
+
+??? note "Why a missing credential fails immediately"
+    Repertoire runs Git with terminal prompts disabled, so a missing
+    credential surfaces as an immediate `could not read Username` error
+    instead of a hidden password prompt. Catalog operations are also pinned to
+    HTTP/1.1, because some networks answer GitHub's HTTP/2 POSTs with spurious
+    401 responses that Git misreports as an authentication failure.
 
 ## Register and use the catalog
-
-Once `git ls-remote` succeeds, register the catalog:
 
 ```bash
 repertoire catalog add git@github.com:company/agent-skills.git --name company
@@ -189,61 +169,38 @@ repertoire catalog add git@github.com:company/agent-skills.git --name company
 repertoire catalog add https://github.com/company/agent-skills.git --name company
 ```
 
-Optional: pin a branch, tag, or commit with `--ref`. An omitted ref tracks the
-remote default branch.
-
-Then install skills from it:
+Add `--ref` to pin a branch, tag, or commit; without it the remote default
+branch is tracked. Then browse and install:
 
 ```bash
 repertoire list --available --catalog company
 repertoire add code-reviewer --catalog company --target all
 ```
 
-Refresh after publishers push new commits:
+Pick up new commits with:
 
 ```bash
-repertoire catalog update
 repertoire update
 ```
 
 ## Share the catalog with your team
 
-Commit a project `repertoire.yaml` with a `skills` section so contributors
-install the same private skills after they can authenticate to the Git remote:
+Declare the catalog and the skills in the project's `repertoire.yaml` so every
+contributor and CI job installs the same set with `repertoire bootstrap`. The
+`catalogs` section takes the same `source` and `ref` you passed to
+`catalog add`. See [Set up a project or team](automation.md) for the full
+manifest and workflow. Each developer still needs Git credentials that can
+read the catalog repository.
 
-```yaml
-schema: 1
-tool: https://github.com/phillarmonic/repertoire-ai
+## Test a catalog before pushing
 
-catalogs:
-  company:
-    source: git@github.com:company/agent-skills.git
-    ref: main
-
-skills:
-  code-reviewer:
-    catalog: company
-    scope: global
-    targets: [codex, claude, cursor]
-```
-
-Each developer (or CI job) needs Git credentials that can read
-`company/agent-skills`. Then:
-
-```bash
-repertoire bootstrap
-```
-
-`bootstrap` resolves from current catalog state. To fetch catalog updates before
-synchronizing declarations:
-
-```bash
-repertoire sync
-```
-
-For local development against an unpublished checkout, register a path instead
-of a remote URL:
+While developing skills, point a catalog at your local checkout so you do not
+have to push to try a change:
 
 ```bash
 repertoire catalog add /path/to/agent-skills --name company
+# or, without changing the registration:
+repertoire --override company=/path/to/agent-skills add code-reviewer --catalog company
 ```
+
+See [Local overrides for testing](concepts/catalogs.md#local-overrides-for-testing).

@@ -2,8 +2,9 @@
 
 Repertoire copies a validated skill directory into one or more agent-specific skill roots. By default those roots are
 under the home directory (Global root). Use `--project` for the Project root column. With no `--target`, it detects
-existing client configuration or skill directories. An explicit target creates its skills directory when needed. The
-special `--target all` value expands to every target in the table, including clients that are not currently detected.
+existing client configuration or skill directories, and in global scope also well-known CLIs on `PATH`. An explicit
+target creates its skills directory when needed. The special `--target all` value expands to every target in the table,
+including clients that are not currently detected.
 
 | Target                | Project root                                   | Global root                                          |
 |-----------------------|------------------------------------------------|------------------------------------------------------|

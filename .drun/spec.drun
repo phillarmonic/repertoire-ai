@@ -4,13 +4,23 @@
 
 version: 2.0
 
-project "repertoire-ai" version "1.0":
+project "repertoire-ai" version "1.9.0":
 	requires tools:
 		go >= "1.27"
 		golangci-lint provision
 		gosec provision
 		govulncheck
         gofumpt provision
+    scm: # Declare a specific SCM implementation for easier manipulation
+        git: # Technology
+            github: # Provider
+                repertoire: # Repo alias (can be potato if you want to, just for convenience when referencing in git commands)
+                    default: https
+                    https: "https://github.com/phillarmonic/repertoire-ai.git"
+                    ssh: "git@github.com:phillarmonic/repertoire-ai.git"
+                    cli:
+                        repository: "phillarmonic/repertoire-ai"
+                        host: "github.com"
 
 task "vet" means "Run Go static analysis":
 	run "go vet -tags sqlite_fts5 ./..."
@@ -58,3 +68,25 @@ task "ci" mode "ci" means "Run all required project checks":
 	call task "test"
 	call task "build"
 	call task "sec"
+
+task "changelog" means "Generates the changelog for the project":
+    given $version as string matching semver_optional_v
+    step "Generating changelog for version {$version}"
+    promote changelog "CHANGELOG.md" to version "{$version}"
+    success "Changelog generated for version {$version}"
+
+task "prepare-release" means "Runs checks related to going to a next release":
+    requires $version as string matching semver_optional_v
+    # Interactive gate (dogfooding confirm): declining aborts the release
+    # prep gracefully. Defaults to yes so unattended runs keep going.
+    confirm "Prepare release v{$version}?" defaults to "yes"
+    step "Preflight. Proposed version: v{$version}"
+    # Magic method for comparison (you can do this manually if you want to)
+    git ensure $version is newer than latest version from repertoire
+    step "Preflight checks have passed. Will now run the CI."
+    call task ci
+    step "Promoting unreleased changelog entries to {$version}"
+    promote changelog "CHANGELOG.md" to version "{$version}"
+    update project version to "{$version}"
+    success "According to the current spec, you should be good to go."
+    warning "But be mindful, with great power, comes great responsibility."

@@ -1,56 +1,28 @@
 ---
-title: Automate AI agent skill installation
-description: Install and synchronize portable SKILL.md packages across Codex, Claude Code, Cursor, Gemini CLI, Copilot, Windsurf, and other coding agents.
+title: Set up a project or team
+description: Commit a repertoire.yaml so every contributor and CI job installs the same AI agent skills into the same coding agents with one command.
 ---
 
-# Automate AI agent skill installation
+# Set up a project or team
 
-Repertoire replaces per-agent setup scripts with one reproducible workflow for
-installing and updating Agent Skills. Use it when a team needs to distribute the
-same `SKILL.md` package across several AI coding assistants, terminal agents, or
-agentic IDEs.
+Every new laptop and every CI job has to get the same skills into the same
+agents. Doing that by hand, or with a per-agent setup script, drifts quickly.
 
-## Install a skill across coding agents
+With Repertoire the whole setup is one file and one command: commit a
+`repertoire.yaml` that lists the skills the project needs, and each contributor
+runs `repertoire bootstrap`.
 
-Use `all` to install into every supported native target:
+- One manifest configures every agent your team uses.
+- Public, private, and local catalogs all work the same way.
+- Installed copies are tracked by digest, so nobody's local edits are silently
+  overwritten.
 
-```bash
-repertoire add code-reviewer --catalog company --target all
-```
+If you only want to install a skill for yourself, skip to
+[Install one skill across agents](#install-one-skill-across-agents).
 
-Repertoire resolves the skill from its Git-backed catalog, validates the
-package, and installs a managed copy into every target even when a client's
-configuration directory does not exist yet. It supports Codex,
-Claude Code, GitHub Copilot, Cursor, Gemini CLI, Windsurf, Cline, Roo Code,
-Kiro, Junie, Kimi Code, OpenCode, OpenClaw, DeepSeek Harness, and the portable `.agents/skills`
-layout.
+## Step 1: write `repertoire.yaml`
 
-Catalogs can also provide platform-specific variants, always-on project
-instructions, and optional managed hooks. Instructions install automatically
-for project scope. Use `--with-hooks` in CI or another noninteractive
-environment when optional integrations are required:
-
-```bash
-repertoire --project add graphify --target codex --with-hooks
-```
-
-Repeat `--target` with individual names to install only a subset:
-
-```bash
-repertoire add code-reviewer --target codex --target claude
-```
-
-Skills install to the home directory by default. Use `--project` only when a
-skill should live inside the Git worktree:
-
-```bash
-repertoire add code-reviewer --target codex --target claude
-repertoire add shared-helpers --project --target agents
-```
-
-## Automate developer and CI setup
-
-Commit `repertoire.yaml` with a `skills` section at the project root:
+Create `repertoire.yaml` at the root of the Git repository:
 
 ```yaml
 schema: 1
@@ -62,47 +34,157 @@ catalogs:
     ref: main
 
 skills:
-  github.com/example/company-skills/code-reviewer:
+  github.com/phillarmonic/ai-skills/zensical:
     scope: global
-    targets: [codex, claude, cursor, gemini, copilot]
-  graphify:
+    targets: [codex, claude, cursor]
+
+  code-reviewer:
     catalog: company
     scope: global
-    targets: [codex]
+    targets: [codex, claude, cursor, gemini, copilot]
+
+  shared-helpers:
+    catalog: company
+    scope: project
+    targets: [agents]
     hooks: true
 ```
 
-Then bootstrap every declared skill:
+What each part means:
+
+- `catalogs` registers any catalog beyond the built-in `phillarmonic` one. The
+  key is the name you will refer to it by; `source` is anything `git clone`
+  accepts (or a local path); `ref` optionally pins a branch, tag, or commit.
+  See [Private and company catalogs](private-repositories.md) for how to build
+  one.
+- `skills` lists what to install. Each key is either a short skill name
+  (`code-reviewer`) or a source-qualified ID
+  (`github.com/phillarmonic/ai-skills/zensical`) that names the catalog and the
+  skill together. Use the qualified form when two catalogs could define the
+  same short name.
+- `catalog` names which catalog a short name comes from. Omit it for skills in
+  the built-in catalog or when only one catalog defines the name.
+- `scope` is `global` (default; installs under each contributor's home
+  directory) or `project` (installs inside this repository).
+- `targets` lists the agents to install into by name. Omit it to let
+  Repertoire detect the agents present on each machine. The manifest does not
+  accept the `all` shorthand; list the targets you want. The full list is in
+  [Targets and security](concepts/targets-security.md).
+- `hooks: true` also installs any optional hooks or integrations the skill
+  ships (for example an agent hook configuration file). Without it, only the
+  skill and any always-on project instructions are installed.
+
+The `tool` line is informational; it tells people who find the file which
+program reads it.
+
+## Step 2: run `repertoire bootstrap`
 
 ```bash
 repertoire bootstrap
 ```
 
-If `repertoire.yaml` declares no bootstrap skills, `bootstrap` creates a starter from the built-in
-catalog (source-qualified IDs, `scope: global`) and installs those skills. The command
-repairs missing managed copies. Run `repertoire sync` when the automation should
-fetch catalog changes and update the declared installations.
+`bootstrap` reads the `skills` section and installs each entry into its
+declared scope and targets. It:
 
-Global declarations keep skill bundles under the user's home directory.
-Catalog-provided instruction pointers and any explicitly enabled hooks are
-managed in the worktree; their state remains in Repertoire's global lock.
+- installs anything that is missing and repairs managed copies that are broken;
+- skips skills that are already intact, so repeated runs are cheap;
+- never removes a skill you deleted from the file (run `repertoire remove` for
+  that);
+- never fetches from the network; it uses local catalogs and whatever catalog
+  state is already cached.
 
-To override the targets stored in the manifest or lock and apply every skill to
-every supported agent, use:
+Put it in your onboarding docs and in CI. It exits non-zero on the first error,
+and work completed before that error stays installed.
+
+??? note "Running bootstrap in a repository with no skills declared"
+    If `repertoire.yaml` has no `skills` section, `bootstrap` writes a starter
+    one that lists every skill from the built-in `phillarmonic` catalog with
+    source-qualified IDs and `scope: global`, then installs them. Edit the file
+    down to what you actually need and commit it.
+
+## Step 3: keep it fresh with `repertoire sync`
 
 ```bash
-repertoire install --target all
-repertoire update --target all
+repertoire sync
 ```
 
-## Why automate with Repertoire?
+`sync` does the same work as `bootstrap` but refreshes the tracking catalogs
+first, so it picks up skills that were updated upstream. Use `bootstrap` when
+you want a deterministic install from current state (onboarding, CI) and `sync`
+when you want the newest versions (a weekly job, or whenever a catalog
+maintainer announces a change). Skills pinned to a tag or commit stay pinned in
+both cases.
 
-- One manifest configures multiple AI coding agents.
-- Public, private, and local Git catalogs use the same workflow.
-- Content digests protect locally modified skills from accidental replacement.
-- Atomic installation prevents partial skill directories.
-- Skill scripts are copied as data and never executed during installation.
-- Shell completion exposes available catalogs, skills, and agent targets.
+## Install one skill across agents
 
-See [commands](commands.md), [manifests and state](concepts/manifests.md), and
-[targets and security](concepts/targets-security.md) for the full reference.
+You do not need a manifest to use Repertoire. `add` installs a skill for the
+current user and remembers it so `update` keeps it current:
+
+```bash
+repertoire add code-reviewer --catalog company --target all
+```
+
+`--target all` installs into every supported agent, whether or not that agent
+is set up on the machine yet. Repeat `--target` to choose a subset, or omit it
+to install only into agents Repertoire detects:
+
+```bash
+repertoire add code-reviewer --target codex --target claude
+repertoire add code-reviewer
+```
+
+Skills install under your home directory by default. Add `--project` when a
+skill should live inside the current Git repository instead:
+
+```bash
+repertoire --project add shared-helpers --target agents
+```
+
+Some catalog skills ship optional hooks or integrations. Interactive `add`
+asks before installing them; in CI or scripts pass `--with-hooks` to accept or
+`--no-hooks` to skip:
+
+```bash
+repertoire --project add graphify --target codex --with-hooks
+```
+
+## Details
+
+??? note "Applying every skill to every agent after the fact"
+    `install` and `update` accept `--target all` (or repeated `--target`) to
+    override the targets stored in the manifest and lock for every skill they
+    touch:
+
+    ```bash
+    repertoire install --target all
+    repertoire update --target all
+    ```
+
+    The expanded target names, not the word `all`, are what gets saved.
+
+??? note "Global-scope skills and files in the repository"
+    A `scope: global` declaration keeps the skill under the contributor's home
+    directory. If the catalog declares always-on project instructions for that
+    skill (for example a short pointer section in `AGENTS.md`), `bootstrap`
+    still writes those into the repository. Their state is stored in the
+    global lock, so the repository does not gain a `repertoire.lock.json` just
+    for a pointer. `hooks: true` additionally manages the skill's optional
+    hooks in the repository.
+
+??? note "Why bootstrap and sync reject --global and --project"
+    Scope belongs to each declaration in the `skills` section, so a
+    command-wide scope flag would be ambiguous. Both commands still honor
+    `--force`. Replacing a home-directory skill that is already managed from a
+    different catalog source or ref requires `--force`; this stops one project
+    from silently changing an installation shared across projects.
+
+??? note "Migrating from a legacy .repertoire.yaml"
+    Earlier versions read project declarations from a standalone
+    `.repertoire.yaml`. When `bootstrap` or `sync` finds that file and
+    `repertoire.yaml` declares no skills, it merges the legacy `catalogs` and
+    `skills` sections into `repertoire.yaml` and deletes the old file. If both
+    files declare skills, `repertoire.yaml` wins and a warning asks you to
+    merge and remove the legacy file by hand.
+
+See the [command reference](commands.md), [Manifests and state](concepts/manifests.md),
+and [Targets and security](concepts/targets-security.md) for more.
