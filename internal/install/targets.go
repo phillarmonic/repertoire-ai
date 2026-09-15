@@ -4,12 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
 
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 )
+
+// commandLookPath finds executables during auto-detection. Tests replace it.
+var commandLookPath = exec.LookPath
 
 type Target struct {
 	Name string
@@ -61,14 +65,45 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 		if err != nil {
 			continue
 		}
-		if _, err := os.Stat(targetMarker(scope, home, name, root)); err == nil {
-			result = append(result, Target{Name: name, Root: root})
+		if !targetPresent(scope, home, name, root) {
+			continue
 		}
+		result = append(result, Target{Name: name, Root: root})
 	}
 	if len(result) == 0 {
 		return nil, errors.New("no supported agent clients detected; use --target")
 	}
 	return deduplicateTargets(result), nil
+}
+
+func targetPresent(scope state.Scope, home, name, root string) bool {
+	if _, err := os.Stat(targetMarker(scope, home, name, root)); err == nil {
+		return true
+	}
+	// Command detection is machine-wide. Project scope still requires a
+	// worktree marker so `add --project` does not create agent dirs because
+	// a CLI happens to be on PATH.
+	return scope.Global && targetCommandPresent(name)
+}
+
+func targetCommandPresent(name string) bool {
+	for _, command := range targetCommands(name) {
+		if _, err := commandLookPath(command); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func targetCommands(name string) []string {
+	switch name {
+	case "aider", "claude", "cline", "codebuddy", "codex", "copilot", "cursor",
+		"devin", "droid", "dsh", "gemini", "hermes", "junie", "kimi", "kiro",
+		"opencode", "openclaw", "trae", "windsurf":
+		return []string{name}
+	default:
+		return nil
+	}
 }
 
 func explicitOnlyTarget(name string) bool {
@@ -226,9 +261,9 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 }
 
 func targetMarker(scope state.Scope, home, name, root string) string {
-	if !scope.Global && (name == "openclaw" || name == "aider") {
-		// A workspace has no required .openclaw directory. Only auto-detect its
-		// native skills root when it already exists; an explicit target creates it.
+	if name == "aider" || (!scope.Global && name == "openclaw") {
+		// These roots are the client directory (or a generic project `skills/`
+		// folder). Their parent is $HOME or the worktree, which always exists.
 		return root
 	}
 	return filepath.Dir(root)

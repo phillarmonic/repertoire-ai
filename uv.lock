@@ -192,12 +192,16 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "zensical" },
+    { name = "zensical-glossary" },
 ]
 
 [package.metadata]
 
 [package.metadata.requires-dev]
-dev = [{ name = "zensical", specifier = ">=0.0.51" }]
+dev = [
+    { name = "zensical", specifier = ">=0.0.51" },
+    { name = "zensical-glossary", specifier = ">=1.2.1" },
+]
 
 [[package]]
 name = "tomli"
@@ -272,4 +276,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/60/b4/7f1b6c3cf06d9f6ff5216523168a5d6ccc693444d5ceeb911eca97b30d98/zensical-0.0.51-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:6fa0ecaf14f56841bfc595fa141396350c72aafbec73a016ebe3c824ed21ac72", size = 13451420, upload-time = "2026-07-17T18:07:52.563Z" },
     { url = "https://files.pythonhosted.org/packages/0a/44/be4bc09ec8f69e7be1b07b875887961c4e0e478b03a10d2cc624ef28fbe6/zensical-0.0.51-cp310-abi3-win32.whl", hash = "sha256:fb7ff4946b72168759c6af0a29cf5de4c38aebe633a83292e8cd4145b5213cc2", size = 12375639, upload-time = "2026-07-17T18:07:56.081Z" },
     { url = "https://files.pythonhosted.org/packages/1f/85/aa827c244ed4f404e99a91c3ecf5e5adb62eca806a9e9c8e3333bbad8660/zensical-0.0.51-cp310-abi3-win_amd64.whl", hash = "sha256:12529d3d3991b63820952111dc1d1edc29b2c9b3a3abb16c243bcb649631ebf2", size = 12628965, upload-time = "2026-07-17T18:07:59.741Z" },
+]
+
+[[package]]
+name = "zensical-glossary"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/22/8b/255d1f4552f2e308611aa22db3f61fb83b0148b75c67cb92c2d207ff24b2/zensical_glossary-1.2.1.tar.gz", hash = "sha256:8e8817d23d35014997070d72dc0d697978518e4574668827e634638733fbaee5", size = 31065, upload-time = "2026-08-12T23:03:25.851Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/22/902eccdaa015e0a98e51e3222c30c458b182e3302e6e1ad37b7f301158c1/zensical_glossary-1.2.1-py3-none-any.whl", hash = "sha256:05e637767dd4def1c109140cf34c89600d8f6f68c60a88dafa6c174689ecfb3d", size = 18278, upload-time = "2026-08-12T23:03:24.045Z" },
 ]

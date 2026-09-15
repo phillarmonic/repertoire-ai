@@ -717,7 +717,8 @@ func (staleProjectEntries) fix(env *Env, issues []Issue) error {
 }
 
 // globalSkillHealth: globally installed skills whose install locations are
-// missing or whose content digest no longer matches the lock.
+// missing or whose content digest no longer matches the lock. One issue per
+// skill, even when many agent roots are stale.
 type globalSkillHealth struct{}
 
 func (globalSkillHealth) id() string { return "global-skill-health" }
@@ -735,40 +736,49 @@ func (globalSkillHealth) audit(env *Env) ([]Issue, error) {
 		for _, digest := range entry.TargetDigests {
 			expected[digest] = true
 		}
+		var missing, modified int
 		for _, location := range entry.Locations {
-			detail := ""
 			if _, err := os.Lstat(location); os.IsNotExist(err) {
-				detail = "installed location is missing"
-			} else {
-				digest, err := installer.Digest(location)
-				if err != nil {
-					return nil, err
-				}
-				if !expected[digest] {
-					detail = "installed content is locally modified or partial"
-				}
+				missing++
+				continue
 			}
-			if detail != "" {
-				issues = append(issues, Issue{
-					Check:   globalSkillHealth{}.id(),
-					Scope:   scopeGlobal,
-					Subject: fmt.Sprintf("%s (%s)", name, location),
-					Detail:  detail,
-					Remedy:  "run repertoire doctor --fix",
-				})
+			digest, err := installer.Digest(location)
+			if err != nil {
+				return nil, err
+			}
+			if !expected[digest] {
+				modified++
 			}
 		}
+		if missing == 0 && modified == 0 {
+			continue
+		}
+		issues = append(issues, Issue{
+			Check:   globalSkillHealth{}.id(),
+			Scope:   scopeGlobal,
+			Subject: name,
+			Detail:  globalSkillHealthDetail(missing, modified),
+			Remedy:  "run repertoire doctor --fix",
+		})
 	}
 	return issues, nil
+}
+
+func globalSkillHealthDetail(missing, modified int) string {
+	switch {
+	case missing == 1 && modified == 0:
+		return "installed location is missing"
+	case missing == 0 && modified == 1:
+		return "installed content is locally modified or partial"
+	default:
+		return fmt.Sprintf("stale in %d locations", missing+modified)
+	}
 }
 
 func (globalSkillHealth) fix(env *Env, issues []Issue) error {
 	repaired := map[string]bool{}
 	for _, issue := range issues {
 		name := issue.Subject
-		if separator := strings.Index(name, " ("); separator > 0 {
-			name = name[:separator]
-		}
 		if repaired[name] {
 			continue
 		}

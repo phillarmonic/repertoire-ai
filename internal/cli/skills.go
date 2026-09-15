@@ -41,13 +41,14 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 				if _, err := installNamed(command, scope, &manifest, &lock, name, catalogName, requestedTargets, true, *force, false, hooks, overrideFlags); err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s\n", name, lock.Skills[name].Catalog)
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s (%s)\n",
+					name, lock.Skills[name].Catalog, summarizeTargets(lock.Skills[name].Targets))
 			}
 			return nil
 		},
 	}
 	add.Flags().StringVar(&catalogName, "catalog", "", "resolve from this catalog")
-	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable)")
+	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable; omit to detect installed clients)")
 	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
 	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName, overrideFlags)

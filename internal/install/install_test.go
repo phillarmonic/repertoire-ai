@@ -3,6 +3,7 @@ package install
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -164,6 +165,31 @@ func TestResolveTargets(t *testing.T) {
 	explicit, err := ResolveTargets(state.Scope{Root: project}, []string{"agents"}, t.TempDir())
 	if err != nil || len(explicit) != 1 || explicit[0].Name != "agents" {
 		t.Fatalf("unexpected explicit targets: %+v, %v", explicit, err)
+	}
+}
+
+func TestDetectsGlobalTargetsFromCommands(t *testing.T) {
+	commandLookPath = func(name string) (string, error) {
+		if name == "claude" || name == "codex" {
+			return "/usr/bin/" + name, nil
+		}
+		return "", os.ErrNotExist
+	}
+	t.Cleanup(func() { commandLookPath = exec.LookPath })
+
+	home := t.TempDir()
+	targets, err := ResolveTargets(state.Scope{Global: true}, nil, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(targets) != 2 || targets[0].Name != "claude" || targets[1].Name != "codex" {
+		t.Fatalf("unexpected command-detected targets: %+v", targets)
+	}
+
+	project := t.TempDir()
+	_, err = ResolveTargets(state.Scope{Root: project}, nil, home)
+	if err == nil || !strings.Contains(err.Error(), "no supported agent clients detected") {
+		t.Fatalf("project scope should ignore PATH, got %v", err)
 	}
 }
 
