@@ -6,14 +6,15 @@
 
 **The `apt-get` for AI agent skills.**
 
+Repertoire is a package manager for agent skills: named catalogs, a lock with
+content digests, and a manifest you commit so every laptop and CI job gets the
+same skills. It never overwrites edits you made by hand and never phones home.
+
 A *skill* is a folder with a `SKILL.md` file that teaches an AI coding agent how
 to do something: review code against your style guide, write docs for your
 static site generator, use an internal tool. Codex, Claude Code, Cursor, Gemini
 CLI, Copilot and the rest all read the same format, but each one looks for
 skills in a different directory.
-
-Repertoire installs a skill into every agent you use with one command, keeps
-those copies up to date, and never overwrites edits you made by hand.
 
 ```shell
 repertoire add zensical --target all
@@ -31,17 +32,24 @@ That one line:
 - **One skill, every agent.** Install once; Repertoire fans the skill out to
   [30+ agents and harnesses](https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/),
   each in its native layout.
+- **Named catalogs.** Skills resolve from a catalog you registered, including
+  source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical`.
 - **Safe updates.** Every installed copy is tracked by content digest. If you
   changed a file locally, Repertoire refuses to replace or delete it unless you
   pass `--force`.
-- **Your own catalogs.** Use the built-in `phillarmonic` catalog, a local folder,
-  or a private company repository. Access uses your normal Git credentials;
-  Repertoire never stores tokens.
-- **Reproducible.** Commit a `repertoire.yaml` and `repertoire bootstrap` installs
-  everything a project needs on a new laptop or in CI.
-- **Agent-operable.** Repertoire ships with a skill about itself, so your coding
-  agent can install skills, write manifests, and scaffold whole new skill
-  catalogs for you.
+- **Reproducible teams and CI.** Commit a `repertoire.yaml` and run
+  `repertoire bootstrap` or `repertoire sync` so every laptop and job gets the
+  same set.
+- **Private by default.** Catalogs use your normal Git credentials. Repertoire
+  never stores tokens and never sends telemetry.
+
+## Two ways to use it
+
+For yourself, `repertoire add` installs a skill under your home directory and
+remembers it so `update` can keep it current.
+
+For a team, commit `repertoire.yaml` and have each contributor (and CI) run
+`repertoire bootstrap`.
 
 ## Install
 
@@ -104,6 +112,11 @@ can scaffold a complete new catalog repository from scratch. See
 ## Which command do I want?
 
 - Install a skill and remember it: `repertoire add <skill>`
+- Install from a Git URL or local repo: `repertoire add <git-url>`
+- Start a project manifest without installing: `repertoire init`
+- Inspect where an installed skill came from: `repertoire show <skill>`
+- Scaffold a new catalog repository: `repertoire catalog init`
+- Preview a mutating command without writing: add `--dry-run`
 - Reinstall or repair skills already declared: `repertoire install`
 - Pull newer versions: `repertoire update`
 - Install everything a project declares (new machine, CI): `repertoire bootstrap`

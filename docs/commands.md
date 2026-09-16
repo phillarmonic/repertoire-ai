@@ -24,6 +24,11 @@ the [glossary](glossary.md).
     because it is locally modified, unmanaged, or managed from a different
     catalog source. Review the destination before using it.
 
+`--dry-run`
+:   Print the writes and refusals a mutating command would perform, and leave
+    the filesystem, lock, and manifest unchanged. `list`, `show`, `doctor`,
+    `stub`, and `completion` ignore the flag and print a note on stderr.
+
 `--override name=path`
 :   Resolve a catalog from a local checkout instead of its registered remote.
     Repeatable, or set `REPERTOIRE_OVERRIDES="name=path,other=path"`. Flags win
@@ -40,6 +45,7 @@ repertoire add code-reviewer
 repertoire add code-reviewer --target codex --target claude
 repertoire add code-reviewer --catalog company --target all
 repertoire add github.com/phillarmonic/ai-skills/zensical
+repertoire --dry-run add code-reviewer --target agents
 ```
 
 Without `--target`, `add` installs into the agents it detects on your machine
@@ -56,6 +62,23 @@ nothing is an error.
 repertoire add code-reviewer,shared-helpers
 repertoire add "product-*"
 ```
+
+### Add from a source
+
+A Git URL, `owner/repo` GitHub shorthand, or local path is a catalog source.
+`add` registers it in the selected scope (name from the repo basename, or
+`--name`) and installs every skill it offers. Repeat `--skill` or append
+`/<skill>` (or a GitHub `/tree/<ref>/<path>` tail) to install a subset.
+
+```bash
+repertoire add /path/to/agent-skills --target agents
+repertoire add https://github.com/example/agent-skills.git --name company --skill code-reviewer
+repertoire add github.com/example/agent-skills/code-reviewer --target all
+```
+
+Short names and source-qualified IDs still resolve first. `add zensical` and
+`add github.com/phillarmonic/ai-skills/zensical` are unchanged. If the derived
+catalog name is already used by a different source, pass `--name`.
 
 ### How skill names resolve
 
@@ -106,6 +129,7 @@ tag or commit stay pinned.
 repertoire update
 repertoire update code-reviewer
 repertoire update --target all
+repertoire --dry-run update code-reviewer
 ```
 
 Give a catalog name to refresh that catalog even when no installed skill
@@ -129,6 +153,7 @@ and `--no-hooks` add or remove a skill's optional hooks during the update.
 
 ```bash
 repertoire remove code-reviewer
+repertoire --dry-run remove code-reviewer
 ```
 
 Removes the managed copies from every target in the selected scope and drops
@@ -153,23 +178,53 @@ Output is a table in a terminal and headerless TSV when redirected, so it is
 safe to pipe. Force a format with `--format table`, `--format tsv`, or
 `--format json`.
 
+## `show`: where a skill came from and whether it is intact
+
+```bash
+repertoire show code-reviewer
+repertoire show code-reviewer --format json
+```
+
+Prints the catalog, redacted source, ref, resolved commit, content digest,
+whether the skill is declared or ad hoc, the hooks choice, and one row per
+target with the installed path and status (`intact`, `modified`, or
+`missing`). A loose catalog is marked as such. If the catalog cache is
+absent, lock data still prints and `catalog_cache` is `absent`.
+
+`--format` is the same as `list`: table in a terminal, TSV when redirected,
+or `--format json` for a single object scripts can parse.
+
 ## `catalog`: manage where skills come from
 
 ```bash
 repertoire catalog list
+repertoire catalog init company --skill code-reviewer --skill shared-helpers
 repertoire catalog add git@github.com:example/private-skills.git --name company
 repertoire catalog add github.com/example/public-skills --name public --ref main
 repertoire catalog add /path/to/ai-skills
+repertoire --dry-run catalog add https://github.com/example/public-skills.git --name public
 repertoire catalog update
 repertoire catalog remove company
 ```
+
+`init` writes a catalog `repertoire.yaml` and `SKILL.md` placeholders into the
+current directory. It does not run Git. Omit `[name]` to derive the catalog
+name from the directory basename (lower-case kebab). Omit `--skill` to create
+one example skill named `<name>-example`. An existing `repertoire.yaml` is
+refused unless you pass `--force`. See
+[Private and company catalogs](private-repositories.md).
 
 `add` registers a Git URL or a local path. `--ref` pins a branch, tag, or
 commit; without it the remote default branch is tracked. `update` refreshes
 the cached clones. Remote catalogs are read with your system `git`, so SSH
 agents, credential helpers, and provider CLIs work without Repertoire storing
-anything. See [Private and company catalogs](private-repositories.md) to build
-one.
+anything.
+
+A local path (or clone) that has no `repertoire.yaml` catalog section is still
+accepted as a [loose catalog](concepts/catalogs.md#loose-catalogs). Repertoire
+discovers `SKILL.md` directories, synthesizes the catalog in memory, and marks
+the source `(loose)` in `catalog list` and `list --available`. Pass `--name`
+when the directory basename is not a valid catalog name.
 
 ## `bootstrap` and `sync`: install what a project declares
 
@@ -180,6 +235,7 @@ fetching. `sync` does the same after refreshing the tracking catalogs.
 ```bash
 repertoire bootstrap
 repertoire sync
+repertoire --dry-run bootstrap
 ```
 
 Both skip intact installations, repair missing copies, stop at the first
@@ -206,6 +262,23 @@ format, is in [Set up a project or team](automation.md).
     Replacing a home-directory skill already managed from a different catalog
     source or ref requires `--force`, so one project cannot silently change an
     installation shared by others.
+
+## `init`: start a project manifest
+
+```bash
+repertoire init
+```
+
+From a Git worktree, `init` writes a project `repertoire.yaml` with the same
+starter `skills` section that `bootstrap` generates when none is present:
+every built-in `phillarmonic` skill, source-qualified IDs, `scope: global`.
+It does not install anything. Edit the file, then run `repertoire bootstrap`.
+
+If the file already declares skills, `init` refuses unless you pass `--force`.
+`--force` replaces the `skills` section and leaves `catalogs` and
+`requirements` in place. `--global` is rejected; this command is project-only.
+
+See [Set up a project or team](automation.md).
 
 ## `doctor`: diagnose and repair
 
@@ -307,11 +380,14 @@ verification restores it automatically.
 ## Shell completion
 
 Repertoire generates context-aware completion for Bash, Zsh, Fish, and
-PowerShell. Completions suggest installed skills, skills from local or cached
-catalogs, agent targets, and known catalogs (built-in, registered in either
-scope, declared in the project `repertoire.yaml`, recorded in lock files, or
-cached). `catalog add` completes known source URLs. Typing a prefix that
-contains `/` or `.` switches skill completion to source-qualified IDs.
+PowerShell. Completions suggest installed skills (`show`, `update`, `remove`),
+skills from local or cached catalogs (`add`, `install`), agent targets, and
+known catalogs (built-in, registered in either scope, declared in the project
+`repertoire.yaml`, recorded in lock files, or cached). `catalog add` completes
+known source URLs. `add --skill` completes skills offered by the source
+argument when that catalog is already cached or is a local path. `init` and
+`catalog init` do not complete positional arguments as files. Typing a prefix
+that contains `/` or `.` switches skill completion to source-qualified IDs.
 Completion never clones or refreshes a catalog.
 
 Enable completion for the current shell session:

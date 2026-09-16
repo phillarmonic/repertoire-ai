@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -106,6 +107,101 @@ func TestQualifiedCatalogSkillEndToEnd(t *testing.T) {
 	runCommand(t, project, binary, "--project", "remove", "phillarmonkey/code")
 	if _, err := os.Stat(filepath.Dir(installed)); !os.IsNotExist(err) {
 		t.Fatalf("qualified skill was not removed: %v", err)
+	}
+}
+
+func TestLooseCatalogAddInstallUpdateRemoveEndToEnd(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := t.TempDir()
+	runCommand(t, catalogRoot, "git", "init", "-q")
+	runCommand(t, catalogRoot, "git", "config", "user.email", "test@example.test")
+	runCommand(t, catalogRoot, "git", "config", "user.name", "Test")
+	for _, name := range []string{"alpha", "beta"} {
+		root := filepath.Join(catalogRoot, "skills", name)
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := "---\nname: " + name + "\ndescription: Loose skill\n---\nv1\n"
+		if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(catalogRoot, "plugins", "example-plugin", "skills", "example-skill"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pluginSkill := "---\nname: example-skill\ndescription: Marketplace skill\n---\nplugin-v1\n"
+	if err := os.WriteFile(filepath.Join(catalogRoot, "plugins", "example-plugin", "skills", "example-skill", "SKILL.md"), []byte(pluginSkill), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, catalogRoot, "git", "add", ".")
+	runCommand(t, catalogRoot, "git", "commit", "-qm", "initial")
+
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "official")
+	listed := runCommand(t, project, binary, "--project", "catalog", "list")
+	if !strings.Contains(listed, "official") || !strings.Contains(listed, "(loose)") {
+		t.Fatalf("catalog list did not mark the loose catalog:\n%s", listed)
+	}
+	available := runCommand(t, project, binary, "--project", "list", "--available", "--catalog", "official")
+	for _, name := range []string{"alpha", "beta", "example-skill"} {
+		if !strings.Contains(available, name+"\tofficial (loose)\tavailable") {
+			t.Fatalf("available list missing %s:\n%s", name, available)
+		}
+	}
+	runCommand(t, project, binary, "--project", "add", "alpha", "--catalog", "official", "--target", "agents")
+	runCommand(t, project, binary, "--project", "add", "example-skill", "--catalog", "official", "--target", "agents")
+	lock := readFileForTest(t, filepath.Join(project, "repertoire.lock.json"))
+	var parsed struct {
+		Skills map[string]struct {
+			Source string `json:"source"`
+			Commit string `json:"commit"`
+		} `json:"skills"`
+	}
+	if err := json.Unmarshal([]byte(lock), &parsed); err != nil {
+		t.Fatalf("decode lock: %v\n%s", err, lock)
+	}
+	for _, name := range []string{"alpha", "example-skill"} {
+		entry, ok := parsed.Skills[name]
+		if !ok || entry.Commit == "" || !sameTestPath(entry.Source, catalogRoot) {
+			t.Fatalf("lock did not record source and commit for %s:\n%s", name, lock)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(catalogRoot, "skills", "alpha", "SKILL.md"), []byte("---\nname: alpha\ndescription: Loose skill\n---\nv2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, project, binary, "--project", "update", "alpha")
+	installed := readFileForTest(t, filepath.Join(project, ".agents", "skills", "alpha", "SKILL.md"))
+	if !strings.Contains(installed, "v2") {
+		t.Fatalf("update did not refresh loose skill:\n%s", installed)
+	}
+	runCommand(t, project, binary, "--project", "remove", "alpha")
+	runCommand(t, project, binary, "--project", "remove", "example-skill")
+}
+
+func TestLooseCatalogMalformedManifestStillErrors(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(catalogRoot, "skills", "demo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(catalogRoot, "skills", "demo", "SKILL.md"), []byte("---\nname: demo\ndescription: Test\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(catalogRoot, "repertoire.yaml"), []byte("schema: [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	command := exec.Command(binary, "--project", "catalog", "add", catalogRoot, "--name", "broken")
+	command.Dir = project
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "load catalog at") {
+		t.Fatalf("expected malformed catalog error, got err=%v\n%s", err, output)
 	}
 }
 
@@ -234,6 +330,41 @@ func readFileForTest(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(content)
+}
+
+// sameTestPath reports whether a and b name the same filesystem location.
+// Windows GitHub runners often mix 8.3 names (RUNNER~1) with long paths
+// (runneradmin), so string equality is not enough.
+func sameTestPath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	left, err1 := filepath.EvalSymlinks(a)
+	right, err2 := filepath.EvalSymlinks(b)
+	if err1 == nil && err2 == nil && left == right {
+		return true
+	}
+	leftInfo, err1 := os.Stat(a)
+	rightInfo, err2 := os.Stat(b)
+	return err1 == nil && err2 == nil && os.SameFile(leftInfo, rightInfo)
+}
+
+func outputContainsPath(output, path string) bool {
+	candidates := []string{path, filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		candidates = append(candidates, resolved)
+	}
+	for _, candidate := range candidates {
+		if candidate != "" && strings.Contains(output, candidate) {
+			return true
+		}
+	}
+	for field := range strings.FieldsSeq(output) {
+		if sameTestPath(field, path) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestUpdateRefreshesCatalogsAndAvailableDiscovery(t *testing.T) {
@@ -369,6 +500,176 @@ func TestAddCommaListAndGlobEndToEnd(t *testing.T) {
 	if failure, err := command.CombinedOutput(); err == nil ||
 		!strings.Contains(string(failure), `pattern "nope-*" matched no available skills`) {
 		t.Fatalf("expected unmatched pattern error, got err=%v\n%s", err, failure)
+	}
+}
+
+func TestOneShotAddFromSourceEndToEnd(t *testing.T) {
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+
+	catalogRoot := filepath.Join(t.TempDir(), "acme-skills")
+	writeSkillCatalog(t, catalogRoot, true, "alpha", "beta")
+
+	output := runCommand(t, project, binary, "--project", "add", catalogRoot, "--target", "agents", "--no-hooks")
+	if !strings.Contains(output, "registered acme-skills") {
+		t.Fatalf("expected catalog registration:\n%s", output)
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		if !strings.Contains(output, "added "+name+" from acme-skills") {
+			t.Fatalf("expected added %s:\n%s", name, output)
+		}
+		if _, err := os.Stat(filepath.Join(project, ".agents", "skills", name, "SKILL.md")); err != nil {
+			t.Fatalf("installed %s: %v", name, err)
+		}
+	}
+
+	named := filepath.Join(t.TempDir(), "other-skills")
+	writeSkillCatalog(t, named, true, "code-reviewer")
+	output = runCommand(t, project, binary, "--project", "add", named, "--name", "company", "--skill", "code-reviewer", "--target", "agents", "--no-hooks")
+	if !strings.Contains(output, "registered company") || !strings.Contains(output, "added code-reviewer from company") {
+		t.Fatalf("expected --name/--skill add:\n%s", output)
+	}
+
+	tailed := filepath.Join(t.TempDir(), "tailed-skills")
+	writeSkillCatalog(t, tailed, true, "gamma", "delta")
+	output = runCommand(t, project, binary, "--project", "add", filepath.Join(tailed, "gamma"), "--target", "agents", "--no-hooks")
+	if !strings.Contains(output, "registered tailed-skills") || !strings.Contains(output, "added gamma from tailed-skills") {
+		t.Fatalf("expected trailing skill:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "delta", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatal("trailing skill should not install every skill")
+	}
+
+	looseRoot := filepath.Join(t.TempDir(), "loose-skills")
+	writeSkillCatalog(t, looseRoot, false, "omega")
+	runCommand(t, looseRoot, "git", "init", "-q")
+	output = runCommand(t, project, binary, "--project", "add", looseRoot, "--target", "agents", "--no-hooks")
+	if !strings.Contains(output, "registered loose-skills") || !strings.Contains(output, "added omega from loose-skills") {
+		t.Fatalf("expected loose catalog add:\n%s", output)
+	}
+
+	collision := filepath.Join(t.TempDir(), "acme-skills")
+	writeSkillCatalog(t, collision, true, "zeta")
+	failure := runCommandWithEnvError(t, project, os.Environ(), binary, "--project", "add", collision, "--target", "agents", "--no-hooks")
+	if !strings.Contains(failure, `catalog "acme-skills" is already registered from`) || !strings.Contains(failure, "pass --name") {
+		t.Fatalf("expected name collision:\n%s", failure)
+	}
+
+	qualifiedProject := t.TempDir()
+	runCommand(t, qualifiedProject, "git", "init", "-q")
+	qualifiedCatalog := t.TempDir()
+	skillRoot := filepath.Join(qualifiedCatalog, "skills", "code")
+	if err := os.MkdirAll(skillRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: phillarmonkey/code\ndescription: Test skill\n---\n"
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "schema: 1\ncatalog:\n  name: local\n  skills:\n    phillarmonkey/code:\n      path: skills/code\n"
+	if err := os.WriteFile(filepath.Join(qualifiedCatalog, "repertoire.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runCommand(t, qualifiedProject, binary, "--project", "catalog", "add", qualifiedCatalog, "--name", "local")
+	output = runCommand(t, qualifiedProject, binary, "--project", "add", "phillarmonkey/code", "--target", "agents", "--no-hooks")
+	if strings.Contains(output, "registered") {
+		t.Fatalf("qualified skill id was treated as a source:\n%s", output)
+	}
+	if !strings.Contains(output, "added phillarmonkey/code from local") {
+		t.Fatalf("expected qualified skill add:\n%s", output)
+	}
+}
+
+func TestShowReportsModifiedTargetEndToEnd(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := t.TempDir()
+	root := filepath.Join(catalogRoot, "skills", "demo")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte("---\nname: demo\ndescription: Test skill\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(catalogRoot, "repertoire.yaml"), []byte("schema: 1\ncatalog:\n  name: local\n  skills:\n    demo:\n      path: skills/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "local")
+	runCommand(t, project, binary, "--project", "add", "demo", "--catalog", "local", "--target", "agents", "--target", "codex", "--no-hooks")
+	codexSkill := filepath.Join(project, ".codex", "skills", "demo", "SKILL.md")
+	if err := os.WriteFile(codexSkill, []byte("---\nname: demo\ndescription: Test skill\n---\nlocal edit\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	output := runCommand(t, project, binary, "--project", "show", "demo", "--format", "table")
+	agentsPath := filepath.Join(project, ".agents", "skills", "demo")
+	codexPath := filepath.Join(project, ".codex", "skills", "demo")
+	if !strings.Contains(output, "local") || !outputContainsPath(output, catalogRoot) {
+		t.Fatalf("show table missing catalog provenance:\n%s", output)
+	}
+	if !outputContainsPath(output, agentsPath) || !strings.Contains(output, "intact") {
+		t.Fatalf("show table missing intact agents copy:\n%s", output)
+	}
+	if !outputContainsPath(output, codexPath) || !strings.Contains(output, "modified") {
+		t.Fatalf("show table missing modified codex copy:\n%s", output)
+	}
+
+	jsonOutput := runCommand(t, project, binary, "--project", "show", "demo", "--format", "json")
+	var view skillShowView
+	if err := json.Unmarshal([]byte(jsonOutput), &view); err != nil {
+		t.Fatalf("show JSON: %v\n%s", err, jsonOutput)
+	}
+	if view.Name != "demo" || view.Catalog != "local" || view.CatalogCache != showCachePresent {
+		t.Fatalf("show JSON object = %+v", view)
+	}
+	if len(view.Targets) != 2 {
+		t.Fatalf("show JSON targets = %+v", view.Targets)
+	}
+	byName := map[string]skillShowTarget{}
+	for _, target := range view.Targets {
+		byName[target.Name] = target
+	}
+	if byName["agents"].Status != showCopyIntact || byName["codex"].Status != showCopyModified {
+		t.Fatalf("show JSON integrity = %+v", view.Targets)
+	}
+
+	missing := runCommandWithEnvError(t, project, os.Environ(), binary, "--project", "show", "absent")
+	if !strings.Contains(missing, `skill "absent" is not managed in this scope`) {
+		t.Fatalf("expected unmanaged skill error:\n%s", missing)
+	}
+}
+
+func writeSkillCatalog(t *testing.T, root string, withManifest bool, skills ...string) {
+	t.Helper()
+	var manifest strings.Builder
+	if withManifest {
+		manifest.WriteString("schema: 1\ncatalog:\n  name: fixture\n  skills:\n")
+	}
+	for _, name := range skills {
+		skillDir := filepath.Join(root, "skills", name)
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := "---\nname: " + name + "\ndescription: Test skill\n---\n"
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if withManifest {
+			manifest.WriteString("    " + name + ":\n      path: skills/" + name + "\n")
+		}
+	}
+	if withManifest {
+		if err := os.WriteFile(filepath.Join(root, "repertoire.yaml"), []byte(manifest.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

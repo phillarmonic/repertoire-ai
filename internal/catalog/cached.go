@@ -28,7 +28,7 @@ func (m *Manager) ListCached() ([]Source, error) {
 		if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 			continue
 		}
-		if _, err := loadCatalog(root); err != nil {
+		if _, _, err := loadCatalog(root); err != nil {
 			continue
 		}
 		sourceURL, err := gitOutput(root, "remote", "get-url", "origin")

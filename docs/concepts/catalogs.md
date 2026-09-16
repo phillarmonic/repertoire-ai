@@ -64,6 +64,37 @@ updates; tags and full commit hashes remain immutable. Registering an explicit
 catalog named `phillarmonic` overrides the built-in source, which is useful for
 local development.
 
+## Loose catalogs
+
+A source with no `repertoire.yaml`, or with a file that has no `catalog:`
+section, is still usable. Repertoire walks the checkout for directories that
+contain a valid `SKILL.md` (YAML frontmatter with a kebab-case `name` and a
+non-empty `description`) and synthesizes a catalog in memory. The search is
+bounded to four directory levels, which covers:
+
+- the repository root
+- `skills/`, `skills/<category>/`, and `skills/<category>/<category>/`
+- marketplace trees such as `plugins/<plugin>/skills/<skill>` and
+  `external_plugins/<plugin>/skills/<skill>`
+- `.agents/skills`, `.claude/skills`, `.cursor/skills`, `.codex/skills`,
+  and `.github/skills`
+
+Hidden directories other than those agent roots are skipped, as are `.git`
+and `node_modules`. Symlinks that leave the checkout are not followed.
+
+The skill key is the frontmatter `name`. Duplicate names across discovered
+directories are an error that lists both paths. A marketplace repository that
+repeats names such as `access` in several plugins needs a real
+`repertoire.yaml` before it can be registered.
+
+The synthesized catalog is read-only: you cannot declare variants,
+instructions, hooks, or stubs without writing a real `repertoire.yaml`. Lock
+entries still record the Git source and commit, so `update` and `install` work
+the same way. The catalog name comes from `catalog add --name` (or from a
+kebab-case directory basename when you omit `--name` on a local path).
+`repertoire catalog list` and `repertoire list --available` mark these
+sources as `(loose)`.
+
 ## Platform variants and project artifacts
 
 A catalog can keep one logical skill name while selecting a different package

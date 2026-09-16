@@ -22,7 +22,19 @@ If you only want to install a skill for yourself, skip to
 
 ## Step 1: write `repertoire.yaml`
 
-Create `repertoire.yaml` at the root of the Git repository:
+From the Git repository root, start a project manifest without installing
+anything:
+
+```bash
+repertoire init
+```
+
+`init` writes a starter `repertoire.yaml` that lists every built-in
+`phillarmonic` skill with source-qualified IDs and `scope: global`. Edit it
+down to what the project needs, then run `repertoire bootstrap`. If the file
+already has a `skills` section, `init` refuses unless you pass `--force`.
+
+A filled-in example after editing:
 
 ```yaml
 schema: 1

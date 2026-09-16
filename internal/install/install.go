@@ -141,6 +141,14 @@ func Remove(name string, targets []Target, previous state.LockSkill, force bool)
 	return nil
 }
 
+func SkillInstallPath(name string, target Target) string {
+	return filepath.Join(target.Root, installDirectoryName(name))
+}
+
+func LockedTargetDigest(entry state.LockSkill, target string) string {
+	return lockedTargetDigest(&entry, target)
+}
+
 func lockedTargetDigest(previous *state.LockSkill, target string) string {
 	if previous == nil {
 		return ""

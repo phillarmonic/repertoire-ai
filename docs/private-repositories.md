@@ -24,6 +24,22 @@ system of its own and never stores tokens or passwords.
 
 ## Build a private catalog
 
+Scaffold the layout from the directory that will become the catalog repository:
+
+```bash
+repertoire catalog init company --skill code-reviewer --skill shared-helpers
+```
+
+That writes a valid `repertoire.yaml` and a `SKILL.md` placeholder for each
+`--skill`. It does not run Git. Omit `[name]` to derive the catalog name from
+the current directory basename. Omit `--skill` to scaffold one example skill
+named `<name>-example`. An existing `repertoire.yaml` is refused unless you
+pass `--force`.
+
+Edit the placeholders, test against the local directory, then `git init` and
+push when you are ready. The manual layout below is what `catalog init`
+produces, so you can check or recreate it by hand.
+
 ### 1. Create a Git repository
 
 Create an empty private repository on your Git host (for example
@@ -204,3 +220,19 @@ repertoire --override company=/path/to/agent-skills add code-reviewer --catalog 
 ```
 
 See [Local overrides for testing](concepts/catalogs.md#local-overrides-for-testing).
+
+## Use a repository that has no repertoire.yaml
+
+A Git repository of `SKILL.md` directories with no catalog manifest is a
+[loose catalog](glossary.md). Register it the same way:
+
+```bash
+repertoire catalog add git@github.com:company/agent-skills.git --name company
+repertoire add https://github.com/company/agent-skills.git
+```
+
+Repertoire discovers skills under well-known roots (`skills/`, `.agents/skills`,
+and similar) and synthesizes a catalog in memory. Lock entries still record the
+source commit, so `update` works. A real `repertoire.yaml` is what unlocks
+platform variants, always-on project instructions, optional hooks, and stubs.
+See [Loose catalogs](concepts/catalogs.md#loose-catalogs).

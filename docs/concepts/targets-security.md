@@ -47,7 +47,16 @@ repertoire install --target all
 repertoire update --target all
 ```
 
-The expanded concrete target names—not `all`—are saved in the manifest and lock, keeping installation state explicit.
+The expanded concrete target names (not `all`) are saved in the manifest and lock, keeping installation state explicit.
+
+## Privacy
+
+Repertoire does not collect usage telemetry and does not phone home. Catalog
+access uses your system Git credentials (SSH agent, credential helper, or
+provider CLI). Tokens and passwords never belong in catalog URLs or manifests;
+Repertoire rejects credential-bearing URLs. `bootstrap` installs from local
+catalogs and whatever catalog state is already cached, so it does not fetch
+from the network.
 
 ## Installation safety
 

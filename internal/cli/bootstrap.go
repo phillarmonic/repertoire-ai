@@ -14,13 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newBootstrapCommands(globalScope, projectScope, force *bool, overrideFlags *[]string) []*cobra.Command {
+func newBootstrapCommands(globalScope, projectScope, force, dryRun *bool, overrideFlags *[]string) []*cobra.Command {
 	bootstrap := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Install skills declared by the project bootstrap manifest",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			return runBootstrap(command, *globalScope, *projectScope, *force, false, overrideFlags)
+			return runBootstrap(command, *globalScope, *projectScope, *force, false, *dryRun, overrideFlags)
 		},
 	}
 	syncCommand := &cobra.Command{
@@ -28,13 +28,13 @@ func newBootstrapCommands(globalScope, projectScope, force *bool, overrideFlags 
 		Short: "Refresh and synchronize project bootstrap skills",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
-			return runBootstrap(command, *globalScope, *projectScope, *force, true, overrideFlags)
+			return runBootstrap(command, *globalScope, *projectScope, *force, true, *dryRun, overrideFlags)
 		},
 	}
 	return []*cobra.Command{bootstrap, syncCommand}
 }
 
-func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refresh bool, overrideFlags *[]string) error {
+func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refresh, dryRun bool, overrideFlags *[]string) error {
 	if globalFlag || projectFlag {
 		return errors.New("bootstrap and sync use per-skill scope; --global and --project are not supported")
 	}
@@ -47,12 +47,21 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		return err
 	}
 	legacyPath := filepath.Join(projectScope.Root, state.BootstrapFileName)
-	if ensureErr := ensureBootstrapSkills(command, &manifest, projectScope.ManifestPath, legacyPath, refresh, overrideFlags); ensureErr != nil {
+	if ensureErr := ensureBootstrapSkills(command, &manifest, projectScope.ManifestPath, legacyPath, refresh, dryRun, overrideFlags); ensureErr != nil {
 		return ensureErr
 	}
-	if refresh {
+	if refresh && !dryRun {
 		if refreshErr := refreshBootstrapCatalogs(manifest, overrideFlags); refreshErr != nil {
 			return refreshErr
+		}
+	}
+	if refresh && dryRun {
+		manager, managerErr := newCatalogManager("", *overrideFlags)
+		if managerErr != nil {
+			return managerErr
+		}
+		if previewErr := previewCatalogUpdate(command, manager, manifest, ""); previewErr != nil {
+			return previewErr
 		}
 	}
 
@@ -108,11 +117,12 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			false,
 			protectGlobal,
 			hooks,
+			dryRun,
 			overrideFlags,
 		); err != nil {
 			return err
 		}
-		if declaration.Scope == state.BootstrapScopeGlobal {
+		if declaration.Scope == state.BootstrapScopeGlobal && !dryRun {
 			entry := globalLock.Skills[name]
 			if err := installBootstrapProjectArtifacts(
 				projectScope,
@@ -128,6 +138,9 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			); err != nil {
 				return err
 			}
+		}
+		if dryRun {
+			continue
 		}
 		action := "bootstrapped"
 		if refresh {
@@ -203,7 +216,7 @@ func installBootstrapProjectArtifacts(
 // bootstrap declarations before bootstrap/sync runs. A legacy .repertoire.yaml
 // is migrated into repertoire.yaml (and removed); a project without any
 // declarations gets a generated starter on bootstrap, while sync errors.
-func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, manifestPath, legacyPath string, refresh bool, overrideFlags *[]string) error {
+func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, manifestPath, legacyPath string, refresh, dryRun bool, overrideFlags *[]string) error {
 	out := command.OutOrStdout()
 	_, statErr := os.Stat(legacyPath)
 	legacyExists := statErr == nil
@@ -239,6 +252,10 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 			manifest.Catalogs[name] = registration
 		}
 		maps.Copy(manifest.Skills, legacy.Skills)
+		if dryRun {
+			_, _ = fmt.Fprintf(out, "would migrate %s into %s\n", state.BootstrapFileName, filepath.Base(manifestPath))
+			return nil
+		}
 		if err := state.SaveManifest(manifestPath, *manifest); err != nil {
 			return err
 		}
@@ -253,31 +270,31 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 		return fmt.Errorf("%s declares no bootstrap skills", filepath.Base(manifestPath))
 	}
 
-	manager, err := newCatalogManager("", *overrideFlags)
+	if dryRun {
+		cloned, err := previewUncachedBuiltinClone(command, *overrideFlags)
+		if err != nil {
+			return err
+		}
+		if cloned {
+			_, _ = fmt.Fprintf(out, "would create %s\n", filepath.Base(manifestPath))
+			return nil
+		}
+	}
+	starter, err := starterBootstrapSkills(*overrideFlags, dryRun)
 	if err != nil {
 		return err
 	}
-	materialized, err := manager.Materialize(catalog.Source{
-		Name:    catalog.BuiltinName,
-		Builtin: true,
-		Registration: state.CatalogRegistration{
-			Source: catalog.BuiltinSource,
-		},
-	}, false)
-	if err != nil {
-		return err
-	}
-	if materialized.Manifest.Catalog == nil || len(materialized.Manifest.Catalog.Skills) == 0 {
-		return errors.New("built-in catalog declares no skills")
-	}
-	names := make([]string, 0, len(materialized.Manifest.Catalog.Skills))
-	for name := range materialized.Manifest.Catalog.Skills {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	maps.Copy(manifest.Skills, catalog.DefaultBootstrapSkills(catalog.BuiltinSource, names))
+	maps.Copy(manifest.Skills, starter)
 	_, statErr = os.Stat(manifestPath)
 	manifestExists := statErr == nil
+	if dryRun {
+		if manifestExists {
+			_, _ = fmt.Fprintf(out, "would add bootstrap skills to %s\n", filepath.Base(manifestPath))
+		} else {
+			_, _ = fmt.Fprintf(out, "would create %s\n", filepath.Base(manifestPath))
+		}
+		return nil
+	}
 	if err := state.SaveManifest(manifestPath, *manifest); err != nil {
 		return err
 	}
@@ -287,6 +304,38 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 		_, _ = fmt.Fprintf(out, "created %s\n", filepath.Base(manifestPath))
 	}
 	return nil
+}
+
+func starterBootstrapSkills(overrideFlags []string, cachedOnly bool) (map[string]state.BootstrapSkill, error) {
+	manager, err := newCatalogManager("", overrideFlags)
+	if err != nil {
+		return nil, err
+	}
+	source := catalog.Source{
+		Name:    catalog.BuiltinName,
+		Builtin: true,
+		Registration: state.CatalogRegistration{
+			Source: catalog.BuiltinSource,
+		},
+	}
+	var materialized catalog.Materialized
+	if cachedOnly {
+		materialized, err = manager.InspectCached(source)
+	} else {
+		materialized, err = manager.Materialize(source, false)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if materialized.Manifest.Catalog == nil || len(materialized.Manifest.Catalog.Skills) == 0 {
+		return nil, errors.New("built-in catalog declares no skills")
+	}
+	names := make([]string, 0, len(materialized.Manifest.Catalog.Skills))
+	for name := range materialized.Manifest.Catalog.Skills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return catalog.DefaultBootstrapSkills(catalog.BuiltinSource, names), nil
 }
 
 func refreshBootstrapCatalogs(manifest state.Manifest, overrideFlags *[]string) error {

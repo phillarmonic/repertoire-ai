@@ -16,13 +16,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]string) []*cobra.Command {
+func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFlags *[]string) []*cobra.Command {
 	var catalogName string
 	var requestedTargets []string
 	var addWithHooks, addNoHooks bool
+	var addSourceName string
+	var addSkills []string
 	add := &cobra.Command{
-		Use:   "add <skill>[,<skill>...]",
-		Short: "Declare and install skills (comma-separated names or glob patterns)",
+		Use:   "add <skill|source>[,<skill>...]",
+		Short: "Declare and install skills, or register a catalog source and install from it",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
@@ -33,26 +35,28 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 			if err != nil {
 				return err
 			}
-			names, err := expandSkillSelectors(manifest, catalogName, args, overrideFlags)
-			if err != nil {
-				return err
-			}
-			for _, name := range names {
-				if _, err := installNamed(command, scope, &manifest, &lock, name, catalogName, requestedTargets, true, *force, false, hooks, overrideFlags); err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "added %s from %s (%s)\n",
-					name, lock.Skills[name].Catalog, summarizeTargets(lock.Skills[name].Targets))
-			}
-			return nil
+			return runAdd(command, scope, &manifest, &lock, args, addOptions{
+				catalogName:      catalogName,
+				name:             addSourceName,
+				skills:           addSkills,
+				requestedTargets: requestedTargets,
+				overrideFlags:    overrideFlags,
+				force:            *force,
+				dryRun:           *dryRun,
+				hooks:            hooks,
+			})
 		},
 	}
 	add.Flags().StringVar(&catalogName, "catalog", "", "resolve from this catalog")
+	add.Flags().StringVar(&addSourceName, "name", "", "catalog name when adding a source")
+	add.Flags().StringSliceVar(&addSkills, "skill", nil, "install these skills from a source (repeatable)")
 	add.Flags().StringSliceVar(&requestedTargets, "target", nil, "agent target (repeatable; omit to detect installed clients)")
 	add.Flags().BoolVar(&addWithHooks, "with-hooks", false, "install optional managed hooks and project integrations")
 	add.Flags().BoolVar(&addNoHooks, "no-hooks", false, "skip optional managed hooks and project integrations")
 	add.ValidArgsFunction = completeAvailableSkills(globalScope, projectScope, &catalogName, overrideFlags)
 	_ = add.RegisterFlagCompletionFunc("catalog", completeCatalogs(globalScope, projectScope, false))
+	_ = add.RegisterFlagCompletionFunc("name", cobra.NoFileCompletions)
+	_ = add.RegisterFlagCompletionFunc("skill", completeAddSourceSkills(&addSourceName, overrideFlags))
 	_ = add.RegisterFlagCompletionFunc("target", completeTargets)
 
 	var installCatalog string
@@ -89,10 +93,12 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 						}
 					}
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks, overrideFlags); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks, *dryRun, overrideFlags); err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", args[0])
+				if !*dryRun {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", args[0])
+				}
 				return nil
 			}
 			names := sortedRequirements(manifest.Requirements)
@@ -109,10 +115,12 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 						requirementHooks = hookChoiceYes
 					}
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false, requirementHooks, overrideFlags); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, name, requirement.Catalog, targets, true, *force, false, requirementHooks, *dryRun, overrideFlags); err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", name)
+				if !*dryRun {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", name)
+				}
 			}
 			return nil
 		},
@@ -133,6 +141,7 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 		Short: "List installed or available skills",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			noteDryRunNoOp(command, *dryRun)
 			format, err := resolveSkillListFormat(listFormat, command.OutOrStdout(), listWide)
 			if err != nil {
 				return err
@@ -175,8 +184,12 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 					_, _ = fmt.Fprintf(command.ErrOrStderr(), "warning: skipped catalog %s: %v\n", source.Name, err)
 					continue
 				}
+				catalogName := source.Name
+				if resolved.Loose {
+					catalogName += " (loose)"
+				}
 				for name := range resolved.Manifest.Catalog.Skills {
-					skills = append(skills, availableSkill{name: name, catalog: source.Name})
+					skills = append(skills, availableSkill{name: name, catalog: catalogName})
 				}
 			}
 			sort.Slice(skills, func(i, j int) bool {
@@ -222,6 +235,9 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 					if !catalogVisible(manifest, args[0]) {
 						return fmt.Errorf("skill %q is not installed", args[0])
 					}
+					if *dryRun {
+						return previewCatalogUpdate(command, manager, manifest, args[0])
+					}
 					refreshed, err := refreshCatalogs(manager, manifest, args[0])
 					if err != nil {
 						return err
@@ -237,12 +253,18 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 					_, _ = fmt.Fprintln(command.OutOrStdout(), "update: nothing installed; nothing to update")
 					return nil
 				}
-				refreshed, err := refreshCatalogsWarn(manager, manifest, "", command.ErrOrStderr())
-				if err != nil {
-					return err
-				}
-				for _, source := range refreshed {
-					_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
+				if *dryRun {
+					if err := previewCatalogUpdate(command, manager, manifest, ""); err != nil {
+						return err
+					}
+				} else {
+					refreshed, err := refreshCatalogsWarn(manager, manifest, "", command.ErrOrStderr())
+					if err != nil {
+						return err
+					}
+					for _, source := range refreshed {
+						_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
+					}
 				}
 				for name := range lock.Skills {
 					names = append(names, name)
@@ -263,10 +285,12 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 					(entry.Hooks || (!entry.Instructions && len(entry.Artifacts) > 0)) {
 					hooks = hookChoiceYes
 				}
-				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks, overrideFlags); err != nil {
+				if _, err := installNamed(command, scope, &manifest, &lock, name, entry.Catalog, targets, entry.Declared, *force, true, hooks, *dryRun, overrideFlags); err != nil {
 					return err
 				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "updated %s\n", name)
+				if !*dryRun {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "updated %s\n", name)
+				}
 			}
 			return nil
 		},
@@ -292,6 +316,20 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 			targets, err := installer.ResolveTargets(scope, entry.Targets, "")
 			if err != nil {
 				return err
+			}
+			if *dryRun {
+				plans, planErr := installer.PlanRemove(args[0], targets, entry, *force)
+				if planErr != nil {
+					return planErr
+				}
+				if err := writeRemoveCopyPlans(command.OutOrStdout(), plans); err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "would remove lock entry %s\n", args[0])
+				if entry.EffectiveOrigin() == state.LockOriginDeclared {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "would remove requirement %s\n", args[0])
+				}
+				return nil
 			}
 			if err := installer.RemoveArtifacts(entry.Artifacts, scope.Root, *force); err != nil {
 				return err
@@ -319,7 +357,10 @@ func newSkillCommands(globalScope, projectScope, force *bool, overrideFlags *[]s
 		},
 	}
 	remove.ValidArgsFunction = completeInstalledSkills(globalScope, projectScope)
-	return []*cobra.Command{add, installCommand, list, update, remove}
+
+	var showFormat string
+	show := newShowCommand(globalScope, projectScope, dryRun, overrideFlags, &showFormat)
+	return []*cobra.Command{add, installCommand, list, show, update, remove}
 }
 
 func removeGlobalProjectArtifacts(lock *state.Lock, skillName string, force bool) error {
@@ -359,13 +400,14 @@ func installNamed(
 	requestedTargets []string,
 	declared, force, refresh bool,
 	hooks hookChoice,
+	dryRun bool,
 	overrideFlags *[]string,
 ) (bool, error) {
 	origin := state.LockOriginAdHoc
 	if declared {
 		origin = state.LockOriginDeclared
 	}
-	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks, overrideFlags)
+	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks, dryRun, overrideFlags)
 }
 
 func installManaged(
@@ -379,14 +421,26 @@ func installManaged(
 	origin string,
 	force, refresh, protectGlobal bool,
 	hooks hookChoice,
+	dryRun bool,
 	overrideFlags *[]string,
 ) (bool, error) {
 	manager, err := newCatalogManager("", *overrideFlags)
 	if err != nil {
 		return false, err
 	}
-	resolved, err := installer.Resolve(manager, resolutionManifest, name, catalogName, refresh)
+	var resolved installer.ResolvedSkill
+	if dryRun {
+		resolved, err = installer.ResolveCached(manager, resolutionManifest, name, catalogName)
+	} else {
+		resolved, err = installer.Resolve(manager, resolutionManifest, name, catalogName, refresh)
+	}
 	if err != nil {
+		if dryRun {
+			if cloneLine, ok := dryRunCloneLine(manager, resolutionManifest, catalogName); ok {
+				_, _ = fmt.Fprintln(command.OutOrStdout(), cloneLine)
+				return false, nil
+			}
+		}
 		return false, err
 	}
 	targets, err := installer.ResolveTargets(scope, requestedTargets, "")
@@ -398,10 +452,27 @@ func installManaged(
 		if protectGlobal && scope.Global && !force {
 			source := catalog.RedactSource(catalog.NormalizeSource(resolved.Catalog.Registration.Source))
 			if entry.Catalog != resolved.Catalog.Name || entry.Source != source || entry.Ref != resolved.Catalog.Registration.Ref {
+				if dryRun {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "would refuse: global skill %q is managed from a different catalog source or ref\n", name)
+				}
 				return false, fmt.Errorf("global skill %q is managed from a different catalog source or ref; use --force to replace it", name)
 			}
 		}
 		previous = &entry
+	}
+	if dryRun {
+		plans, planErr := installer.PlanSkill(resolved, targets, previous, force)
+		if planErr != nil {
+			return false, planErr
+		}
+		if writeErr := writeSkillCopyPlans(command.OutOrStdout(), plans); writeErr != nil {
+			return false, writeErr
+		}
+		if origin == state.LockOriginDeclared && requirementsManifest != nil {
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "would write requirement %s\n", name)
+		}
+		_, _ = fmt.Fprintf(command.OutOrStdout(), "would write lock entry %s\n", name)
+		return false, nil
 	}
 	locations, targetDigests, err := installer.SkillWithDigests(resolved, targets, previous, force)
 	if err != nil {

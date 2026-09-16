@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +27,7 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	var globalScope bool
 	var projectScope bool
 	var force bool
+	var dryRun bool
 	var overrideFlags []string
 	var selfUpdate bool
 	command := &cobra.Command{
@@ -67,23 +67,25 @@ func NewRootCommand(version string, stdout, stderr io.Writer) *cobra.Command {
 	command.PersistentFlags().BoolVar(&globalScope, "global", false, "use user-global state (default)")
 	command.PersistentFlags().BoolVar(&projectScope, "project", false, "use the current Git project")
 	command.PersistentFlags().BoolVar(&force, "force", false, "replace protected managed state")
+	command.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "print planned writes without changing disk, lock, or manifest")
 	command.PersistentFlags().StringArrayVar(&overrideFlags, "override", nil, "resolve a catalog from a local path (name=path or source=path; repeatable)")
 	command.Flags().BoolVar(&selfUpdate, "self-update", false, "update Repertoire to the latest stable release")
-	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force, &overrideFlags))
-	command.AddCommand(newCompletionCommand())
-	command.AddCommand(newDoctorCommand(&globalScope, &projectScope, &force, &overrideFlags))
-	command.AddCommand(newStubCommand(&globalScope, &projectScope))
-	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force, &overrideFlags) {
+	command.AddCommand(newCatalogCommand(&globalScope, &projectScope, &force, &dryRun, &overrideFlags))
+	command.AddCommand(newCompletionCommand(&dryRun))
+	command.AddCommand(newDoctorCommand(&globalScope, &projectScope, &force, &dryRun, &overrideFlags))
+	command.AddCommand(newInitCommand(&globalScope, &force, &dryRun, &overrideFlags))
+	command.AddCommand(newStubCommand(&globalScope, &projectScope, &dryRun))
+	for _, child := range newBootstrapCommands(&globalScope, &projectScope, &force, &dryRun, &overrideFlags) {
 		command.AddCommand(child)
 	}
-	for _, child := range newSkillCommands(&globalScope, &projectScope, &force, &overrideFlags) {
+	for _, child := range newSkillCommands(&globalScope, &projectScope, &force, &dryRun, &overrideFlags) {
 		command.AddCommand(child)
 	}
 
 	return command
 }
 
-func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]string) *cobra.Command {
+func newCatalogCommand(globalScope, projectScope, force, dryRun *bool, overrideFlags *[]string) *cobra.Command {
 	catalogCommand := &cobra.Command{Use: "catalog", Short: "Manage skill catalogs"}
 	var name, ref string
 	add := &cobra.Command{
@@ -99,40 +101,25 @@ func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]
 			if err != nil {
 				return err
 			}
-			source := catalog.Source{Name: name, Registration: state.CatalogRegistration{Source: args[0], Ref: ref}}
-			normalized := catalog.NormalizeSource(source.Registration.Source)
-			if catalog.RedactSource(normalized) != normalized {
-				return errors.New("catalog URLs must not contain embedded credentials; use system Git credentials")
-			}
-			source.Registration.Source = normalized
-			if source.Name == "" {
-				if catalog.IsLocal(args[0]) {
-					resolved, err := manager.Materialize(catalog.Source{Name: "probe", Registration: source.Registration}, false)
-					if err != nil {
-						return err
-					}
-					source.Name = resolved.Manifest.Catalog.Name
-				} else {
-					return errors.New("--name is required for remote catalogs")
-				}
-			}
-			if _, exists := manifest.Catalogs[source.Name]; exists && !*force {
-				return fmt.Errorf("catalog %q already exists; use --force to replace it", source.Name)
-			}
-			if _, err := manager.Materialize(source, true); err != nil {
+			catalogName, err := catalogNameForAdd(manager, args[0], name)
+			if err != nil {
 				return err
 			}
-			manifest.Catalogs[source.Name] = source.Registration
-			if err := state.SaveManifest(scope.ManifestPath, manifest); err != nil {
+			source := catalog.Source{Name: catalogName, Registration: state.CatalogRegistration{Source: args[0], Ref: ref}}
+			if *dryRun {
+				return previewCatalogAdd(command, &manifest, manager, source, *force)
+			}
+			if err := registerCatalog(scope, &manifest, manager, source, *force); err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "registered %s\n", source.Name)
+			_, _ = fmt.Fprintf(command.OutOrStdout(), "registered %s\n", catalogName)
 			return nil
 		},
 	}
 	add.Flags().StringVar(&name, "name", "", "catalog name")
 	add.Flags().StringVar(&ref, "ref", "", "branch, tag, or commit")
 	add.ValidArgsFunction = completeCatalogSources(globalScope, projectScope)
+	_ = add.RegisterFlagCompletionFunc("name", cobra.NoFileCompletions)
 
 	remove := &cobra.Command{
 		Use:   "remove <name>",
@@ -157,6 +144,10 @@ func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]
 				}
 			}
 			delete(manifest.Catalogs, args[0])
+			if *dryRun {
+				_, _ = fmt.Fprintf(command.OutOrStdout(), "would unregister catalog %s\n", args[0])
+				return nil
+			}
 			return state.SaveManifest(scope.ManifestPath, manifest)
 		},
 	}
@@ -182,6 +173,9 @@ func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]
 				if path, overridden := manager.OverrideFor(source); overridden {
 					marker += " (overridden -> " + path + ")"
 				}
+				if resolved, err := manager.InspectCached(source); err == nil && resolved.Loose {
+					marker += " (loose)"
+				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "%s\t%s%s\n", source.Name, catalog.RedactSource(source.Registration.Source), marker)
 			}
 			return nil
@@ -200,6 +194,9 @@ func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]
 			if err != nil {
 				return err
 			}
+			if *dryRun {
+				return previewCatalogUpdate(command, manager, manifest, optionalArg(args))
+			}
 			sources, err := refreshCatalogs(manager, manifest, optionalArg(args))
 			if err != nil {
 				return err
@@ -211,7 +208,7 @@ func newCatalogCommand(globalScope, projectScope, force *bool, overrideFlags *[]
 		},
 	}
 	update.ValidArgsFunction = completeCatalogs(globalScope, projectScope, false)
-	catalogCommand.AddCommand(add, remove, list, update)
+	catalogCommand.AddCommand(add, newCatalogInitCommand(force, dryRun), remove, list, update)
 	return catalogCommand
 }
 

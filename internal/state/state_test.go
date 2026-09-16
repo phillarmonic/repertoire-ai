@@ -49,6 +49,7 @@ func TestManifestRoundTripAndValidation(t *testing.T) {
 	if !strings.Contains(string(first), "tool: https://github.com/phillarmonic/repertoire-ai\n") {
 		t.Fatalf("manifest marker missing:\n%s", first)
 	}
+	assertYAMLKeyOrder(t, string(first), "schema:", "tool:", "catalog:", "catalogs:", "skills:", "requirements:")
 	path := filepath.Join(t.TempDir(), "repertoire.yaml")
 	if writeErr := WriteFileAtomic(path, first, 0o644); writeErr != nil {
 		t.Fatalf("write: %v", writeErr)
@@ -216,6 +217,39 @@ func TestCatalogSkillNamesAllowQualifiedSegments(t *testing.T) {
 	manifest.Catalog.Skills["Bad_Vendor/code"] = SkillEntry{Path: "skills/bad"}
 	if err := manifest.Validate(); err == nil {
 		t.Fatal("expected invalid qualified catalog skill name to fail")
+	}
+}
+
+func TestManifestMarshalKeyOrder(t *testing.T) {
+	t.Parallel()
+	manifest := NewManifest()
+	manifest.Skills["demo"] = BootstrapSkill{Scope: BootstrapScopeGlobal}
+	content, err := manifest.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	assertYAMLKeyOrder(t, string(content), "schema:", "tool:", "skills:")
+}
+
+func assertYAMLKeyOrder(t *testing.T, content string, keys ...string) {
+	t.Helper()
+	previous := -1
+	previousKey := ""
+	for _, key := range keys {
+		index := strings.Index(content, "\n"+key)
+		if strings.HasPrefix(content, key) {
+			index = 0
+		} else if index >= 0 {
+			index++
+		}
+		if index < 0 {
+			t.Fatalf("missing top-level %q:\n%s", key, content)
+		}
+		if previous >= 0 && index < previous {
+			t.Fatalf("%q appears before %q:\n%s", key, previousKey, content)
+		}
+		previous = index
+		previousKey = key
 	}
 }
 

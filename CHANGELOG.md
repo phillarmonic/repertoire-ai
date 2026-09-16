@@ -18,6 +18,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.10.0] - 2026-09-16
+
+### Added
+
+- Loose catalogs: a Git repository of `SKILL.md` trees can be registered and
+  used even when it has no `repertoire.yaml`.
+- One-shot `add` from a catalog source (Git URL, `owner/repo`, or local path)
+  registers the catalog and installs its skills in a single command.
+- `repertoire show <skill>` prints provenance, catalog cache status, and
+  per-target copy integrity.
+- `repertoire init` writes a starter project `repertoire.yaml` without
+  installing skills.
+- `repertoire catalog init` scaffolds a catalog repository (optional
+  `--skill` placeholders).
+- Persistent `--dry-run` prints planned writes and refusals without changing
+  disk, lock, or manifest.
+- Shell completion covers `show`, `init`, `catalog init`, and `add --skill`.
+
+### Changed
+
+- Updated README and zensical docs
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [1.9.0] - 2026-09-15
 
 ### Added

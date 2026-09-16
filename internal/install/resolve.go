@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/goccy/go-yaml"
 	"github.com/phillarmonic/repertoire-ai/internal/catalog"
 	"github.com/phillarmonic/repertoire-ai/internal/state"
 	"github.com/phillarmonic/repertoire-ai/internal/stub"
@@ -36,6 +35,23 @@ type ResolvedArtifact struct {
 }
 
 func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogName string, refresh bool) (ResolvedSkill, error) {
+	return resolveWith(manifest, name, catalogName, func(source catalog.Source) (catalog.Materialized, error) {
+		return manager.Materialize(source, refresh)
+	})
+}
+
+// ResolveCached resolves a skill from local catalogs or existing clones only.
+func ResolveCached(manager *catalog.Manager, manifest state.Manifest, name, catalogName string) (ResolvedSkill, error) {
+	return resolveWith(manifest, name, catalogName, func(source catalog.Source) (catalog.Materialized, error) {
+		return manager.InspectCached(source)
+	})
+}
+
+func resolveWith(
+	manifest state.Manifest,
+	name, catalogName string,
+	materialize func(catalog.Source) (catalog.Materialized, error),
+) (ResolvedSkill, error) {
 	name = strings.TrimSpace(name)
 	namespace, skillName, err := catalog.ParseSkillID(name)
 	if err != nil {
@@ -68,7 +84,7 @@ func Resolve(manager *catalog.Manager, manifest state.Manifest, name, catalogNam
 		if catalogName != "" && source.Name != catalogName {
 			continue
 		}
-		materialized, err := manager.Materialize(source, refresh)
+		materialized, err := materialize(source)
 		if err != nil {
 			// One unreachable catalog must not brick resolving skills the
 			// remaining catalogs provide; the error is reported only when no
@@ -191,11 +207,6 @@ func skillCandidates(requested, namespace, skillName string, source catalog.Sour
 	return candidates
 }
 
-type skillHeader struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-}
-
 func ValidateSkill(root, expectedName string) error {
 	return validateSkill(root, expectedName, true)
 }
@@ -216,12 +227,11 @@ func validateSkill(root, expectedName string, requireMatchingDirectory bool) err
 	if err != nil {
 		return fmt.Errorf("read skill %q SKILL.md: %w", expectedName, err)
 	}
-	parts := strings.SplitN(string(content), "---", 3)
-	if len(parts) != 3 || strings.TrimSpace(parts[0]) != "" {
-		return fmt.Errorf("skill %q has invalid YAML frontmatter", expectedName)
-	}
-	var header skillHeader
-	if err := yaml.Unmarshal([]byte(parts[1]), &header); err != nil {
+	header, err := catalog.ParseSkillFrontmatter(content)
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid YAML frontmatter") {
+			return fmt.Errorf("skill %q has invalid YAML frontmatter", expectedName)
+		}
 		return fmt.Errorf("skill %q frontmatter: %w", expectedName, err)
 	}
 	if header.Name != expectedName {

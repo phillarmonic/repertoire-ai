@@ -12,6 +12,23 @@ import (
 	"strings"
 )
 
+// DigestMatches reports whether location exists and whether its content digest
+// is one of the expected lock digests. Missing paths are not an error.
+func DigestMatches(location string, expected map[string]bool) (exists, matches bool, err error) {
+	_, statErr := os.Lstat(location)
+	if os.IsNotExist(statErr) {
+		return false, false, nil
+	}
+	if statErr != nil {
+		return false, false, statErr
+	}
+	digest, digestErr := Digest(location)
+	if digestErr != nil {
+		return true, false, digestErr
+	}
+	return true, expected[digest], nil
+}
+
 func Digest(root string) (string, error) {
 	hash := sha256.New()
 	var paths []string

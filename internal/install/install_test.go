@@ -61,6 +61,31 @@ func TestValidateDigestAndSafeInstall(t *testing.T) {
 	}
 }
 
+func TestDigestMatchesIntactModifiedAndMissing(t *testing.T) {
+	t.Parallel()
+	source := skillFixture(t, "demo")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]bool{digest: true}
+	exists, matches, err := DigestMatches(source, expected)
+	if err != nil || !exists || !matches {
+		t.Fatalf("intact = %v, %v, %v", exists, matches, err)
+	}
+	if writeErr := os.WriteFile(filepath.Join(source, "extra.txt"), []byte("x"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	exists, matches, err = DigestMatches(source, expected)
+	if err != nil || !exists || matches {
+		t.Fatalf("modified = %v, %v, %v", exists, matches, err)
+	}
+	exists, matches, err = DigestMatches(filepath.Join(t.TempDir(), "missing"), expected)
+	if err != nil || exists || matches {
+		t.Fatalf("missing = %v, %v, %v", exists, matches, err)
+	}
+}
+
 func TestQualifiedCatalogSkillInstallsToFlatDirectory(t *testing.T) {
 	t.Parallel()
 	source := skillFixtureWithDirectory(t, "code", "phillarmonkey/code")
@@ -486,6 +511,65 @@ func TestResolverAcceptsQualifiedCatalogSkillKeys(t *testing.T) {
 	}
 	if resolved.Name != "phillarmonkey/code" || resolved.Catalog.Name != "local" {
 		t.Fatalf("resolved = %+v", resolved)
+	}
+}
+
+func TestPlanSkillInstallReplaceAndRefuse(t *testing.T) {
+	t.Parallel()
+	source := skillFixture(t, "demo")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := ResolvedSkill{Name: "demo", Root: source, Digest: digest}
+	targetRoot := filepath.Join(t.TempDir(), "skills")
+	targets := []Target{{Name: "agents", Root: targetRoot}}
+	destination := filepath.Join(targetRoot, "demo")
+
+	plans, err := PlanSkill(resolved, targets, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].Action != SkillCopyInstall || plans[0].Path != destination {
+		t.Fatalf("fresh install plan = %+v", plans)
+	}
+
+	if _, skillErr := Skill(resolved, targets, nil, false); skillErr != nil {
+		t.Fatal(skillErr)
+	}
+	previous := &state.LockSkill{Digest: digest, TargetDigests: map[string]string{"agents": digest}}
+	plans, err = PlanSkill(resolved, targets, previous, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].Action != SkillCopySkip {
+		t.Fatalf("intact plan = %+v", plans)
+	}
+
+	if writeErr := os.WriteFile(filepath.Join(destination, "local.txt"), []byte("changed"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	plans, err = PlanSkill(resolved, targets, previous, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].Action != SkillCopyRefuseModified {
+		t.Fatalf("modified plan = %+v", plans)
+	}
+
+	foreign := filepath.Join(t.TempDir(), "skills")
+	if mkdirErr := os.MkdirAll(filepath.Join(foreign, "demo"), 0o755); mkdirErr != nil {
+		t.Fatal(mkdirErr)
+	}
+	if writeErr := os.WriteFile(filepath.Join(foreign, "demo", "SKILL.md"), []byte("unmanaged\n"), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	plans, err = PlanSkill(resolved, []Target{{Name: "agents", Root: foreign}}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].Action != SkillCopyRefuseUnmanaged {
+		t.Fatalf("unmanaged plan = %+v", plans)
 	}
 }
 

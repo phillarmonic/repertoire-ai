@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -185,7 +186,7 @@ func containsCompletion(completions []string, want string) bool {
 
 func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 	command := NewRootCommand("test", &bytes.Buffer{}, &bytes.Buffer{})
-	for _, name := range []string{"add", "install", "update", "remove"} {
+	for _, name := range []string{"add", "install", "update", "remove", "show", "init"} {
 		child, _, err := command.Find([]string{name})
 		if err != nil {
 			t.Fatalf("find %s: %v", name, err)
@@ -200,6 +201,9 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 		if commandName != "update" {
 			flagNames = append([]string{"catalog"}, flagNames...)
 		}
+		if commandName == "add" {
+			flagNames = append(flagNames, "name", "skill")
+		}
 		for _, flagName := range flagNames {
 			if _, exists := child.GetFlagCompletionFunc(flagName); !exists {
 				t.Fatalf("%s --%s has no flag completion", commandName, flagName)
@@ -210,11 +214,25 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 	if _, exists := list.GetFlagCompletionFunc("format"); !exists {
 		t.Fatal("list --format has no flag completion")
 	}
+	show, _, _ := command.Find([]string{"show"})
+	if _, exists := show.GetFlagCompletionFunc("format"); !exists {
+		t.Fatal("show --format has no flag completion")
+	}
 	catalogAdd, _, _ := command.Find([]string{"catalog", "add"})
+	catalogInit, _, _ := command.Find([]string{"catalog", "init"})
 	catalogUpdate, _, _ := command.Find([]string{"catalog", "update"})
 	catalogRemove, _, _ := command.Find([]string{"catalog", "remove"})
 	if catalogAdd.ValidArgsFunction == nil {
 		t.Fatal("catalog add argument completion is not wired")
+	}
+	if _, exists := catalogAdd.GetFlagCompletionFunc("name"); !exists {
+		t.Fatal("catalog add --name has no flag completion")
+	}
+	if catalogInit.ValidArgsFunction == nil {
+		t.Fatal("catalog init argument completion is not wired")
+	}
+	if _, exists := catalogInit.GetFlagCompletionFunc("skill"); !exists {
+		t.Fatal("catalog init --skill has no flag completion")
 	}
 	if catalogUpdate.ValidArgsFunction == nil || catalogRemove.ValidArgsFunction == nil {
 		t.Fatal("catalog update/remove argument completion is not wired")
@@ -224,6 +242,98 @@ func TestCompletionFunctionsAreWiredToCommandsAndFlags(t *testing.T) {
 	if stubGet.ValidArgsFunction == nil || stubList.ValidArgsFunction == nil {
 		t.Fatal("stub get/list argument completion is not wired")
 	}
+}
+
+func TestCompleteKnowsNewCommandsAndFlags(t *testing.T) {
+	commands := runComplete(t, "")
+	for _, needle := range []string{"show\t", "init\t"} {
+		if !strings.Contains(commands, needle) {
+			t.Fatalf("root completions = %q, missing %q", commands, needle)
+		}
+	}
+	catalog := runComplete(t, "catalog", "")
+	if !strings.Contains(catalog, "init\t") {
+		t.Fatalf("catalog completions = %q, missing init", catalog)
+	}
+	flags := runComplete(t, "-")
+	if !strings.Contains(flags, "--dry-run\t") {
+		t.Fatalf("root flags = %q, missing --dry-run", flags)
+	}
+	addFlags := runComplete(t, "add", "-")
+	for _, needle := range []string{"--name\t", "--skill\t", "--dry-run\t"} {
+		if !strings.Contains(addFlags, needle) {
+			t.Fatalf("add flags = %q, missing %q", addFlags, needle)
+		}
+	}
+	initFlags := runComplete(t, "catalog", "init", "-")
+	if !strings.Contains(initFlags, "--skill\t") {
+		t.Fatalf("catalog init flags = %q, missing --skill", initFlags)
+	}
+	if got := runComplete(t, "catalog", "init", ""); !strings.HasPrefix(got, ":") {
+		t.Fatalf("catalog init positional completions = %q, want directive only", got)
+	}
+}
+
+func TestCompleteShowListsInstalledSkills(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(configDir, "repertoire")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lock := state.NewLock()
+	lock.Skills["reviewer"] = state.LockSkill{
+		Catalog: "company", Targets: []string{"codex"}, Digest: "digest",
+	}
+	if err := state.SaveLock(filepath.Join(root, "repertoire.lock.json"), lock); err != nil {
+		t.Fatal(err)
+	}
+
+	output := runComplete(t, "show", "")
+	if !strings.Contains(output, "reviewer") {
+		t.Fatalf("show completions = %q, want installed skill reviewer", output)
+	}
+	if !strings.Contains(output, "company") {
+		t.Fatalf("show completions = %q, want catalog detail", output)
+	}
+}
+
+func TestAddSourceSkillCompletionsReadCachedCatalogOnly(t *testing.T) {
+	local := writeCompletionCatalog(t, t.TempDir(), "company", map[string]string{
+		"alpha": "skills/alpha",
+		"zulu":  "skills/zulu",
+	})
+	cacheRoot := t.TempDir()
+	got := addSourceSkillCompletions([]string{local}, "", "a", cacheRoot, nil)
+	want := []string{"alpha\t[available] company"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("local completions = %#v, want %#v", got, want)
+	}
+
+	uncached := "https://example.invalid/missing.git"
+	if completions := addSourceSkillCompletions([]string{uncached}, "", "", cacheRoot, nil); len(completions) != 0 {
+		t.Fatalf("uncached completions = %#v", completions)
+	}
+	if entries, err := os.ReadDir(filepath.Join(cacheRoot, "missing")); err == nil || len(entries) != 0 {
+		t.Fatalf("completion cloned an uncached catalog")
+	}
+}
+
+func runComplete(t *testing.T, args ...string) string {
+	t.Helper()
+	var output bytes.Buffer
+	command := NewRootCommand("test", &output, io.Discard)
+	command.SetArgs(append([]string{"__complete"}, args...))
+	if err := command.Execute(); err != nil {
+		t.Fatalf("__complete %s: %v", strings.Join(args, " "), err)
+	}
+	return output.String()
 }
 
 func writeCompletionCatalog(t *testing.T, root, name string, skills map[string]string) string {
