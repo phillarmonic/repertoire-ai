@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [1.10.0] - 2026-09-16
+
+### Added
+
 - Loose catalogs: a Git repository of `SKILL.md` trees can be registered and
   used even when it has no `repertoire.yaml`.
 - One-shot `add` from a catalog source (Git URL, `owner/repo`, or local path)
@@ -24,9 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- README and Zensical docs position Repertoire as a package manager for agent
-  skills (named catalogs, a lock with content digests, a committed manifest)
-  rather than a one-off copier.
+- Updated README and zensical docs
 
 ### Deprecated
 
