@@ -37,6 +37,7 @@ type Materialized struct {
 	Commit   string
 	Source
 	Tracking bool
+	Loose    bool
 }
 
 type Manager struct {
@@ -155,6 +156,24 @@ func IsLocal(source string) bool {
 	return err == nil
 }
 
+// HasCachedClone reports whether the catalog can be read without cloning.
+// Local paths and overrides count as cached; remotes need an existing clone.
+func (m *Manager) HasCachedClone(source Source) bool {
+	source.Registration.Source = NormalizeSource(source.Registration.Source)
+	if path, ok := m.OverrideFor(source); ok {
+		info, err := os.Stat(path)
+		return err == nil && info.IsDir()
+	}
+	if IsLocal(source.Registration.Source) {
+		return true
+	}
+	if source.Name == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(m.CacheRoot, source.Name, ".git"))
+	return err == nil
+}
+
 func (m *Manager) Materialize(source Source, refresh bool) (Materialized, error) {
 	source.Registration.Source = NormalizeSource(source.Registration.Source)
 	if overridden, err := m.applyOverride(&source); err != nil {
@@ -168,12 +187,7 @@ func (m *Manager) Materialize(source Source, refresh bool) (Materialized, error)
 		if err != nil {
 			return Materialized{}, fmt.Errorf("resolve local catalog: %w", err)
 		}
-		manifest, err := loadCatalog(absolute)
-		if err != nil {
-			return Materialized{}, err
-		}
-		commit, _ := gitOutput(absolute, "rev-parse", "HEAD")
-		return Materialized{Source: source, Root: absolute, Commit: commit, Tracking: false, Manifest: manifest}, nil
+		return m.materializeFromRoot(source, absolute, false)
 	}
 
 	root := filepath.Join(m.CacheRoot, source.Name)
@@ -205,11 +219,7 @@ func (m *Manager) Materialize(source Source, refresh bool) (Materialized, error)
 	if runErr := runGit(root, "checkout", "--quiet", "--detach", commit); runErr != nil {
 		return Materialized{}, fmt.Errorf("checkout catalog %q: %w", source.Name, runErr)
 	}
-	manifest, err := loadCatalog(root)
-	if err != nil {
-		return Materialized{}, err
-	}
-	return Materialized{Source: source, Root: root, Commit: commit, Tracking: tracking, Manifest: manifest}, nil
+	return m.materializeAt(source, root, commit, tracking)
 }
 
 // InspectCached reads a local catalog or an existing remote catalog cache
@@ -226,12 +236,7 @@ func (m *Manager) InspectCached(source Source) (Materialized, error) {
 		if err != nil {
 			return Materialized{}, fmt.Errorf("resolve local catalog: %w", err)
 		}
-		manifest, err := loadCatalog(root)
-		if err != nil {
-			return Materialized{}, err
-		}
-		commit, _ := gitOutput(root, "rev-parse", "HEAD")
-		return Materialized{Source: source, Root: root, Commit: commit, Tracking: false, Manifest: manifest}, nil
+		return m.materializeFromRoot(source, root, false)
 	}
 
 	root := filepath.Join(m.CacheRoot, source.Name)
@@ -241,23 +246,56 @@ func (m *Manager) InspectCached(source Source) (Materialized, error) {
 		}
 		return Materialized{}, fmt.Errorf("inspect catalog cache: %w", err)
 	}
-	manifest, err := loadCatalog(root)
+	commit, _ := gitOutput(root, "rev-parse", "HEAD")
+	return m.materializeAt(source, root, commit, true)
+}
+
+func (m *Manager) materializeFromRoot(source Source, root string, tracking bool) (Materialized, error) {
+	commit, _ := gitOutput(root, "rev-parse", "HEAD")
+	return m.materializeAt(source, root, commit, tracking)
+}
+
+func (m *Manager) materializeAt(source Source, root, commit string, tracking bool) (Materialized, error) {
+	manifest, loose, err := loadCatalog(root)
 	if err != nil {
 		return Materialized{}, err
 	}
-	commit, _ := gitOutput(root, "rev-parse", "HEAD")
-	return Materialized{Source: source, Root: root, Commit: commit, Tracking: true, Manifest: manifest}, nil
+	if loose {
+		if err := assignLooseCatalogName(&manifest, source.Name, root); err != nil {
+			return Materialized{}, err
+		}
+	}
+	return Materialized{
+		Source: source, Root: root, Commit: commit, Tracking: tracking,
+		Manifest: manifest, Loose: loose,
+	}, nil
 }
 
-func loadCatalog(root string) (state.Manifest, error) {
-	manifest, err := state.LoadManifest(filepath.Join(root, "repertoire.yaml"))
+func loadCatalog(root string) (state.Manifest, bool, error) {
+	path := filepath.Join(root, "repertoire.yaml")
+	_, statErr := os.Stat(path)
+	if errors.Is(statErr, os.ErrNotExist) {
+		manifest, err := Synthesize(root)
+		if err != nil {
+			return state.Manifest{}, true, err
+		}
+		return manifest, true, nil
+	}
+	if statErr != nil {
+		return state.Manifest{}, false, fmt.Errorf("load catalog at %s: %w", root, statErr)
+	}
+	manifest, err := state.LoadManifest(path)
 	if err != nil {
-		return state.Manifest{}, fmt.Errorf("load catalog at %s: %w", root, err)
+		return state.Manifest{}, false, fmt.Errorf("load catalog at %s: %w", root, err)
 	}
 	if manifest.Catalog == nil {
-		return state.Manifest{}, fmt.Errorf("catalog at %s has no catalog section", root)
+		synthesized, synthErr := Synthesize(root)
+		if synthErr != nil {
+			return state.Manifest{}, true, synthErr
+		}
+		return synthesized, true, nil
 	}
-	return manifest, nil
+	return manifest, false, nil
 }
 
 func resolveRef(root, requested string) (string, bool, error) {

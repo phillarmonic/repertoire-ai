@@ -1,7 +1,7 @@
 [project]
 site_name = "Repertoire"
 site_url = "https://phillarmonic.github.io/repertoire-ai/"
-site_description = "Install one AI agent skill into every coding agent you use, keep it updated, and reproduce the setup for a whole team with one command."
+site_description = "A package manager for agent skills. Named catalogs, a lock with content digests, and a manifest you commit so every laptop and CI job gets the same skills."
 site_author = "Phillarmonic"
 repo_url = "https://github.com/phillarmonic/repertoire-ai"
 repo_name = "phillarmonic/repertoire-ai"

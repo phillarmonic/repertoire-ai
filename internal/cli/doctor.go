@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]string) *cobra.Command {
+func newDoctorCommand(globalScope, projectScope, force, dryRun *bool, overrideFlags *[]string) *cobra.Command {
 	var fix, reset, yes bool
 	var format string
 	command := &cobra.Command{
@@ -24,6 +24,7 @@ func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]s
 		Short: "Diagnose and repair managed installations",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			noteDryRunNoOp(command, *dryRun)
 			if *globalScope && *projectScope {
 				return errors.New("--global and --project are mutually exclusive")
 			}
@@ -50,7 +51,7 @@ func newDoctorCommand(globalScope, projectScope, force *bool, overrideFlags *[]s
 				return err
 			}
 			if fix && hasDoctorCheck(result.Issues, "manifest-drift") {
-				if runErr := runBootstrap(command, false, false, true, false, overrideFlags); runErr != nil {
+				if runErr := runBootstrap(command, false, false, true, false, false, overrideFlags); runErr != nil {
 					return runErr
 				}
 				env, err = doctorEnvironment(overrideFlags)
@@ -197,7 +198,7 @@ func runDoctorReset(command *cobra.Command, yes, force bool, overrideFlags *[]st
 		return err
 	}
 	_ = force // removal above already uses force semantics
-	return runBootstrap(command, false, false, true, false, overrideFlags)
+	return runBootstrap(command, false, false, true, false, false, overrideFlags)
 }
 
 // runDoctorGlobalReset completely resets the local configuration: it removes

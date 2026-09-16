@@ -18,7 +18,7 @@ type resolvedStub struct {
 	AssetPath  string
 }
 
-func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
+func newStubCommand(globalScope, projectScope, dryRun *bool) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "stub",
 		Short: "Discover file stubs from installed skills",
@@ -30,6 +30,7 @@ func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
 		Short: "Show an agent how to use an installed stub",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
+			noteDryRunNoOp(command, *dryRun)
 			_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err
@@ -65,6 +66,7 @@ func newStubCommand(globalScope, projectScope *bool) *cobra.Command {
 		Short: "List stubs exposed by installed skills",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
+			noteDryRunNoOp(command, *dryRun)
 			_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err

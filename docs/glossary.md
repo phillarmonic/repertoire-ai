@@ -1,6 +1,6 @@
 ---
 title: Glossary
-description: Definitions of the terms Repertoire uses: skill, catalog, target, scope, manifest, lock file, managed copy, and source-qualified ID.
+description: Definitions of the terms Repertoire uses: skill, catalog, loose catalog, target, scope, manifest, lock file, managed copy, source-qualified ID, provenance, and dry run.
 ---
 
 # Glossary
@@ -30,6 +30,15 @@ The built-in `phillarmonic` catalog is preconfigured and holds
 You can register public, private, or local catalogs of your own with
 `repertoire catalog add`. See [Catalogs](concepts/catalogs.md) and
 [Private and company catalogs](private-repositories.md).
+
+## Loose catalog
+
+A Git repository (or local folder) of `SKILL.md` directories with no
+`repertoire.yaml` catalog section. Repertoire discovers skills under a bounded
+walk (skills trees, agent skill dirs, and marketplace layouts such as
+`plugins/<plugin>/skills/<skill>`) and synthesizes a catalog in memory so you
+can still register, install, and lock it. A written catalog manifest is what
+unlocks variants, project instructions, hooks, and stubs.
 
 ## Target
 
@@ -74,3 +83,14 @@ A skill name prefixed with its catalog's host and path, such as
 `github.com/phillarmonic/ai-skills/zensical`. It names the catalog and the
 skill together, so it is never ambiguous when two catalogs define the same
 short name.
+
+## Provenance
+
+Where an installed skill came from and whether each managed copy still matches
+the lock: catalog name, source, commit, content digest, targets, and
+intact / modified / missing status. `repertoire show <skill>` prints it.
+
+## Dry run
+
+`--dry-run` on a mutating command prints the writes and refusals that would
+happen, and performs no disk, lock, or manifest changes.

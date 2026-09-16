@@ -13,7 +13,7 @@ import (
 
 const completionDirective = cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
 
-func newCompletionCommand() *cobra.Command {
+func newCompletionCommand(dryRun *bool) *cobra.Command {
 	command := &cobra.Command{
 		Use:                   "completion <shell>",
 		Short:                 "Generate shell completion scripts",
@@ -21,6 +21,7 @@ func newCompletionCommand() *cobra.Command {
 		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 		DisableFlagsInUseLine: true,
 		RunE: func(command *cobra.Command, args []string) error {
+			noteDryRunNoOp(command, *dryRun)
 			root := command.Root()
 			output := command.OutOrStdout()
 			switch args[0] {
@@ -249,6 +250,99 @@ func completeCatalogSources(globalScope, projectScope *bool) cobra.CompletionFun
 		}
 		return completions, completionDirective
 	}
+}
+
+func completeAddSourceSkills(sourceName *string, overrideFlags *[]string) cobra.CompletionFunc {
+	return func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		completions := addSourceSkillCompletions(args, *sourceName, toComplete, "", *overrideFlags)
+		return completions, completionDirective
+	}
+}
+
+func addSourceSkillCompletions(args []string, preferredName, toComplete, cacheRoot string, overrideFlags []string) []string {
+	parsed, ok := installSourceFromArgs(args)
+	if !ok {
+		return nil
+	}
+	manager, err := newCatalogManager(cacheRoot, overrideFlags)
+	if err != nil {
+		return nil
+	}
+	resolved, ok := inspectCachedAddSource(manager, parsed, preferredName)
+	if !ok || resolved.Manifest.Catalog == nil {
+		return nil
+	}
+	names := make([]string, 0, len(resolved.Manifest.Catalog.Skills))
+	for name := range resolved.Manifest.Catalog.Skills {
+		if strings.HasPrefix(name, toComplete) {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	catalogName := resolved.Name
+	if resolved.Manifest.Catalog.Name != "" {
+		catalogName = resolved.Manifest.Catalog.Name
+	}
+	completions := make([]string, 0, len(names))
+	for _, name := range names {
+		completions = append(completions, name+"\t[available] "+catalogName)
+	}
+	return completions
+}
+
+func installSourceFromArgs(args []string) (catalog.InstallSource, bool) {
+	for _, arg := range args {
+		parsed, ok := catalog.ParseInstallSource(arg)
+		if ok {
+			return parsed, true
+		}
+	}
+	return catalog.InstallSource{}, false
+}
+
+func inspectCachedAddSource(manager *catalog.Manager, parsed catalog.InstallSource, preferredName string) (catalog.Materialized, bool) {
+	try := func(name string) (catalog.Materialized, bool) {
+		if name == "" {
+			return catalog.Materialized{}, false
+		}
+		resolved, err := manager.InspectCached(catalog.Source{
+			Name: name,
+			Registration: state.CatalogRegistration{
+				Source: parsed.Source,
+				Ref:    parsed.Ref,
+			},
+		})
+		if err != nil {
+			return catalog.Materialized{}, false
+		}
+		return resolved, true
+	}
+	if resolved, ok := try(preferredName); ok {
+		return resolved, true
+	}
+	if derived, err := catalog.DefaultCatalogName(parsed.Source); err == nil {
+		if resolved, ok := try(derived); ok {
+			return resolved, true
+		}
+	}
+	if catalog.IsLocal(parsed.Source) {
+		if resolved, ok := try("local"); ok {
+			return resolved, true
+		}
+	}
+	cached, err := manager.ListCached()
+	if err != nil {
+		return catalog.Materialized{}, false
+	}
+	for _, source := range cached {
+		if !catalog.SameSource(source.Registration.Source, parsed.Source) {
+			continue
+		}
+		if resolved, ok := try(source.Name); ok {
+			return resolved, true
+		}
+	}
+	return catalog.Materialized{}, false
 }
 
 func completeTargets(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {

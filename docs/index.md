@@ -1,6 +1,6 @@
 ---
 icon: lucide/library
-description: Install one AI agent skill into every coding agent you use, keep it updated, and reproduce the setup for a whole team with one command.
+description: A package manager for agent skills. Named catalogs, a lock with content digests, and a manifest you commit so every laptop and CI job gets the same skills.
 ---
 
 <p align="center">
@@ -11,16 +11,15 @@ description: Install one AI agent skill into every coding agent you use, keep it
 
 **The `apt-get` for AI agent skills.**
 
-## What Repertoire does
+Repertoire is a package manager for agent skills: named catalogs, a lock with
+content digests, and a manifest you commit so every laptop and CI job gets the
+same skills. It never overwrites edits you made by hand and never phones home.
 
 A *skill* is a folder with a `SKILL.md` file that teaches an AI coding agent how
 to do something: review code against your style guide, write docs for your
 static site generator, use an internal tool. Codex, Claude Code, Cursor, Gemini
 CLI, Copilot and many others all read the same format, but each one looks for
 skills in a different directory.
-
-Repertoire installs a skill into every agent you use with one command, keeps
-those copies up to date, and never overwrites edits you made by hand.
 
 ```bash
 repertoire add zensical --target all
@@ -30,6 +29,28 @@ That one line finds `zensical` in a skill catalog, checks that the package is
 well formed, copies it into each agent's own skills folder, and records what
 was installed so a later `repertoire update` can refresh it safely.
 
+## Why a package manager and not a copier
+
+Copying a `SKILL.md` into an agent folder is enough for a one-off try. Repertoire
+treats skills as packages instead:
+
+- A **catalog** is a named Git source. Skills resolve by catalog and by
+  [source-qualified ID](glossary.md), so two catalogs can both offer `review`
+  without a silent pick.
+- A **lock file** records the catalog commit and a content digest per target.
+  `update` and `remove` refuse to touch a copy you edited by hand unless you
+  pass `--force`.
+- A committed **manifest** (`repertoire.yaml`) plus `bootstrap` or `sync`
+  reproduces the same set on a new laptop and in CI.
+
+## Coming from a one-off skill installer
+
+You can keep using another installer to try a skill. Repertoire ignores copies
+it does not manage, so the two can sit in the same agent folders. When a skill
+is worth keeping, register its repository as a catalog (`repertoire catalog
+add` or `repertoire add <git-url>`), then `repertoire add` so the lock tracks
+it. From then on `update`, `bootstrap`, and `doctor` own that copy.
+
 ## Install
 
 Repertoire ships as a single self-contained binary. Choose the method that fits
@@ -37,7 +58,7 @@ your platform.
 
 === "Windows"
 
-    Install for the current user — no administrator rights required.
+    Install for the current user, no administrator rights required.
 
     **Installer (recommended)**
 
@@ -117,6 +138,16 @@ want kept installed. Drop `--target all` to install only into agents Repertoire
 detects on your machine, or name agents explicitly with
 `--target codex --target claude`.
 
+To install from a repository you have not registered yet:
+
+```bash
+repertoire add /path/to/agent-skills --target all
+```
+
+That registers a catalog named after the directory and installs every skill it
+offers. Pass `--name` and `--skill` (or a `/<skill>` tail) to choose the
+catalog name and a subset.
+
 ```bash
 repertoire list
 ```
@@ -135,6 +166,11 @@ it.
 ## Which command do I want?
 
 - Install a skill and remember it: `repertoire add <skill>`
+- Install from a Git URL or local repo: `repertoire add <git-url>`
+- Start a project manifest without installing: `repertoire init`
+- Inspect where an installed skill came from: `repertoire show <skill>`
+- Scaffold a new catalog repository: `repertoire catalog init`
+- Preview a mutating command without writing: add `--dry-run`
 - Reinstall or repair skills already declared: `repertoire install`
 - Pull newer versions: `repertoire update`
 - Install everything a project declares (new machine, CI): `repertoire bootstrap`

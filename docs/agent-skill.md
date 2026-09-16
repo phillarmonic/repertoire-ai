@@ -47,16 +47,21 @@ Everything in these docs, on request. The skill covers:
 
 **Set up a project**
 :   "Add a `repertoire.yaml` to this repository so new contributors get our
-    skills with `repertoire bootstrap`." The agent writes the manifest with
-    source-qualified IDs and `scope: global` by default, then runs
-    `bootstrap` to verify it.
+    skills with `repertoire bootstrap`." The agent prefers `repertoire init`,
+    then edits the starter to source-qualified IDs and `scope: global`, then
+    runs `bootstrap` to verify it. It can preview with `--dry-run` first.
 
 **Create a new skill catalog repository**
 :   "Create a private skill catalog for our team with a `code-reviewer`
-    skill." The agent scaffolds the repository layout, the catalog
-    `repertoire.yaml`, and each `SKILL.md` with valid frontmatter, following
-    the naming rules in [Private and company catalogs](private-repositories.md).
-    This is where the skill saves the most time.
+    skill." The agent prefers `repertoire catalog init`, then fills in each
+    `SKILL.md`, following the naming rules in
+    [Private and company catalogs](private-repositories.md). This is where the
+    skill saves the most time.
+
+**Inspect provenance**
+:   "Where did `zensical` come from, and did anyone edit the Cursor copy?"
+    The agent runs `repertoire show zensical` instead of reading the lock file
+    by hand.
 
 **Test catalog changes before pushing**
 :   "Try my catalog changes locally." The agent uses `--override` or a
@@ -87,7 +92,8 @@ it:
 - does not use `--force` to discard local changes just to make a command
   pass, and confirms before replacing a shared global installation;
 - never puts tokens or passwords in catalog URLs or manifests;
-- reports the scope, catalog, and targets it used when it finishes.
+- reports the scope, catalog, and targets it used when it finishes;
+- prefers `--dry-run` before any `--force`.
 
 ## Example session
 

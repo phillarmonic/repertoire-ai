@@ -738,15 +738,15 @@ func (globalSkillHealth) audit(env *Env) ([]Issue, error) {
 		}
 		var missing, modified int
 		for _, location := range entry.Locations {
-			if _, err := os.Lstat(location); os.IsNotExist(err) {
-				missing++
-				continue
-			}
-			digest, err := installer.Digest(location)
+			exists, matches, err := installer.DigestMatches(location, expected)
 			if err != nil {
 				return nil, err
 			}
-			if !expected[digest] {
+			if !exists {
+				missing++
+				continue
+			}
+			if !matches {
 				modified++
 			}
 		}

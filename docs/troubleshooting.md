@@ -52,13 +52,33 @@ repertoire add code-reviewer --catalog company
 repertoire add github.com/company/agent-skills/code-reviewer
 ```
 
+## `repertoire.yaml already declares skills; use --force to rewrite the skills section`
+
+**What it means.** `repertoire init` found an existing `skills` section and
+will not replace it by default.
+
+**What to do.** Edit the file by hand, or pass `--force` to replace `skills`
+with the built-in starter list. `catalogs` and `requirements` stay in place.
+`init` does not install anything; run `repertoire bootstrap` after you are
+happy with the file.
+
+## `catalog "<name>" is already registered from <source>; pass --name`
+
+**What it means.** One-shot `add` derived a catalog name (from the repo
+basename, or from `--name`) that already points at a different source.
+
+**What to do.** Pass `--name` with an unused catalog name, or `add` the skills
+from the catalog that is already registered.
+
 ## `skill "<name>" was not found`
 
 **What it means.** No configured catalog offers a skill with that name.
 
 **What to do.** Check the spelling against `repertoire list --available`. If
-the skill lives in a catalog you have not registered yet, add it first with
-`repertoire catalog add <source> --name <name>`. If the catalog was recently
+the skill lives in a catalog you have not registered yet, use
+`repertoire add <source>` (a Git URL, `owner/repo`, or local path) to
+register it and install in one step, or `repertoire catalog add <source>
+--name <name>` if you only want the catalog. If the catalog was recently
 updated, run `repertoire catalog update` to refresh the cache.
 
 ## `target is unmanaged or locally modified; use --force`
@@ -83,7 +103,8 @@ to delete it anyway.
 digest, so Repertoire can tell the copy differs from what it installed and will
 not replace your work silently.
 
-**What to do.** Pick one:
+**What to do.** Run `repertoire show <skill>` to see which targets are
+`modified` versus still `intact`. Then pick one:
 
 - Move your edits upstream: put the changed skill in a catalog you control
   (see [Private and company catalogs](private-repositories.md)) and install
@@ -100,8 +121,9 @@ or force that one before the rest will update.
 
 **What it means.** You are looking for the files on disk.
 
-**What to do.** `repertoire list --wide` shows every target for each skill.
-Skills install into home-directory roots by default (for example
+**What to do.** `repertoire show <skill>` prints each target path and whether
+that copy is intact. `repertoire list --wide` shows every target for each
+skill. Skills install into home-directory roots by default (for example
 `~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`); with `--project`
 they install into the equivalent directory inside the Git repository (for
 example `.claude/skills`). The per-target paths are in
@@ -154,3 +176,25 @@ repertoire doctor --reset --yes   # last resort: reinstall everything for this p
 
 **What to do.** Run the command from inside the repository, or drop
 `--project` to install globally.
+
+## `no repertoire.yaml and no SKILL.md directories found under <root>`
+
+**What it means.** You registered a catalog source that has no
+`repertoire.yaml` catalog section, and Repertoire did not find any valid
+`SKILL.md` directories in the bounded search (skills trees, agent skill dirs,
+and marketplace layouts such as `plugins/<plugin>/skills/<skill>`).
+
+**What to do.** Point `catalog add` at a repository that contains skills, or
+add a `catalog:` section to `repertoire.yaml` that names each skill path.
+
+## `duplicate skill name "<name>" at <path> and <path>`
+
+**What it means.** Two discovered `SKILL.md` directories use the same
+frontmatter `name`. Loose catalogs key skills by that name, so the clash is
+fatal. Marketplaces that repeat short names across plugins (for example
+several `access` skills) hit this until a real catalog manifest maps each
+path to a unique key.
+
+**What to do.** Give each skill a unique frontmatter name, or write a
+`repertoire.yaml` catalog section that lists the paths under distinct skill
+keys.

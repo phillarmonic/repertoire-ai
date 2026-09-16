@@ -16,6 +16,7 @@ func TestRootCommandHelpAndVersion(t *testing.T) {
 	}{
 		{name: "help", args: []string{"--help"}, want: productDescription},
 		{name: "version", args: []string{"--version"}, want: "repertoire version test-version"},
+		{name: "dry-run flag", args: []string{"--help"}, want: "--dry-run"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
