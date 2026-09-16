@@ -110,6 +110,59 @@ func (m Manifest) Marshal() ([]byte, error) {
 	return content, nil
 }
 
+func (m Manifest) MarshalYAML() (any, error) {
+	items := yaml.MapSlice{{Key: "schema", Value: m.Schema}}
+	items = appendYAML(items, "tool", m.Tool, true)
+	items = appendYAML(items, "catalog", m.Catalog, true)
+	items = appendYAML(items, "catalogs", m.Catalogs, true)
+	items = appendYAML(items, "skills", m.Skills, true)
+	items = appendYAML(items, "requirements", m.Requirements, true)
+	return items, nil
+}
+
+func (c CatalogDefinition) MarshalYAML() (any, error) {
+	items := yaml.MapSlice{{Key: "name", Value: c.Name}}
+	items = appendYAML(items, "description", c.Description, true)
+	items = append(items, yaml.MapItem{Key: "skills", Value: c.Skills})
+	return items, nil
+}
+
+func (e SkillEntry) MarshalYAML() (any, error) {
+	items := yaml.MapSlice{{Key: "path", Value: e.Path}}
+	items = appendYAML(items, "variants", e.Variants, true)
+	items = appendYAML(items, "instructions", e.Instructions, true)
+	items = appendYAML(items, "artifacts", e.Artifacts, true)
+	return items, nil
+}
+
+func appendYAML(items yaml.MapSlice, key string, value any, omitempty bool) yaml.MapSlice {
+	if omitempty && yamlEmpty(value) {
+		return items
+	}
+	return append(items, yaml.MapItem{Key: key, Value: value})
+}
+
+func yamlEmpty(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		return typed == ""
+	case *CatalogDefinition:
+		return typed == nil
+	case map[string]CatalogRegistration:
+		return len(typed) == 0
+	case map[string]BootstrapSkill:
+		return len(typed) == 0
+	case map[string]Requirement:
+		return len(typed) == 0
+	case map[string]string:
+		return len(typed) == 0
+	case map[string][]ArtifactEntry:
+		return len(typed) == 0
+	default:
+		return value == nil
+	}
+}
+
 func (m Manifest) Validate() error {
 	if m.Schema != SchemaVersion {
 		return fmt.Errorf("unsupported repertoire schema %d", m.Schema)

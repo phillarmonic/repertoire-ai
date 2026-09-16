@@ -154,8 +154,20 @@ func TestLooseCatalogAddInstallUpdateRemoveEndToEnd(t *testing.T) {
 	runCommand(t, project, binary, "--project", "add", "alpha", "--catalog", "official", "--target", "agents")
 	runCommand(t, project, binary, "--project", "add", "example-skill", "--catalog", "official", "--target", "agents")
 	lock := readFileForTest(t, filepath.Join(project, "repertoire.lock.json"))
-	if !strings.Contains(lock, catalogRoot) || !strings.Contains(lock, `"commit"`) {
-		t.Fatalf("lock did not record source and commit:\n%s", lock)
+	var parsed struct {
+		Skills map[string]struct {
+			Source string `json:"source"`
+			Commit string `json:"commit"`
+		} `json:"skills"`
+	}
+	if err := json.Unmarshal([]byte(lock), &parsed); err != nil {
+		t.Fatalf("decode lock: %v\n%s", err, lock)
+	}
+	for _, name := range []string{"alpha", "example-skill"} {
+		entry, ok := parsed.Skills[name]
+		if !ok || entry.Commit == "" || !sameTestPath(entry.Source, catalogRoot) {
+			t.Fatalf("lock did not record source and commit for %s:\n%s", name, lock)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(catalogRoot, "skills", "alpha", "SKILL.md"), []byte("---\nname: alpha\ndescription: Loose skill\n---\nv2\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -318,6 +330,41 @@ func readFileForTest(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(content)
+}
+
+// sameTestPath reports whether a and b name the same filesystem location.
+// Windows GitHub runners often mix 8.3 names (RUNNER~1) with long paths
+// (runneradmin), so string equality is not enough.
+func sameTestPath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	left, err1 := filepath.EvalSymlinks(a)
+	right, err2 := filepath.EvalSymlinks(b)
+	if err1 == nil && err2 == nil && left == right {
+		return true
+	}
+	leftInfo, err1 := os.Stat(a)
+	rightInfo, err2 := os.Stat(b)
+	return err1 == nil && err2 == nil && os.SameFile(leftInfo, rightInfo)
+}
+
+func outputContainsPath(output, path string) bool {
+	candidates := []string{path, filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		candidates = append(candidates, resolved)
+	}
+	for _, candidate := range candidates {
+		if candidate != "" && strings.Contains(output, candidate) {
+			return true
+		}
+	}
+	for field := range strings.FieldsSeq(output) {
+		if sameTestPath(field, path) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestUpdateRefreshesCatalogsAndAvailableDiscovery(t *testing.T) {
@@ -565,13 +612,13 @@ func TestShowReportsModifiedTargetEndToEnd(t *testing.T) {
 	output := runCommand(t, project, binary, "--project", "show", "demo", "--format", "table")
 	agentsPath := filepath.Join(project, ".agents", "skills", "demo")
 	codexPath := filepath.Join(project, ".codex", "skills", "demo")
-	if !strings.Contains(output, "local") || !strings.Contains(output, catalogRoot) {
+	if !strings.Contains(output, "local") || !outputContainsPath(output, catalogRoot) {
 		t.Fatalf("show table missing catalog provenance:\n%s", output)
 	}
-	if !strings.Contains(output, agentsPath) || !strings.Contains(output, "intact") {
+	if !outputContainsPath(output, agentsPath) || !strings.Contains(output, "intact") {
 		t.Fatalf("show table missing intact agents copy:\n%s", output)
 	}
-	if !strings.Contains(output, codexPath) || !strings.Contains(output, "modified") {
+	if !outputContainsPath(output, codexPath) || !strings.Contains(output, "modified") {
 		t.Fatalf("show table missing modified codex copy:\n%s", output)
 	}
 

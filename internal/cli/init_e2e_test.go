@@ -30,6 +30,12 @@ func TestInitWritesStarterManifestEndToEnd(t *testing.T) {
 			!strings.Contains(content, "scope: global") {
 			t.Fatalf("created manifest:\n%s", content)
 		}
+		schema := strings.Index(content, "schema:")
+		tool := strings.Index(content, "tool:")
+		skills := strings.Index(content, "skills:")
+		if schema < 0 || tool < 0 || skills < 0 || schema > tool || tool > skills {
+			t.Fatalf("expected schema, then tool, then skills:\n%s", content)
+		}
 		if _, err := os.Stat(filepath.Join(home, ".codex", "skills", "demo")); !os.IsNotExist(err) {
 			t.Fatalf("init installed a skill: %v", err)
 		}
