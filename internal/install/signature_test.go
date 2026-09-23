@@ -34,10 +34,10 @@ func TestVerifyDigestSignature(t *testing.T) {
 	if _, err := exec.LookPath("gpg"); err != nil {
 		t.Skip("gpg is not installed")
 	}
-	userHome := t.TempDir()
+	userHome := gpgHome(t)
 	t.Setenv("GNUPGHOME", userHome)
 	fingerprint := generateSigningKey(t, userHome)
-	otherHome := t.TempDir()
+	otherHome := gpgHome(t)
 	otherFingerprint := generateSigningKey(t, otherHome)
 
 	skill := skillFixture(t, "demo")
@@ -101,7 +101,7 @@ func TestVerifyDigestSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	keeper := t.TempDir()
+	keeper := gpgHome(t)
 	keeperPrint := generateSigningKey(t, keeper)
 	signDetached(t, keeper, signedDigest, filepath.Join(signed, DigestSignatureFile))
 	keeperSource := trustedSkillSource(manifestDir, "keys/keeper.asc", keeperPrint)
@@ -179,6 +179,21 @@ func looseSkillDir(t *testing.T, signedSkill string) string {
 		}
 	}
 	return root
+}
+
+func gpgHome(t *testing.T) string {
+	t.Helper()
+	// t.TempDir() includes the test name. On macOS that makes the gpg-agent
+	// socket path longer than the 104-byte Unix socket limit.
+	home, err := os.MkdirTemp("/tmp", "rgpg-")
+	if err != nil {
+		home, err = os.MkdirTemp("", "rgpg-")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	return home
 }
 
 func generateSigningKey(t *testing.T, home string) string {

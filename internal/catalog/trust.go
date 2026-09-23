@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"unicode"
@@ -100,7 +101,7 @@ func trustedKeyring(source Source, kind, subject string) (string, error) {
 		return "", trustErrorf(source, kind, subject, "trust block has no keys")
 	}
 
-	home, err := os.MkdirTemp("", "repertoire-gnupg-*")
+	home, err := newIsolatedKeyHome()
 	if err != nil {
 		return "", trustErrorf(source, kind, subject, "create keyring: %s", err.Error())
 	}
@@ -127,6 +128,18 @@ func trustedKeyring(source Source, kind, subject string) (string, error) {
 		}
 	}
 	return home, nil
+}
+
+// newIsolatedKeyHome creates a keyring directory whose path stays short
+// enough for the gpg-agent socket. macOS rejects Unix socket names longer
+// than 104 bytes, and the default temp directory under /var/folders is
+// already most of that budget.
+func newIsolatedKeyHome() (string, error) {
+	parent := os.TempDir()
+	if runtime.GOOS != "windows" {
+		parent = "/tmp"
+	}
+	return os.MkdirTemp(parent, "rgpg-")
 }
 
 func trustKeyPath(source Source, key state.CatalogTrustKey) (string, error) {

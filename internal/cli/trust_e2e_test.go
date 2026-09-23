@@ -207,7 +207,7 @@ func newTrustCatalogWithInstruction(t *testing.T) trustCatalog {
 
 func makeTrustCatalog(t *testing.T, signCommit, signDigest, instruction bool) trustCatalog {
 	t.Helper()
-	keyHome := t.TempDir()
+	keyHome := gpgHome(t)
 	fingerprint := generateTrustKey(t, keyHome)
 	repo := t.TempDir()
 	runCommand(t, repo, "git", "init", "-q", "-b", "main")
@@ -286,6 +286,21 @@ func commitUnsignedTrustChange(t *testing.T, repo string) {
 	}
 	runCommand(t, repo, "git", "add", "README.md")
 	runCommand(t, repo, "git", "commit", "-qm", "unsigned")
+}
+
+func gpgHome(t *testing.T) string {
+	t.Helper()
+	// t.TempDir() includes the test name. On macOS that makes the gpg-agent
+	// socket path longer than the 104-byte Unix socket limit.
+	home, err := os.MkdirTemp("/tmp", "rgpg-")
+	if err != nil {
+		home, err = os.MkdirTemp("", "rgpg-")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	return home
 }
 
 func generateTrustKey(t *testing.T, home string) string {

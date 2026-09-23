@@ -65,7 +65,7 @@ func TestMaterializeAcceptsCommitSignedByDeclaredKey(t *testing.T) {
 	if _, err := exec.LookPath("gpg"); err != nil {
 		t.Skip("gpg is not installed")
 	}
-	userHome := t.TempDir()
+	userHome := gpgHome(t)
 	t.Setenv("GNUPGHOME", userHome)
 	fingerprint := generateSigningKey(t, userHome)
 	repository := initCatalogRepo(t, true, userHome)
@@ -105,10 +105,10 @@ func TestMaterializeRejectsUntrustedOrMissingSignatures(t *testing.T) {
 	if _, err := exec.LookPath("gpg"); err != nil {
 		t.Skip("gpg is not installed")
 	}
-	userHome := t.TempDir()
+	userHome := gpgHome(t)
 	t.Setenv("GNUPGHOME", userHome)
 	trustedFingerprint := generateSigningKey(t, userHome)
-	otherHome := t.TempDir()
+	otherHome := gpgHome(t)
 	otherFingerprint := generateSigningKey(t, otherHome)
 
 	unsigned := initCatalogRepo(t, false, "")
@@ -196,6 +196,21 @@ func initCatalogRepo(t *testing.T, sign bool, keyHome string) string {
 		t.Fatalf("sign commit: %v: %s", err, output)
 	}
 	return repository
+}
+
+func gpgHome(t *testing.T) string {
+	t.Helper()
+	// t.TempDir() includes the test name. On macOS that makes the gpg-agent
+	// socket path longer than the 104-byte Unix socket limit.
+	home, err := os.MkdirTemp("/tmp", "rgpg-")
+	if err != nil {
+		home, err = os.MkdirTemp("", "rgpg-")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	return home
 }
 
 func generateSigningKey(t *testing.T, home string) string {
