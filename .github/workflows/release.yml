@@ -65,6 +65,10 @@ jobs:
         shell: bash
         run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      - name: Install GnuPG
+        shell: bash
+        run: bash ./scripts/ci-install-gpg.sh
+
       - name: Run CI
         run: xdrun ci
 
