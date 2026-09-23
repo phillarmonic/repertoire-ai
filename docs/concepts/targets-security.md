@@ -49,6 +49,49 @@ repertoire update --target all
 
 The expanded concrete target names (not `all`) are saved in the manifest and lock, keeping installation state explicit.
 
+## Catalog commit signatures
+
+A catalog registration can name the public keys allowed to sign that catalog.
+The key files sit next to the manifest that registers the catalog, and each
+fingerprint has to match its armored file. Repertoire checks the commit in a
+temporary keyring created for that check. Your GnuPG home is left untouched,
+and no keyserver is contacted.
+
+The check runs for remote catalogs, local paths, and `--override` or
+`REPERTOIRE_OVERRIDES` checkouts. A registration with no trust block is
+unchanged and does not invoke GnuPG. A failed check stops materialize and
+names the catalog, the skill, and the commit, and says the commit signature
+failed. `add`, `install`, `update`, and `bootstrap` share that step, so they
+stop before writing the lock.
+
+## Skill digest signatures
+
+A trusted catalog skill also carries `REPERTOIRE.digest.asc` beside `SKILL.md`.
+That file is a detached ASCII signature over the skill's content digest: the
+exact hex text Repertoire hashes from paths, modes, symlink targets, and file
+bytes. The signature file itself is left out of the hash.
+
+Verification imports only the public keys named in the catalog's trust block
+into a temporary keyring, after each file's fingerprint matches the
+registration. Your GnuPG home is left untouched, and no keyserver is contacted.
+Either declared key may sign. The same file works for a skill in a loose
+catalog. A local path or an override does not skip the check when the
+registration lists trusted keys.
+
+Verification fails when `gpg` is missing, the signature file is missing or not
+a regular file, the skill bytes change, the fingerprint does not match, or the
+signature was made by a key outside the trust block. The error names the
+catalog, the skill, and the commit, and says the digest signature failed.
+`add`, `install`, `update`, and `bootstrap` check it before they write the
+lock. A catalog with no trust block is not checked.
+
+When both checks pass, the lock records the fingerprint that signed the
+catalog commit (`commit_fingerprint`) and the fingerprint that signed the
+skill digest (`digest_fingerprint`). Those fields sit on the skill entry and
+on a project-artifact entry for that skill. A catalog with no trust block
+omits them. Older lock files that omit them still load, and the lock schema
+stays at 1.
+
 ## Privacy
 
 Repertoire does not collect usage telemetry and does not phone home. Catalog

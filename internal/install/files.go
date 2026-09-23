@@ -29,6 +29,11 @@ func DigestMatches(location string, expected map[string]bool) (exists, matches b
 	return true, expected[digest], nil
 }
 
+// DigestSignatureFile is a detached signature over Digest. It lives in the
+// skill directory and is left out of the hash so the signature can be checked
+// against the digest of the skill it sits beside.
+const DigestSignatureFile = "REPERTOIRE.digest.asc"
+
 func Digest(root string) (string, error) {
 	hash := sha256.New()
 	var paths []string
@@ -36,9 +41,20 @@ func Digest(root string) (string, error) {
 		if err != nil {
 			return err
 		}
-		if path != root {
-			paths = append(paths, path)
+		if path == root {
+			return nil
 		}
+		relative, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return relErr
+		}
+		if filepath.ToSlash(relative) == DigestSignatureFile {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		paths = append(paths, path)
 		return nil
 	})
 	if err != nil {

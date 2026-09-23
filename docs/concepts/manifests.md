@@ -40,6 +40,54 @@ publishing generic catalog skill names such as `code`, `docs`, or `review`;
 when agents show several personal or vendor skills together, those labels are
 easy to confuse.
 
+## Trusted catalog keys
+
+A catalog registration can list the public keys allowed to speak for that
+catalog. Registrations with no `trust` block load and install as they do
+today. When `trust` is present, each entry under `trust.keys` names an armored
+public key file and the fingerprint that file must match:
+
+```yaml
+catalogs:
+  company:
+    source: git@github.com:example/company-skills.git
+    ref: main
+    trust:
+      keys:
+        - path: keys/company.asc
+          fingerprint: ABCDEF0123456789ABCDEF0123456789ABCDEF01
+```
+
+`path` is relative to the directory that contains the manifest, and it must
+stay inside that directory. `fingerprint` is the key the armored file must
+match. An empty path, an empty fingerprint, or a path that leaves the manifest
+directory is rejected. The manifest schema stays at `1`.
+
+When `trust` is present, materializing the catalog checks the checked-out
+commit with `git verify-commit`. Repertoire imports only those public keys
+into a temporary keyring, confirms each file's fingerprint before import, and
+deletes the keyring when the check finishes. It does not read or write your
+personal GnuPG keyring, and it does not contact a keyserver. A registration
+with no `trust` block skips the check. A local path or an override still runs
+it: the commit that was actually checked out has to verify. If `gpg` is
+missing, the commit is unsigned, the fingerprint does not match, or the
+signature is not from one of the declared keys, materialize fails and the
+error names the catalog, the skill, and the commit. `add`, `install`,
+`update`, and `bootstrap` then leave the lock unchanged.
+
+The same keys sign each skill. A trusted catalog skill carries
+`REPERTOIRE.digest.asc` in the skill directory: a detached ASCII signature
+over that skill's content digest. The digest is the same hex hash recorded in
+the lock (paths, modes, symlink targets, and file bytes). The signature file
+is not part of the hash, so adding it does not change the digest. Either
+declared key may sign. Verification uses the same temporary keyring and the
+same fingerprint check as the commit. A changed skill, a missing
+`REPERTOIRE.digest.asc`, or a signature from any other key fails, and the
+error names the catalog, the skill, and the commit. `add`, `install`,
+`update`, and `bootstrap` leave the lock unchanged. A loose catalog skill uses the
+same file in its skill directory. A registration with no `trust` block does
+not require it.
+
 ## Project and global scope
 
 Commands default to user-global scope: state lives in the operating system's

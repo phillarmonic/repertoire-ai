@@ -28,13 +28,19 @@ var commitPattern = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
 type Source struct {
 	Name         string
 	Registration state.CatalogRegistration
-	Builtin      bool
+	// TrustRoot is the manifest directory that declared Registration.Trust.
+	// Relative trust key paths resolve from here.
+	TrustRoot string
+	Builtin   bool
 }
 
 type Materialized struct {
 	Manifest state.Manifest
 	Root     string
 	Commit   string
+	// CommitFingerprint is the declared key that signed Commit. It is empty
+	// when the catalog registration has no trust block.
+	CommitFingerprint string
 	Source
 	Tracking bool
 	Loose    bool
@@ -63,12 +69,14 @@ func Sources(manifest state.Manifest) []Source {
 	sources := make([]Source, 0, len(manifest.Catalogs)+1)
 	if _, overridden := manifest.Catalogs[BuiltinName]; !overridden {
 		sources = append(sources, Source{
-			Name: BuiltinName, Builtin: true,
+			Name: BuiltinName, Builtin: true, TrustRoot: manifest.Directory,
 			Registration: state.CatalogRegistration{Source: BuiltinSource},
 		})
 	}
 	for name, registration := range manifest.Catalogs {
-		sources = append(sources, Source{Name: name, Registration: registration})
+		sources = append(sources, Source{
+			Name: name, Registration: registration, TrustRoot: manifest.Directory,
+		})
 	}
 	return sources
 }
@@ -256,6 +264,10 @@ func (m *Manager) materializeFromRoot(source Source, root string, tracking bool)
 }
 
 func (m *Manager) materializeAt(source Source, root, commit string, tracking bool) (Materialized, error) {
+	commitFingerprint, err := verifyTrustedCommit(source, root, commit)
+	if err != nil {
+		return Materialized{}, err
+	}
 	manifest, loose, err := loadCatalog(root)
 	if err != nil {
 		return Materialized{}, err
@@ -266,8 +278,8 @@ func (m *Manager) materializeAt(source Source, root, commit string, tracking boo
 		}
 	}
 	return Materialized{
-		Source: source, Root: root, Commit: commit, Tracking: tracking,
-		Manifest: manifest, Loose: loose,
+		Source: source, Root: root, Commit: commit, CommitFingerprint: commitFingerprint,
+		Tracking: tracking, Manifest: manifest, Loose: loose,
 	}, nil
 }
 

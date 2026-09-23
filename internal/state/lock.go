@@ -20,30 +20,34 @@ type Lock struct {
 }
 
 type LockSkill struct {
-	TargetDigests map[string]string `json:"target_digests,omitempty"`
-	Origin        string            `json:"origin,omitempty"`
-	Source        string            `json:"source"`
-	Ref           string            `json:"ref,omitempty"`
-	Commit        string            `json:"commit"`
-	Digest        string            `json:"digest"`
-	Catalog       string            `json:"catalog"`
-	Targets       []string          `json:"targets"`
-	Artifacts     []LockArtifact    `json:"artifacts,omitempty"`
-	Locations     []string          `json:"locations"`
-	Instructions  bool              `json:"instructions,omitempty"`
-	Hooks         bool              `json:"hooks,omitempty"`
-	Declared      bool              `json:"declared"`
+	TargetDigests     map[string]string `json:"target_digests,omitempty"`
+	Origin            string            `json:"origin,omitempty"`
+	Source            string            `json:"source"`
+	Ref               string            `json:"ref,omitempty"`
+	Commit            string            `json:"commit"`
+	Digest            string            `json:"digest"`
+	Catalog           string            `json:"catalog"`
+	CommitFingerprint string            `json:"commit_fingerprint,omitempty"`
+	DigestFingerprint string            `json:"digest_fingerprint,omitempty"`
+	Targets           []string          `json:"targets"`
+	Artifacts         []LockArtifact    `json:"artifacts,omitempty"`
+	Locations         []string          `json:"locations"`
+	Instructions      bool              `json:"instructions,omitempty"`
+	Hooks             bool              `json:"hooks,omitempty"`
+	Declared          bool              `json:"declared"`
 }
 
 type LockProjectArtifacts struct {
-	Catalog      string         `json:"catalog"`
-	Source       string         `json:"source"`
-	Ref          string         `json:"ref,omitempty"`
-	Commit       string         `json:"commit"`
-	Targets      []string       `json:"targets"`
-	Artifacts    []LockArtifact `json:"artifacts,omitempty"`
-	Instructions bool           `json:"instructions,omitempty"`
-	Hooks        bool           `json:"hooks,omitempty"`
+	Catalog           string         `json:"catalog"`
+	Source            string         `json:"source"`
+	Ref               string         `json:"ref,omitempty"`
+	Commit            string         `json:"commit"`
+	CommitFingerprint string         `json:"commit_fingerprint,omitempty"`
+	DigestFingerprint string         `json:"digest_fingerprint,omitempty"`
+	Targets           []string       `json:"targets"`
+	Artifacts         []LockArtifact `json:"artifacts,omitempty"`
+	Instructions      bool           `json:"instructions,omitempty"`
+	Hooks             bool           `json:"hooks,omitempty"`
 }
 
 type LockArtifact struct {
