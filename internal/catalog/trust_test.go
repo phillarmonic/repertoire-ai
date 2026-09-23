@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -277,6 +278,17 @@ func hideGPG(t *testing.T) {
 	gitPath, err := exec.LookPath("git")
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Windows looks up git.exe. A symlink named "git" is invisible to Go, so
+	// rev-parse fails and the trust check reports an empty commit instead of
+	// the missing gpg. Git's cmd directory does not contain gpg.exe.
+	if runtime.GOOS == "windows" {
+		systemRoot := os.Getenv("SystemRoot")
+		if systemRoot == "" {
+			systemRoot = `C:\Windows`
+		}
+		t.Setenv("PATH", filepath.Dir(gitPath)+";"+filepath.Join(systemRoot, "System32"))
+		return
 	}
 	bin := t.TempDir()
 	if err := os.Symlink(gitPath, filepath.Join(bin, "git")); err != nil {

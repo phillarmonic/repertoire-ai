@@ -2,6 +2,13 @@
 # Install GnuPG and put gpg on PATH for later GitHub Actions steps.
 set -euo pipefail
 
+# gpg_is_msys reports whether this gpg is the MSYS build. That build treats
+# a Windows path such as C:\Users\... as a relative path. The MinGW gpg shipped
+# in Git\mingw64\bin accepts the paths Go passes.
+gpg_is_msys() {
+	ldd "$1" 2>/dev/null | grep -q 'msys-'
+}
+
 # stage_windows_gpg publishes gpg without putting the rest of its bin
 # directory on PATH. Git's usr/bin also contains find, sort, and other Unix
 # tools that would shadow the Windows copies. gpg starts gpg-agent from the
@@ -52,22 +59,25 @@ macOS)
 	brew install gnupg
 	;;
 Windows)
-	# Git for Windows already ships GnuPG. Chocolatey's gnupg package installs
-	# the full Gpg4win suite and spends many minutes in its installer.
+	# Prefer a native Windows gpg. Git Bash's `gpg` is the MSYS build from
+	# usr\bin, and Chocolatey's gnupg package installs the full Gpg4win suite.
 	found=""
-	if resolved="$(command -v gpg 2>/dev/null)"; then
-		found="$resolved"
-	fi
-	if [[ -z "$found" ]]; then
-		for candidate in \
-			"/c/Program Files/Git/usr/bin/gpg.exe" \
-			"/c/Program Files/GnuPG/bin/gpg.exe" \
-			"/c/Program Files (x86)/GnuPG/bin/gpg.exe"; do
-			if [[ -f "$candidate" ]]; then
-				found="$candidate"
-				break
-			fi
-		done
+	for candidate in \
+		"/c/Program Files/Git/mingw64/bin/gpg.exe" \
+		"/c/Program Files/GnuPG/bin/gpg.exe" \
+		"/c/Program Files (x86)/GnuPG/bin/gpg.exe"; do
+		if [[ -f "$candidate" ]] && ! gpg_is_msys "$candidate"; then
+			found="$candidate"
+			break
+		fi
+	done
+	if [[ -z "$found" ]] && resolved="$(command -v gpg 2>/dev/null)"; then
+		if [[ -f "${resolved}.exe" ]]; then
+			resolved="${resolved}.exe"
+		fi
+		if [[ -f "$resolved" ]] && ! gpg_is_msys "$resolved"; then
+			found="$resolved"
+		fi
 	fi
 	if [[ -n "$found" ]]; then
 		stage_windows_gpg "$found"
@@ -77,9 +87,11 @@ Windows)
 	echo "GnuPG was not preinstalled; installing with Chocolatey" >&2
 	choco install gnupg --yes --no-progress
 	while IFS= read -r candidate; do
-		found="$candidate"
-		break
-	done < <(find "/c/Program Files" "/c/Program Files (x86)" -maxdepth 3 -type f -name gpg.exe 2>/dev/null || true)
+		if ! gpg_is_msys "$candidate"; then
+			found="$candidate"
+			break
+		fi
+	done < <(find "/c/Program Files" "/c/Program Files (x86)" -maxdepth 4 -type f -name gpg.exe 2>/dev/null || true)
 	if [[ -z "$found" ]]; then
 		echo "gpg.exe was not found after installing GnuPG" >&2
 		exit 1
