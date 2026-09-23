@@ -22,14 +22,18 @@ stage_windows_gpg() {
 		fi
 	done
 	if command -v ldd >/dev/null 2>&1; then
-		for tool in "$dest"/*.exe; do
+		for tool in gpg.exe gpg-agent.exe gpgconf.exe gpg-connect-agent.exe; do
+			[[ -f "$src/$tool" ]] || continue
+			# Inspect the original binary. ldd on the copy resolves private
+			# DLLs back into the staging directory and then cp refuses to
+			# overwrite a file with itself.
 			while IFS= read -r dll; do
 				[[ -n "$dll" && -f "$dll" ]] || continue
 				case "$dll" in
-				/c/Windows/* | /c/WINDOWS/*) continue ;;
+				"$dest"/* | /c/Windows/* | /c/WINDOWS/*) continue ;;
 				esac
 				cp -f "$dll" "$dest/"
-			done < <(ldd "$tool" | sed -n 's/.*=>[[:space:]]*//p' | awk '{print $1}')
+			done < <(ldd "$src/$tool" | sed -n 's/.*=>[[:space:]]*//p' | awk '{print $1}')
 		done
 	else
 		cp -f "$src/"*.dll "$dest/"
