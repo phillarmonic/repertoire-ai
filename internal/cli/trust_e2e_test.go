@@ -171,7 +171,7 @@ func TestTrustedInstallRecordsFingerprints(t *testing.T) {
 		}
 		entry := lock.Skills["demo"]
 		assertTrustFingerprints(t, entry.CommitFingerprint, entry.DigestFingerprint, fixture.fingerprint)
-		projectEntry, ok := lock.Projects[project]["demo"]
+		projectEntry, ok := lock.Projects[findLockedProject(t, lock, project)]["demo"]
 		if !ok {
 			t.Fatalf("project artifact entry missing:\n%#v", lock.Projects)
 		}
