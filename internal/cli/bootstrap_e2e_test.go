@@ -420,7 +420,7 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 	t.Helper()
 	project := t.TempDir()
 	runCommand(t, project, "git", "init", "-q")
-	home := t.TempDir()
+	home := testHomeDir(t)
 	environment := make([]string, 0, len(os.Environ())+7)
 	for _, value := range os.Environ() {
 		if strings.HasPrefix(value, "HOME=") || strings.HasPrefix(value, "XDG_CONFIG_HOME=") ||
@@ -440,6 +440,23 @@ func bootstrapEnvironment(t *testing.T) (string, string, []string) {
 		"USERPROFILE="+home,
 	)
 	return project, home, environment
+}
+
+func testHomeDir(t *testing.T) string {
+	t.Helper()
+	parent := ""
+	if runtime.GOOS == "windows" {
+		// GnuPG creates the agent socket under %USERPROFILE%\AppData\Local\gnupg.
+		// Windows rejects that name past 108 bytes, and t.TempDir() includes
+		// the full test name.
+		parent = `C:\Windows\Temp`
+	}
+	home, err := os.MkdirTemp(parent, "rh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(home) })
+	return home
 }
 
 func seedBuiltinCatalogCache(t *testing.T, home string, skills map[string]string) {
