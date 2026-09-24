@@ -48,6 +48,20 @@ Windows)
 		echo "scoop installed an MSYS gpg: $bin/gpg.exe" >&2
 		exit 1
 	fi
+	# Scoop writes an empty gpgconf.ctl, which selects GnuPG's portable mode.
+	# Portable GnuPG ignores GNUPGHOME, so git commit -S cannot see the key
+	# created in the test's temporary home. Only --homedir still works, and
+	# Git does not pass that option.
+	rm -f "$bin/gpgconf.ctl"
+	probe="$(mktemp -d)"
+	probe_win="$(cygpath -w "$probe")"
+	reported="$(GNUPGHOME="$probe_win" "$bin/gpg.exe" --version | sed -n 's/^Home: //p' | tr '\\' '/' | tr -d '\r')"
+	want="$(printf '%s' "$probe_win" | tr '\\' '/')"
+	if [[ "$reported" != "$want" ]]; then
+		echo "gpg ignored GNUPGHOME: home is ${reported:-unset}, want $want" >&2
+		exit 1
+	fi
+	rm -rf "$probe"
 
 	# Git Bash prepends usr\bin and mingw64\bin after GITHUB_PATH is applied.
 	# Move those MSYS binaries aside so later bash steps resolve gpg to Scoop.
