@@ -254,9 +254,9 @@ func makeTrustCatalog(t *testing.T, signCommit, signDigest, instruction bool) tr
 func writeTrustManifest(t *testing.T, project string, fixture trustCatalog, source string, withTrust, bootstrap bool) {
 	t.Helper()
 	var body strings.Builder
-	body.WriteString("schema: 1\ncatalogs:\n  company:\n    source: \"")
-	body.WriteString(source)
-	body.WriteString("\"\n")
+	body.WriteString("schema: 1\ncatalogs:\n  company:\n    source: '")
+	body.WriteString(strings.ReplaceAll(source, "'", "''"))
+	body.WriteString("'\n")
 	if withTrust {
 		exportTrustKey(t, fixture.keyHome, filepath.Join(project, "keys", "company.asc"))
 		body.WriteString("    trust:\n      keys:\n        - path: keys/company.asc\n          fingerprint: ")

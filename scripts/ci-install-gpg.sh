@@ -57,7 +57,11 @@ Windows)
 		fi
 	done
 
-	cygpath -w "$(cygpath -u "$USERPROFILE")/scoop/shims" >>"$GITHUB_PATH"
+	# Scoop's gpg shim forces GNUPGHOME to the package's home directory, which
+	# hides the temporary keyring these tests create. Publish the real binary
+	# only, and point Git at that same file.
+	gpg_exe="$(cygpath -w "$bin/gpg.exe")"
+	git config --system gpg.program "$gpg_exe"
 	cygpath -w "$bin" >>"$GITHUB_PATH"
 	export PATH="$bin:$PATH"
 	;;
