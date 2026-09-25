@@ -6,6 +6,8 @@
 
 **The `apt-get` for AI agent skills.**
 
+Docs at: [phillarmonic.github.io/repertoire-ai](https://phillarmonic.github.io/repertoire-ai/)
+
 Repertoire is a package manager for agent skills: named catalogs, a lock with
 content digests, and a manifest you commit so every laptop and CI job gets the
 same skills. It never overwrites edits you made by hand and never phones home.
