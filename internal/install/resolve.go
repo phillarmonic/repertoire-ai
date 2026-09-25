@@ -89,7 +89,7 @@ func resolveWith(
 			// One unreachable catalog must not brick resolving skills the
 			// remaining catalogs provide; the error is reported only when no
 			// catalog yields a match.
-			materializeErrs = append(materializeErrs, err)
+			materializeErrs = append(materializeErrs, annotateCommitTrust(name, err))
 			continue
 		}
 		for _, candidate := range skillCandidates(name, namespace, skillName, source) {
@@ -183,6 +183,14 @@ func resolveWith(
 		)
 	}
 	return matches[0], nil
+}
+
+func annotateCommitTrust(skill string, err error) error {
+	failure, ok := errors.AsType[*catalog.TrustFailure](err)
+	if !ok || failure.Kind != "commit" {
+		return err
+	}
+	return fmt.Errorf("catalog %q skill %q commit %s: commit signature failed: %s", failure.Catalog, skill, failure.Subject, failure.Detail)
 }
 
 func skillCandidates(requested, namespace, skillName string, source catalog.Source) []string {

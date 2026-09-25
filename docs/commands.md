@@ -33,6 +33,14 @@ the [glossary](glossary.md).
 :   Resolve a catalog from a local checkout instead of its registered remote.
     Repeatable, or set `REPERTOIRE_OVERRIDES="name=path,other=path"`. Flags win
     over the environment variable, and `catalog list` marks overridden sources.
+    A trust block on that catalog still applies: the local checkout's commit
+    has to verify against the declared keys, and each skill's
+    `REPERTOIRE.digest.asc` has to verify over that skill's content digest.
+    `add`, `install`, `update`, and `bootstrap` leave the lock unchanged when
+    either check fails, including when `gpg` is missing. A successful trusted
+    install records `commit_fingerprint` and `digest_fingerprint` on the lock
+    skill entry and on a project-artifact entry. A catalog with no trust block
+    omits those fields and is not checked.
     See [Local overrides for testing](concepts/catalogs.md#local-overrides-for-testing).
 
 ## `add`: install a skill and remember it

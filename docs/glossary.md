@@ -1,6 +1,6 @@
 ---
 title: Glossary
-description: Definitions of the terms Repertoire uses: skill, catalog, loose catalog, target, scope, manifest, lock file, managed copy, source-qualified ID, provenance, and dry run.
+description: Definitions of the terms Repertoire uses: skill, catalog, catalog trust, loose catalog, target, scope, manifest, lock file, managed copy, source-qualified ID, provenance, and dry run.
 ---
 
 # Glossary
@@ -30,6 +30,26 @@ The built-in `phillarmonic` catalog is preconfigured and holds
 You can register public, private, or local catalogs of your own with
 `repertoire catalog add`. See [Catalogs](concepts/catalogs.md) and
 [Private and company catalogs](private-repositories.md).
+
+## Catalog trust
+
+The optional `trust` block on a catalog registration. It lists armored public
+keys, next to the manifest, and the fingerprints those files must match. When
+the block is present, Repertoire accepts the catalog only if the checked-out
+commit has a valid signature from one of those keys, checked in a temporary
+keyring, and records that key's fingerprint in the lock. A registration
+without the block skips the check and omits the fingerprint. See
+[Trusted catalog keys](concepts/manifests.md#trusted-catalog-keys).
+
+## Skill digest signature
+
+`REPERTOIRE.digest.asc`, a detached signature over a skill's content digest.
+Trusted catalogs require this file in the skill directory. The digest is the
+hex hash of the skill's paths, modes, symlink targets, and file bytes, and the
+signature file is not part of that hash. Either key in the catalog trust
+block may sign it. A trusted install records that key's fingerprint in the
+lock. Loose catalog skills use the same file. See
+[Skill digest signatures](concepts/targets-security.md#skill-digest-signatures).
 
 ## Loose catalog
 
@@ -68,8 +88,9 @@ See [Manifests and state](concepts/manifests.md).
 
 `repertoire.lock.json`, written by Repertoire next to the manifest. It records
 exactly what was installed: catalog commit, content digest, and target paths.
-The lock file is how Repertoire notices when you have edited an installed
-copy. Never edit it by hand.
+When the catalog has a trust block, it also records the fingerprints that
+signed that commit and the skill digest. The lock file is how Repertoire
+notices when you have edited an installed copy. Never edit it by hand.
 
 ## Managed
 

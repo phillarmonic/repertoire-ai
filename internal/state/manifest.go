@@ -23,8 +23,11 @@ type Manifest struct {
 	Catalogs     map[string]CatalogRegistration `yaml:"catalogs,omitempty"`
 	Skills       map[string]BootstrapSkill      `yaml:"skills,omitempty"`
 	Requirements map[string]Requirement         `yaml:"requirements,omitempty"`
-	Tool         string                         `yaml:"tool,omitempty"`
-	Schema       int                            `yaml:"schema"`
+	// Directory is the folder that contains this manifest. Trust key paths
+	// are resolved from here. It is runtime state and is not written back.
+	Directory string `yaml:"-"`
+	Tool      string `yaml:"tool,omitempty"`
+	Schema    int    `yaml:"schema"`
 }
 
 type CatalogDefinition struct {
@@ -55,8 +58,22 @@ type ArtifactEntry struct {
 }
 
 type CatalogRegistration struct {
-	Source string `yaml:"source"`
-	Ref    string `yaml:"ref,omitempty"`
+	Trust  *CatalogTrust `yaml:"trust,omitempty"`
+	Source string        `yaml:"source"`
+	Ref    string        `yaml:"ref,omitempty"`
+}
+
+// CatalogTrust names the public keys allowed to speak for one catalog.
+// It is omitted when a registration does not certify its catalog.
+type CatalogTrust struct {
+	Keys []CatalogTrustKey `yaml:"keys"`
+}
+
+// CatalogTrustKey is one armored public key file and the fingerprint it must match.
+// Path is relative to the manifest directory.
+type CatalogTrustKey struct {
+	Path        string `yaml:"path"`
+	Fingerprint string `yaml:"fingerprint"`
 }
 
 type Requirement struct {
@@ -79,7 +96,9 @@ func LoadManifest(path string) (Manifest, error) {
 	// #nosec G304 -- path is the resolved manifest path
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return NewManifest(), nil
+		manifest := NewManifest()
+		manifest.Directory = filepath.Dir(path)
+		return manifest, nil
 	}
 	if err != nil {
 		return Manifest{}, fmt.Errorf("read manifest: %w", err)
@@ -93,6 +112,7 @@ func LoadManifest(path string) (Manifest, error) {
 	if err := manifest.Validate(); err != nil {
 		return Manifest{}, err
 	}
+	manifest.Directory = filepath.Dir(path)
 	return manifest, nil
 }
 
@@ -117,6 +137,13 @@ func (m Manifest) MarshalYAML() (any, error) {
 	items = appendYAML(items, "catalogs", m.Catalogs, true)
 	items = appendYAML(items, "skills", m.Skills, true)
 	items = appendYAML(items, "requirements", m.Requirements, true)
+	return items, nil
+}
+
+func (c CatalogRegistration) MarshalYAML() (any, error) {
+	items := yaml.MapSlice{{Key: "source", Value: c.Source}}
+	items = appendYAML(items, "ref", c.Ref, true)
+	items = appendYAML(items, "trust", c.Trust, true)
 	return items, nil
 }
 
@@ -147,6 +174,8 @@ func yamlEmpty(value any) bool {
 	case string:
 		return typed == ""
 	case *CatalogDefinition:
+		return typed == nil
+	case *CatalogTrust:
 		return typed == nil
 	case map[string]CatalogRegistration:
 		return len(typed) == 0

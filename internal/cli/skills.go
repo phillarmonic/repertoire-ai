@@ -443,6 +443,10 @@ func installManaged(
 		}
 		return false, err
 	}
+	digestFingerprint, digestErr := installer.VerifyTrustedDigest(resolved)
+	if digestErr != nil {
+		return false, digestErr
+	}
 	targets, err := installer.ResolveTargets(scope, requestedTargets, "")
 	if err != nil {
 		return false, err
@@ -506,6 +510,8 @@ func installManaged(
 		Targets: targetNames, Locations: locations, Artifacts: artifacts,
 		Instructions: instructionsEnabled, Hooks: hooksEnabled,
 		Declared: origin == state.LockOriginDeclared, Origin: origin,
+		CommitFingerprint: resolved.Catalog.CommitFingerprint,
+		DigestFingerprint: digestFingerprint,
 	}
 	if origin == state.LockOriginDeclared && requirementsManifest != nil {
 		requirementsManifest.Requirements[name] = state.Requirement{

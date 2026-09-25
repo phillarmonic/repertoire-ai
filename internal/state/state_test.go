@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,6 +113,132 @@ skills:
 	if manifest.Skills["demo"].Scope != BootstrapScopeGlobal {
 		t.Fatalf("default skill scope = %q", manifest.Skills["demo"].Scope)
 	}
+}
+
+func TestCatalogTrustRoundTrip(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	content := []byte(`schema: 1
+catalogs:
+  company:
+    source: git@example.test:org/skills.git
+    ref: main
+    trust:
+      keys:
+        - path: keys/company.asc
+          fingerprint: ABCDEF0123456789ABCDEF0123456789ABCDEF01
+`)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.Schema != SchemaVersion {
+		t.Fatalf("schema = %d", loaded.Schema)
+	}
+	registration := loaded.Catalogs["company"]
+	if registration.Trust == nil || len(registration.Trust.Keys) != 1 {
+		t.Fatalf("trust keys = %#v", registration.Trust)
+	}
+	key := registration.Trust.Keys[0]
+	if key.Path != "keys/company.asc" || key.Fingerprint != "ABCDEF0123456789ABCDEF0123456789ABCDEF01" {
+		t.Fatalf("trust key = %#v", key)
+	}
+	encoded, err := loaded.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	again, err := loadManifestBytes(t, encoded)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	second, err := again.Marshal()
+	if err != nil {
+		t.Fatalf("marshal reloaded: %v", err)
+	}
+	if string(encoded) != string(second) {
+		t.Fatalf("trust block is not stable:\n%s\n%s", encoded, second)
+	}
+	if !strings.Contains(string(encoded), "fingerprint: ABCDEF0123456789ABCDEF0123456789ABCDEF01\n") {
+		t.Fatalf("fingerprint missing:\n%s", encoded)
+	}
+}
+
+func TestCatalogRegistrationWithoutTrustStaysUnchanged(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	content := []byte(`schema: 1
+catalogs:
+  company:
+    source: git@example.test:org/skills.git
+    ref: main
+`)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	registration := loaded.Catalogs["company"]
+	if registration.Source != "git@example.test:org/skills.git" || registration.Ref != "main" || registration.Trust != nil {
+		t.Fatalf("registration = %#v", registration)
+	}
+	encoded, err := loaded.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(encoded), "trust:") {
+		t.Fatalf("trust block leaked into registration without trust:\n%s", encoded)
+	}
+}
+
+func TestCatalogTrustRejectsInvalidKeys(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "empty path",
+			body: "schema: 1\ncatalogs:\n  company:\n    source: git@example.test:org/skills.git\n    trust:\n      keys:\n        - path: \"\"\n          fingerprint: ABCDEF\n",
+			want: "empty path",
+		},
+		{
+			name: "empty fingerprint",
+			body: "schema: 1\ncatalogs:\n  company:\n    source: git@example.test:org/skills.git\n    trust:\n      keys:\n        - path: keys/company.asc\n          fingerprint: \"\"\n",
+			want: "empty fingerprint",
+		},
+		{
+			name: "escaping path",
+			body: "schema: 1\ncatalogs:\n  company:\n    source: git@example.test:org/skills.git\n    trust:\n      keys:\n        - path: ../keys/company.asc\n          fingerprint: ABCDEF\n",
+			want: "escapes the manifest directory",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "repertoire.yaml")
+			if err := os.WriteFile(path, []byte(test.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := LoadManifest(path); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func loadManifestBytes(t *testing.T, content []byte) (Manifest, error) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "repertoire.yaml")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return LoadManifest(path)
 }
 
 func TestLoadManifestRejectsInvalidSkillDeclarations(t *testing.T) {
@@ -295,6 +422,9 @@ func TestLockOriginsRemainBackwardCompatible(t *testing.T) {
 	if lock.Skills["loose"].EffectiveOrigin() != LockOriginAdHoc {
 		t.Fatalf("legacy loose origin = %q", lock.Skills["loose"].EffectiveOrigin())
 	}
+	if lock.Skills["declared"].CommitFingerprint != "" || lock.Skills["declared"].DigestFingerprint != "" {
+		t.Fatal("legacy lock invented fingerprint fields")
+	}
 	lock.Skills["bootstrapped"] = LockSkill{Origin: LockOriginBootstrap}
 	content, err := lock.Marshal()
 	if err != nil {
@@ -302,6 +432,35 @@ func TestLockOriginsRemainBackwardCompatible(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `"origin": "bootstrap"`) {
 		t.Fatalf("bootstrap origin missing from lock:\n%s", content)
+	}
+	if strings.Contains(string(content), "fingerprint") {
+		t.Fatalf("empty fingerprints were written:\n%s", content)
+	}
+	lock.Skills["declared"] = LockSkill{
+		CommitFingerprint: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+		DigestFingerprint: "0123456789ABCDEF0123456789ABCDEF01234567",
+	}
+	lock.Projects["/work"] = map[string]LockProjectArtifacts{
+		"declared": {
+			CommitFingerprint: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+			DigestFingerprint: "0123456789ABCDEF0123456789ABCDEF01234567",
+		},
+	}
+	content, err = lock.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded := NewLock()
+	if err := json.Unmarshal(content, &reloaded); err != nil {
+		t.Fatal(err)
+	}
+	skill := reloaded.Skills["declared"]
+	project := reloaded.Projects["/work"]["declared"]
+	if skill.CommitFingerprint != lock.Skills["declared"].CommitFingerprint || skill.DigestFingerprint != lock.Skills["declared"].DigestFingerprint {
+		t.Fatalf("skill fingerprints = %s %s", skill.CommitFingerprint, skill.DigestFingerprint)
+	}
+	if project.CommitFingerprint != skill.CommitFingerprint || project.DigestFingerprint != skill.DigestFingerprint {
+		t.Fatalf("project fingerprints = %s %s", project.CommitFingerprint, project.DigestFingerprint)
 	}
 }
 

@@ -198,15 +198,18 @@ func installBootstrapProjectArtifacts(
 		}
 		return state.SaveLock(globalLockPath, *globalLock)
 	}
+	skill := globalLock.Skills[name]
 	projectArtifacts[name] = state.LockProjectArtifacts{
-		Catalog:      resolved.Catalog.Name,
-		Source:       catalog.RedactSource(resolved.Catalog.Registration.Source),
-		Ref:          resolved.Catalog.Registration.Ref,
-		Commit:       resolved.Catalog.Commit,
-		Targets:      targetNames,
-		Artifacts:    artifacts,
-		Instructions: hasProjectInstructions(resolved, targets),
-		Hooks:        includeOptional && hasManagedArtifacts(resolved, targets),
+		Catalog:           resolved.Catalog.Name,
+		Source:            catalog.RedactSource(resolved.Catalog.Registration.Source),
+		Ref:               resolved.Catalog.Registration.Ref,
+		Commit:            resolved.Catalog.Commit,
+		Targets:           targetNames,
+		Artifacts:         artifacts,
+		Instructions:      hasProjectInstructions(resolved, targets),
+		Hooks:             includeOptional && hasManagedArtifacts(resolved, targets),
+		CommitFingerprint: skill.CommitFingerprint,
+		DigestFingerprint: skill.DigestFingerprint,
 	}
 	globalLock.Projects[projectScope.Root] = projectArtifacts
 	return state.SaveLock(globalLockPath, *globalLock)

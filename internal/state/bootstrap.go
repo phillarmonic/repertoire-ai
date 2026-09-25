@@ -121,6 +121,28 @@ func validateCatalogRegistration(name string, registration CatalogRegistration) 
 	if err == nil && parsed.User != nil {
 		return fmt.Errorf("catalog registration %q must not contain embedded credentials", name)
 	}
+	return validateCatalogTrust(name, registration.Trust)
+}
+
+func validateCatalogTrust(name string, trust *CatalogTrust) error {
+	if trust == nil {
+		return nil
+	}
+	if len(trust.Keys) == 0 {
+		return fmt.Errorf("catalog registration %q trust block has no keys", name)
+	}
+	for index, key := range trust.Keys {
+		label := fmt.Sprintf("catalog registration %q trust key %d", name, index+1)
+		if strings.TrimSpace(key.Path) == "" {
+			return fmt.Errorf("%s has an empty path", label)
+		}
+		if strings.TrimSpace(key.Fingerprint) == "" {
+			return fmt.Errorf("%s has an empty fingerprint", label)
+		}
+		if err := ValidateRelativePath(key.Path); err != nil {
+			return fmt.Errorf("%s path escapes the manifest directory", label)
+		}
+	}
 	return nil
 }
 
