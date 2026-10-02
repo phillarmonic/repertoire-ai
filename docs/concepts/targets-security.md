@@ -6,6 +6,12 @@ existing client configuration or skill directories, and in global scope also wel
 target creates its skills directory when needed. The special `--target all` value expands to every target in the table,
 including clients that are not currently detected.
 
+A skill whose frontmatter declares `disable-model-invocation: true` is meant to be invoked explicitly rather than
+loaded by the model. OpenCode keeps those apart from skills, in a `command` directory it offers in the same palette as
+its built-in commands, so a slash-only skill is installed there as well as in its skill root. The skill directory is
+kept because skills carry companions — references, scripts, licences — that a single command file has nowhere to put.
+Every other target installs skills only, and a target that gains a command layout must be verified before it is added.
+
 | Target                | Project root                                   | Global root                                          |
 |-----------------------|------------------------------------------------|------------------------------------------------------|
 | `agents`              | `.agents/skills`                               | `~/.agents/skills`                                   |

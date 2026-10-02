@@ -708,3 +708,78 @@ func TestDoctorScanToleratesUnresolvableDeclarations(t *testing.T) {
 		t.Fatalf("report = %+v", report.Issues)
 	}
 }
+
+// A deleted command entry point is reported and repaired like the skill copy
+// beside it. The file-aware digest matters here: the directory walker reports
+// the empty-input digest for a file, so a present command would be called
+// modified and a check using it would never converge.
+func TestDoctorGlobalCommandHealth(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	skillRoot := t.TempDir()
+	content := "---\nname: demo\ndescription: Test\nargument-hint: [target]\ndisable-model-invocation: true\n---\n\nBody\n"
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := installer.Digest(skillRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := installer.ResolvedSkill{Name: "demo", Root: skillRoot, Digest: digest}
+	env := doctorEnvironment(t, resolved)
+	targets, err := installer.ResolveTargets(env.GlobalScope, []string{"opencode"}, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locations, digests, err := installer.SkillWithDigests(resolved, targets, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands, err := installer.InstallCommands(resolved, targets, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected one command, got %v", commands)
+	}
+	env.GlobalLock.Skills["demo"] = state.LockSkill{
+		Catalog: "test", Targets: []string{"opencode"}, Locations: locations,
+		TargetDigests: digests, Digest: digest, Commands: commands,
+	}
+	if saveErr := env.saveGlobalLock(); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	healthy, err := Run(env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(healthy.Issues) != 0 {
+		t.Fatalf("a current command was reported as an issue: %+v", healthy.Issues)
+	}
+
+	if removeErr := os.Remove(commands[0].Destination); removeErr != nil {
+		t.Fatal(removeErr)
+	}
+	report, err := Run(env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Issues) != 1 || report.Issues[0].Detail != "installed location is missing" {
+		t.Fatalf("a deleted command was not reported: %+v", report.Issues)
+	}
+
+	fixed, err := Run(env, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fixed.Issues) != 0 {
+		t.Fatalf("residual = %+v", fixed.Issues)
+	}
+	if _, err := os.Stat(commands[0].Destination); err != nil {
+		t.Fatalf("command was not restored: %v", err)
+	}
+}

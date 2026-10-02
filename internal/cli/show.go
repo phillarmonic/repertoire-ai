@@ -40,6 +40,12 @@ type skillShowTarget struct {
 	Name   string `json:"name"`
 	Path   string `json:"path"`
 	Status string `json:"status"`
+	// Command is the user-invoked entry point installed beside the skill for a
+	// target that lists commands separately. Empty for every other skill and
+	// target, so the usual output is unchanged.
+	Command string `json:"command,omitempty"`
+	// CommandStatus reports the state of that entry point.
+	CommandStatus string `json:"command_status,omitempty"`
 }
 
 func newShowCommand(globalScope, projectScope, dryRun *bool, overrideFlags *[]string, format *string) *cobra.Command {
@@ -108,9 +114,19 @@ func buildSkillShowView(
 		if err != nil {
 			return skillShowView{}, err
 		}
-		view.Targets = append(view.Targets, skillShowTarget{
-			Name: target.Name, Path: path, Status: status,
-		})
+		entryTarget := skillShowTarget{Name: target.Name, Path: path, Status: status}
+		for _, command := range entry.Commands {
+			if command.Target != target.Name {
+				continue
+			}
+			entryTarget.Command = command.Destination
+			commandStatus, statusErr := showFileCopyStatus(command.Destination, command.Digest)
+			if statusErr != nil {
+				return skillShowView{}, statusErr
+			}
+			entryTarget.CommandStatus = commandStatus
+		}
+		view.Targets = append(view.Targets, entryTarget)
 	}
 	return view, nil
 }
@@ -156,6 +172,25 @@ func showCopyStatus(path, expectedDigest string) (string, error) {
 	}
 }
 
+// showFileCopyStatus is showCopyStatus for a destination that is a single file.
+// The directory comparison hashes with a walker that reports the empty-input
+// digest for a file, so a command that is exactly what was written would
+// otherwise always read as modified.
+func showFileCopyStatus(path, expectedDigest string) (string, error) {
+	exists, matches, err := installer.DigestFileMatches(path, expectedDigest)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case !exists:
+		return showCopyMissing, nil
+	case matches:
+		return showCopyIntact, nil
+	default:
+		return showCopyModified, nil
+	}
+}
+
 func writeSkillShow(output io.Writer, view skillShowView, format skillListFormat) error {
 	switch format {
 	case skillListFormatTable:
@@ -188,11 +223,27 @@ func writeSkillShowTable(output io.Writer, view skillShowView) error {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintln(table, "TARGET\tPATH\tSTATUS"); err != nil {
+	// The command column appears only for a skill that has one, so the table is
+	// byte-identical to before for every other skill.
+	withCommands := false
+	for _, target := range view.Targets {
+		if target.Command != "" {
+			withCommands = true
+		}
+	}
+	header := "TARGET\tPATH\tSTATUS"
+	if withCommands {
+		header += "\tCOMMAND\tCOMMAND STATUS"
+	}
+	if _, err := fmt.Fprintln(table, header); err != nil {
 		return err
 	}
 	for _, target := range view.Targets {
-		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\n", target.Name, target.Path, target.Status); err != nil {
+		line := fmt.Sprintf("%s\t%s\t%s", target.Name, target.Path, target.Status)
+		if withCommands {
+			line += fmt.Sprintf("\t%s\t%s", target.Command, target.CommandStatus)
+		}
+		if _, err := fmt.Fprintln(table, line); err != nil {
 			return err
 		}
 	}
@@ -220,6 +271,11 @@ func writeSkillShowTSV(output io.Writer, view skillShowView) error {
 	for _, target := range view.Targets {
 		if _, err := fmt.Fprintf(output, "target\t%s\t%s\t%s\n", target.Name, target.Path, target.Status); err != nil {
 			return err
+		}
+		if target.Command != "" {
+			if _, err := fmt.Fprintf(output, "command\t%s\t%s\t%s\n", target.Name, target.Command, target.CommandStatus); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

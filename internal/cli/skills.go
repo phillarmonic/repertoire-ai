@@ -322,7 +322,11 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 				if planErr != nil {
 					return planErr
 				}
-				if err := writeRemoveCopyPlans(command.OutOrStdout(), plans); err != nil {
+				commandPlans, commandErr := installer.PlanRemoveCommands(args[0], entry, *force)
+				if commandErr != nil {
+					return commandErr
+				}
+				if err := writeRemoveCopyPlans(command.OutOrStdout(), append(plans, commandPlans...)); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(command.OutOrStdout(), "would remove lock entry %s\n", args[0])
@@ -338,6 +342,9 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 				if err := removeGlobalProjectArtifacts(&lock, args[0], *force); err != nil {
 					return err
 				}
+			}
+			if err := installer.RemoveCommands(args[0], entry.Commands, *force); err != nil {
+				return err
 			}
 			if err := installer.Remove(args[0], targets, entry, *force); err != nil {
 				return err
@@ -410,6 +417,15 @@ func installNamed(
 	return installManaged(command, scope, *manifest, manifest, lock, name, catalogName, requestedTargets, origin, force, refresh, false, hooks, dryRun, overrideFlags)
 }
 
+// previousCommands returns the command records of a previous install, so a
+// reinstall recognises the files it wrote and refuses to replace an edited one.
+func previousCommands(previous *state.LockSkill) []state.LockCommand {
+	if previous == nil {
+		return nil
+	}
+	return previous.Commands
+}
+
 func installManaged(
 	command *cobra.Command,
 	scope state.Scope,
@@ -469,7 +485,11 @@ func installManaged(
 		if planErr != nil {
 			return false, planErr
 		}
-		if writeErr := writeSkillCopyPlans(command.OutOrStdout(), plans); writeErr != nil {
+		commandPlans, commandErr := installer.PlanCommands(resolved, targets, previous, force)
+		if commandErr != nil {
+			return false, commandErr
+		}
+		if writeErr := writeSkillCopyPlans(command.OutOrStdout(), append(plans, commandPlans...)); writeErr != nil {
 			return false, writeErr
 		}
 		if origin == state.LockOriginDeclared && requirementsManifest != nil {
@@ -499,6 +519,14 @@ func installManaged(
 			return false, err
 		}
 	}
+	// A slash-only skill is also installed as a command for a target that lists
+	// user-invoked entries separately. Unlike the artifacts above this applies at
+	// both scopes, so it is recorded on its own lock field rather than alongside
+	// them.
+	commands, err := installer.InstallCommands(resolved, targets, previousCommands(previous), force)
+	if err != nil {
+		return false, err
+	}
 	targetNames := make([]string, 0, len(targets))
 	for _, target := range targets {
 		targetNames = append(targetNames, target.Name)
@@ -507,7 +535,7 @@ func installManaged(
 	lock.Skills[name] = state.LockSkill{
 		Catalog: resolved.Catalog.Name, Source: source, Ref: resolved.Catalog.Registration.Ref,
 		Commit: resolved.Catalog.Commit, Digest: resolved.Digest, TargetDigests: targetDigests,
-		Targets: targetNames, Locations: locations, Artifacts: artifacts,
+		Targets: targetNames, Locations: locations, Artifacts: artifacts, Commands: commands,
 		Instructions: instructionsEnabled, Hooks: hooksEnabled,
 		Declared: origin == state.LockOriginDeclared, Origin: origin,
 		CommitFingerprint: resolved.Catalog.CommitFingerprint,

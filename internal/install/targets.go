@@ -18,6 +18,12 @@ var commandLookPath = exec.LookPath
 type Target struct {
 	Name string
 	Root string
+	// Commands is the directory the client reads user-invoked entries from, for
+	// a client that lists them separately from skills. It is empty for every
+	// target whose client has no such layout, which is most of them: a command
+	// file written for a client that does not read the directory would simply be
+	// dead weight on disk. Verify a client's layout before setting it here.
+	Commands string
 }
 
 var supportedTargetNames = []string{
@@ -51,7 +57,7 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, Target{Name: name, Root: root})
+			result = append(result, newTarget(scope, home, name, root))
 		}
 		return deduplicateTargets(result), nil
 	}
@@ -68,12 +74,33 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 		if !targetPresent(scope, home, name, root) {
 			continue
 		}
-		result = append(result, Target{Name: name, Root: root})
+		result = append(result, newTarget(scope, home, name, root))
 	}
 	if len(result) == 0 {
 		return nil, errors.New("no supported agent clients detected; use --target")
 	}
 	return deduplicateTargets(result), nil
+}
+
+// newTarget builds one resolved target. Both the explicit and the detected path
+// go through here so a target's layout cannot depend on how it was selected.
+func newTarget(scope state.Scope, home, name, root string) Target {
+	return Target{Name: name, Root: root, Commands: targetCommandRoot(scope, home, name)}
+}
+
+// targetCommandRoot returns the directory a client lists user-invoked entries
+// from. OpenCode is the only client that keeps them apart from skills: it reads
+// {command,commands}/**/*.md beside its configuration, where a skill is offered
+// to the model and a command to the user. Every other target returns "", which
+// means the caller installs skills only.
+func targetCommandRoot(scope state.Scope, home, name string) string {
+	if name != "opencode" {
+		return ""
+	}
+	if scope.Global {
+		return filepath.Join(configHome(home), "opencode", "command")
+	}
+	return filepath.Join(scope.Root, ".opencode", "command")
 }
 
 func targetPresent(scope state.Scope, home, name, root string) bool {

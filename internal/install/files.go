@@ -29,6 +29,37 @@ func DigestMatches(location string, expected map[string]bool) (exists, matches b
 	return true, expected[digest], nil
 }
 
+// DigestFileMatches reports whether a single managed file exists and whether its
+// content is the digest recorded for it. DigestMatches cannot serve here: it
+// hashes with Digest, which walks the entries below a root, and a walk over a
+// regular file skips the file itself and hashes nothing.
+//
+// Missing paths are not an error.
+func DigestFileMatches(path, expected string) (exists, matches bool, err error) {
+	_, statErr := os.Lstat(path)
+	if os.IsNotExist(statErr) {
+		return false, false, nil
+	}
+	if statErr != nil {
+		return false, false, statErr
+	}
+	digest, digestErr := DigestFile(path)
+	if digestErr != nil {
+		return true, false, digestErr
+	}
+	return true, digest == expected, nil
+}
+
+// digestFileContent returns the content digest of a file held in memory,
+// matching DigestFile for the same bytes written to disk. It hashes exactly what
+// it is given: digestBytes, the markdown-artifact digest, trims surrounding
+// whitespace first, which is the right comparison for a marked section and the
+// wrong one for a file whose whole content is managed.
+func digestFileContent(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
 // DigestSignatureFile is a detached signature over Digest. It lives in the
 // skill directory and is left out of the hash so the signature can be checked
 // against the digest of the skill it sits beside.

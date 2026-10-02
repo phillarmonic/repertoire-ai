@@ -639,3 +639,237 @@ func TestUnverifiedConfigTargetsKeepTheirFixedPath(t *testing.T) {
 		}
 	}
 }
+
+// slashSkillFixture writes a slash-only skill, the shape a host exposes as a
+// command rather than as a skill the model may load.
+func slashSkillFixture(t *testing.T, name, argumentHint, bodyNote string) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), name)
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: " + name + "\ndescription: Do the " + name + " thing\n"
+	if argumentHint != "" {
+		content += "argument-hint: " + argumentHint + "\n"
+	}
+	content += "disable-model-invocation: true\n---\n\n# " + name + "\n\n" + bodyNote + "\n"
+	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("companion\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func opencodeTarget(home string) Target {
+	return Target{Name: "opencode", Root: filepath.Join(home, "opencode", "skills"), Commands: filepath.Join(home, "opencode", "command")}
+}
+
+func TestSlashOnlySkillAlsoInstallsACommand(t *testing.T) {
+	t.Parallel()
+	source := slashSkillFixture(t, "slash-demo", "[target]", "The text after the name is a target.")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := opencodeTarget(t.TempDir())
+	resolved := ResolvedSkill{Name: "slash-demo", Root: source, Digest: digest}
+
+	commands, err := InstallCommands(resolved, []Target{target}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected one command record, got %v", commands)
+	}
+	commandPath := filepath.Join(target.Commands, "slash-demo.md")
+	if commands[0].Destination != commandPath || commands[0].Target != "opencode" {
+		t.Fatalf("unexpected record: %+v", commands[0])
+	}
+
+	content, err := os.ReadFile(commandPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "description: Do the slash-demo thing") {
+		t.Errorf("command header is missing the description:\n%s", text)
+	}
+	if !strings.Contains(text, "The text after the name is a target.") {
+		t.Errorf("command body did not carry the skill body:\n%s", text)
+	}
+	// The argument survives only because the template names it.
+	if !strings.Contains(text, "$ARGUMENTS") {
+		t.Errorf("command does not pass $ARGUMENTS through:\n%s", text)
+	}
+	for _, claudeOnly := range []string{"disable-model-invocation", "argument-hint", "name:"} {
+		if strings.Contains(text, claudeOnly) {
+			t.Errorf("command carries the Claude-only %q field:\n%s", claudeOnly, text)
+		}
+	}
+}
+
+// The skill directory is still installed, so companions stay reachable.
+func TestSlashOnlySkillKeepsItsDirectory(t *testing.T) {
+	t.Parallel()
+	source := slashSkillFixture(t, "slash-demo", "", "body")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := opencodeTarget(t.TempDir())
+	resolved := ResolvedSkill{Name: "slash-demo", Root: source, Digest: digest}
+
+	if _, err := Skill(resolved, []Target{target}, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallCommands(resolved, []Target{target}, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(target.Root, "slash-demo", "SKILL.md")); err != nil {
+		t.Errorf("skill directory was not installed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target.Root, "slash-demo", "notes.md")); err != nil {
+		t.Errorf("companion file did not survive: %v", err)
+	}
+}
+
+// A skill becomes a command from its frontmatter alone. Mentioning the key in
+// the body is not the same as declaring it, and reading the raw text would
+// mistake such a skill for one the model must not load.
+func TestMentioningTheFlagInTheBodyIsNotSlashOnly(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "mentions")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nname: mentions\ndescription: Mentions the flag\n---\n\nSiblings are explicit invocations (disable-model-invocation).\n"
+	if err := os.WriteFile(filepath.Join(root, "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := Digest(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := opencodeTarget(t.TempDir())
+	resolved := ResolvedSkill{Name: "mentions", Root: root, Digest: digest}
+
+	commands, err := InstallCommands(resolved, []Target{target}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("a skill mentioning the flag in its body was installed as a command: %v", commands)
+	}
+	if _, err := os.Stat(filepath.Join(target.Commands, "mentions.md")); !os.IsNotExist(err) {
+		t.Errorf("command file was written for a skill that did not declare the flag")
+	}
+}
+
+// Only a skill that declares an argument hint gets the arguments section.
+func TestCommandArgumentsSectionFollowsTheHint(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		hint string
+		want bool
+	}{
+		{"[target]", true},
+		{"", false},
+	} {
+		source := slashSkillFixture(t, "hinted", testCase.hint, "body")
+		digest, err := Digest(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := opencodeTarget(t.TempDir())
+		resolved := ResolvedSkill{Name: "hinted", Root: source, Digest: digest}
+		if _, err := InstallCommands(resolved, []Target{target}, nil, false); err != nil {
+			t.Fatal(err)
+		}
+		content, err := os.ReadFile(filepath.Join(target.Commands, "hinted.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(content), "$ARGUMENTS"); got != testCase.want {
+			t.Errorf("hint %q: $ARGUMENTS present = %v, want %v", testCase.hint, got, testCase.want)
+		}
+	}
+}
+
+// A target with no command directory is unaffected: most clients have none.
+func TestInstallCommandsSkipsTargetsWithoutACommandDirectory(t *testing.T) {
+	t.Parallel()
+	source := slashSkillFixture(t, "slash-demo", "", "body")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := ResolvedSkill{Name: "slash-demo", Root: source, Digest: digest}
+
+	commands, err := InstallCommands(resolved, []Target{{Name: "codex", Root: t.TempDir()}}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("expected no commands for a target without a command directory, got %v", commands)
+	}
+}
+
+func TestRemoveCommandsDeletesTheFileAndRefusesAnEdit(t *testing.T) {
+	t.Parallel()
+	source := slashSkillFixture(t, "slash-demo", "", "body")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := opencodeTarget(t.TempDir())
+	resolved := ResolvedSkill{Name: "slash-demo", Root: source, Digest: digest}
+	commands, err := InstallCommands(resolved, []Target{target}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commandPath := commands[0].Destination
+
+	// An edited command is refused rather than silently deleted.
+	if err := os.WriteFile(commandPath, []byte("edited\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveCommands("slash-demo", commands, false); err == nil {
+		t.Fatal("expected a locally modified command to be refused")
+	}
+	if err := RemoveCommands("slash-demo", commands, true); err != nil {
+		t.Fatalf("force remove: %v", err)
+	}
+	if _, err := os.Stat(commandPath); !os.IsNotExist(err) {
+		t.Errorf("command survived removal: %v", err)
+	}
+}
+
+func TestInstallCommandsIsIdempotent(t *testing.T) {
+	t.Parallel()
+	source := slashSkillFixture(t, "slash-demo", "", "body")
+	digest, err := Digest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := opencodeTarget(t.TempDir())
+	resolved := ResolvedSkill{Name: "slash-demo", Root: source, Digest: digest}
+
+	first, err := InstallCommands(resolved, []Target{target}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallCommands(resolved, []Target{target}, first, false); err != nil {
+		t.Fatalf("reinstall over its own command should be accepted: %v", err)
+	}
+
+	// A file this integration never wrote is not replaced without force.
+	unmanaged := filepath.Join(target.Commands, "slash-demo.md")
+	if err := os.WriteFile(unmanaged, []byte("someone else's\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallCommands(resolved, []Target{target}, first, false); err == nil {
+		t.Fatal("expected an unmanaged command file to be refused")
+	}
+}

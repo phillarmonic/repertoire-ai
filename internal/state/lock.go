@@ -31,10 +31,22 @@ type LockSkill struct {
 	DigestFingerprint string            `json:"digest_fingerprint,omitempty"`
 	Targets           []string          `json:"targets"`
 	Artifacts         []LockArtifact    `json:"artifacts,omitempty"`
+	Commands          []LockCommand     `json:"commands,omitempty"`
 	Locations         []string          `json:"locations"`
 	Instructions      bool              `json:"instructions,omitempty"`
 	Hooks             bool              `json:"hooks,omitempty"`
 	Declared          bool              `json:"declared"`
+}
+
+// LockCommand records one user-invoked entry point written for a slash-only
+// skill. It is kept apart from LockArtifact because artifact destinations are
+// project-scoped — removal validates them as contained by the project root —
+// while a command is written beside a client's configuration, which is a
+// user-level directory outside any project.
+type LockCommand struct {
+	Target      string `json:"target"`
+	Destination string `json:"destination"`
+	Digest      string `json:"digest"`
 }
 
 type LockProjectArtifacts struct {
