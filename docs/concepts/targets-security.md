@@ -29,7 +29,7 @@ including clients that are not currently detected.
 | `kilo`                | `.config/kilo/skills`                          | `~/.config/kilo/skills`                              |
 | `kimi`                | `.kimi-code/skills`                            | `$KIMI_CODE_HOME/skills` or `~/.kimi-code/skills`    |
 | `kiro`                | `.kiro/skills`                                 | `~/.kiro/skills`                                     |
-| `opencode`            | `.opencode/skills`                             | `~/.config/opencode/skills`                          |
+| `opencode`            | `.opencode/skills`                             | `$XDG_CONFIG_HOME/opencode/skills` or `~/.config/opencode/skills` |
 | `openclaw`            | `skills`                                       | `$OPENCLAW_STATE_DIR/skills` or `~/.openclaw/skills` |
 | `pi`                  | `.pi/agent/skills`                             | `~/.pi/agent/skills`                                 |
 | `roo`                 | `.roo/skills`                                  | `~/.roo/skills`                                      |

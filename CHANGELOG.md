@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `opencode` target follows `XDG_CONFIG_HOME`. OpenCode resolves its
+  configuration directory from that variable rather than hardcoding
+  `~/.config`, so a global install on a machine that sets it wrote skills to
+  `~/.config/opencode/skills` — a directory OpenCode never reads. The global
+  root is now `$XDG_CONFIG_HOME/opencode/skills` when the variable is set and
+  `~/.config/opencode/skills` otherwise; the project root is unchanged.
+  `devin`, `kilo` and `amp` keep their fixed `~/.config` paths, because their
+  clients' handling has not been verified and moving the path for a client that
+  does hardcode `~/.config` would break it in the same way.
+
 ### Security
 
 ## [1.10.0] - 2026-09-16

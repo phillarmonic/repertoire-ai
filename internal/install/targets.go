@@ -115,6 +115,24 @@ func explicitOnlyTarget(name string) bool {
 	}
 }
 
+// configHome returns the directory a client that follows the XDG base directory
+// specification keeps its configuration in: $XDG_CONFIG_HOME when it is set,
+// otherwise ~/.config.
+//
+// Only targets whose client is known to resolve its own directory this way may
+// use it. For a client that hardcodes ~/.config, honouring XDG here would move
+// the install to a directory the client never reads — the same failure this
+// helper exists to prevent, pointed the other way. Codex, DeepSeek Harness,
+// Kimi and OpenClaw each have their own variable and keep their own branches;
+// OpenCode has none, so XDG is the mechanism for it. Verify a client's
+// behaviour before extending this.
+func configHome(home string) string {
+	if configHome := os.Getenv("XDG_CONFIG_HOME"); configHome != "" {
+		return configHome
+	}
+	return filepath.Join(home, ".config")
+}
+
 func targetRoot(scope state.Scope, home, name string) (string, error) {
 	if scope.Global {
 		switch name {
@@ -168,7 +186,10 @@ func targetRoot(scope state.Scope, home, name string) (string, error) {
 			}
 			return filepath.Join(base, "skills"), nil
 		case "opencode":
-			return filepath.Join(home, ".config", "opencode", "skills"), nil
+			// OpenCode resolves its configuration directory from
+			// XDG_CONFIG_HOME, so a skill written to ~/.config/opencode for a
+			// user who sets it is one OpenCode never loads.
+			return filepath.Join(configHome(home), "opencode", "skills"), nil
 		case "kilo":
 			return filepath.Join(home, ".config", "kilo", "skills"), nil
 		case "openclaw":

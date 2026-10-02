@@ -239,6 +239,7 @@ func TestExplicitTargetRoots(t *testing.T) {
 	t.Setenv("KIMI_CODE_HOME", "")
 	t.Setenv("OPENCLAW_STATE_DIR", "")
 	t.Setenv("DSH_HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
 
 	tests := []struct {
 		name        string
@@ -589,4 +590,52 @@ func skillFixtureWithDirectory(t *testing.T, directoryName, skillName string) st
 		t.Fatal(err)
 	}
 	return root
+}
+
+// OpenCode resolves its configuration directory from XDG_CONFIG_HOME, so its
+// skills have to follow it, or Repertoire installs them where OpenCode will
+// never look.
+func TestOpenCodeGlobalRootFollowsXDGConfigHome(t *testing.T) {
+	configDirectory := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configDirectory)
+
+	targets, err := ResolveTargets(state.Scope{Global: true}, []string{"opencode"}, t.TempDir())
+	if err != nil || len(targets) != 1 {
+		t.Fatalf("resolve opencode: %+v, %v", targets, err)
+	}
+	if want := filepath.Join(configDirectory, "opencode", "skills"); targets[0].Root != want {
+		t.Fatalf("global root = %q, want %q", targets[0].Root, want)
+	}
+
+	// Only the global root moves: a project keeps its own .opencode directory.
+	project := t.TempDir()
+	projectTargets, err := ResolveTargets(state.Scope{Root: project}, []string{"opencode"}, t.TempDir())
+	if err != nil || len(projectTargets) != 1 {
+		t.Fatalf("resolve opencode project: %+v, %v", projectTargets, err)
+	}
+	if want := filepath.Join(project, ".opencode", "skills"); projectTargets[0].Root != want {
+		t.Fatalf("project root = %q, want %q", projectTargets[0].Root, want)
+	}
+}
+
+// A client whose directory handling has not been verified keeps its fixed path.
+// Honouring XDG for a client that hardcodes ~/.config would move the install to
+// a directory that client never reads, which is the failure this guards.
+func TestUnverifiedConfigTargetsKeepTheirFixedPath(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	home := t.TempDir()
+	for name, want := range map[string]string{
+		"devin": filepath.Join(home, ".config", "devin", "skills"),
+		"kilo":  filepath.Join(home, ".config", "kilo", "skills"),
+		"amp":   filepath.Join(home, ".config", "agents", "skills"),
+	} {
+		targets, err := ResolveTargets(state.Scope{Global: true}, []string{name}, home)
+		if err != nil || len(targets) != 1 {
+			t.Fatalf("resolve %s: %+v, %v", name, targets, err)
+		}
+		if targets[0].Root != want {
+			t.Errorf("%s global root = %q, want %q", name, targets[0].Root, want)
+		}
+	}
 }
