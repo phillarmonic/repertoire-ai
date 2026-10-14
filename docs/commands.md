@@ -120,12 +120,16 @@ scope, repairing any managed copy that is missing or broken.
 ```bash
 repertoire install
 repertoire install zensical
+repertoire install zensical,graphify
 repertoire install --target all
 ```
 
 A named skill that is not declared is installed as tracked ad-hoc state; the
 manifest is not changed. `--target all` applies to every skill the command
 touches and replaces the stored target set.
+
+Name several skills with a comma-separated list or several arguments:
+`install zensical,graphify` and `install zensical graphify` are the same.
 
 ## `update`: pull newer versions
 
@@ -136,6 +140,7 @@ tag or commit stay pinned.
 ```bash
 repertoire update
 repertoire update code-reviewer
+repertoire update code-reviewer,graphify
 repertoire update --target all
 repertoire --dry-run update code-reviewer
 ```
@@ -145,7 +150,12 @@ shares the name:
 
 ```bash
 repertoire update company
+repertoire update company,team
 ```
+
+A comma-separated list, or several arguments, updates each named skill and
+refreshes each named catalog in one run: installed skill names are updated,
+catalog names are refreshed, and a name that is neither is an error.
 
 `update` refuses to replace a locally modified copy. Review your changes, then
 either move them into your own catalog or rerun with `--force`. `--with-hooks`
@@ -161,12 +171,14 @@ and `--no-hooks` add or remove a skill's optional hooks during the update.
 
 ```bash
 repertoire remove code-reviewer
+repertoire remove code-reviewer,graphify
 repertoire --dry-run remove code-reviewer
 ```
 
 Removes the managed copies from every target in the selected scope and drops
 the requirement. Like `update`, it refuses to delete a locally modified copy
-without `--force`.
+without `--force`. A comma-separated list or several arguments removes each
+named skill.
 
 ## `list`: what is installed, what is available
 
@@ -190,6 +202,7 @@ safe to pipe. Force a format with `--format table`, `--format tsv`, or
 
 ```bash
 repertoire show code-reviewer
+repertoire show code-reviewer,graphify
 repertoire show code-reviewer --format json
 ```
 
@@ -200,7 +213,9 @@ target with the installed path and status (`intact`, `modified`, or
 absent, lock data still prints and `catalog_cache` is `absent`.
 
 `--format` is the same as `list`: table in a terminal, TSV when redirected,
-or `--format json` for a single object scripts can parse.
+or `--format json` for a single object scripts can parse. A comma-separated
+list or several arguments reports on each named skill; with more than one,
+`--format json` emits an array of those objects.
 
 ## `catalog`: manage where skills come from
 
@@ -212,7 +227,9 @@ repertoire catalog add github.com/example/public-skills --name public --ref main
 repertoire catalog add /path/to/ai-skills
 repertoire --dry-run catalog add https://github.com/example/public-skills.git --name public
 repertoire catalog update
+repertoire catalog update company,team
 repertoire catalog remove company
+repertoire catalog remove company,team
 ```
 
 `init` writes a catalog `repertoire.yaml` and `SKILL.md` placeholders into the
@@ -224,9 +241,11 @@ refused unless you pass `--force`. See
 
 `add` registers a Git URL or a local path. `--ref` pins a branch, tag, or
 commit; without it the remote default branch is tracked. `update` refreshes
-the cached clones. Remote catalogs are read with your system `git`, so SSH
-agents, credential helpers, and provider CLIs work without Repertoire storing
-anything.
+the cached clones, and `remove` unregisters catalogs. Both take a
+comma-separated list or several names: `catalog update company,team` and
+`catalog remove company team` refresh or unregister each named catalog. Remote
+catalogs are read with your system `git`, so SSH agents, credential helpers,
+and provider CLIs work without Repertoire storing anything.
 
 A local path (or clone) that has no `repertoire.yaml` catalog section is still
 accepted as a [loose catalog](concepts/catalogs.md#loose-catalogs). Repertoire
@@ -351,9 +370,15 @@ with instructions for how an agent should apply them.
 ```bash
 repertoire stub list
 repertoire stub list common-stubs
+repertoire stub list common-stubs,graphify
 repertoire stub get common-stubs/editorconfig
+repertoire stub get common-stubs/editorconfig,graphify/agents
 repertoire stub get --raw common-stubs/gitattributes > .gitattributes
 ```
+
+`stub list` and `stub get` take a comma-separated list or several arguments,
+so one call can cover several installed skills or stubs. With `--raw` and
+several ids, Repertoire writes each asset's bytes in order.
 
 `stub get` prints a handoff with the stub ID, description, absolute asset
 path, and the author's instructions:
@@ -396,7 +421,9 @@ known source URLs. `add --skill` completes skills offered by the source
 argument when that catalog is already cached or is a local path. `init` and
 `catalog init` do not complete positional arguments as files. Typing a prefix
 that contains `/` or `.` switches skill completion to source-qualified IDs.
-Completion never clones or refreshes a catalog.
+Where a command accepts a comma-separated list, completion continues after the
+comma and does not suggest a name already on the line. Completion never clones
+or refreshes a catalog.
 
 Enable completion for the current shell session:
 

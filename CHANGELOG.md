@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files stay reachable. Removal, `--dry-run`, `show` and `doctor --fix` all
   account for the command file.
 
+- Commands that take a skill or catalog name accept a comma-separated list as
+  well as several arguments. `install`, `update`, `remove`, `show`,
+  `stub list`, `stub get`, `catalog update`, and `catalog remove` now treat
+  `repertoire catalog update phillarmonic,andy` as two catalogs instead of one
+  name containing a comma. `add` already behaved this way, and shell
+  completion keeps working after the comma.
+
 ### Fixed
 
 - Reading a skill's invocation fields no longer rejects spells the convention

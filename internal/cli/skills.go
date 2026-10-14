@@ -63,9 +63,9 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 	var installTargets []string
 	var installWithHooks, installNoHooks bool
 	installCommand := &cobra.Command{
-		Use:   "install [skill]",
-		Short: "Install one skill or synchronize requirements",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "install [skill[,skill...]]",
+		Short: "Install one or more skills, or synchronize requirements",
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
@@ -75,29 +75,32 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 			if err != nil {
 				return err
 			}
-			if len(args) == 1 {
-				requirement, declared := manifest.Requirements[args[0]]
-				selectedCatalog := installCatalog
-				targets := installTargets
-				if declared {
-					if selectedCatalog == "" {
-						selectedCatalog = requirement.Catalog
-					}
-					if len(targets) == 0 {
-						targets = requirement.Targets
-					}
-					if !installWithHooks && !installNoHooks {
-						hooks = hookChoiceNo
-						if requirement.Hooks {
-							hooks = hookChoiceYes
+			if selected := splitNameList(args); len(selected) > 0 {
+				for _, name := range selected {
+					requirement, declared := manifest.Requirements[name]
+					selectedCatalog := installCatalog
+					targets := installTargets
+					nameHooks := hooks
+					if declared {
+						if selectedCatalog == "" {
+							selectedCatalog = requirement.Catalog
+						}
+						if len(targets) == 0 {
+							targets = requirement.Targets
+						}
+						if !installWithHooks && !installNoHooks {
+							nameHooks = hookChoiceNo
+							if requirement.Hooks {
+								nameHooks = hookChoiceYes
+							}
 						}
 					}
-				}
-				if _, err := installNamed(command, scope, &manifest, &lock, args[0], selectedCatalog, targets, declared, *force, false, hooks, *dryRun, overrideFlags); err != nil {
-					return err
-				}
-				if !*dryRun {
-					_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", args[0])
+					if _, err := installNamed(command, scope, &manifest, &lock, name, selectedCatalog, targets, declared, *force, false, nameHooks, *dryRun, overrideFlags); err != nil {
+						return err
+					}
+					if !*dryRun {
+						_, _ = fmt.Fprintf(command.OutOrStdout(), "installed %s\n", name)
+					}
 				}
 				return nil
 			}
@@ -217,9 +220,9 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 	var updateTargets []string
 	var updateWithHooks, updateNoHooks bool
 	update := &cobra.Command{
-		Use:   "update [skill]",
+		Use:   "update [skill[,skill...]]",
 		Short: "Refresh and update installed skills",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
@@ -229,36 +232,47 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 			if err != nil {
 				return err
 			}
+			selected := splitNameList(args)
 			var names []string
-			if len(args) == 1 {
-				if _, exists := lock.Skills[args[0]]; !exists {
-					if !catalogVisible(manifest, args[0]) {
-						return fmt.Errorf("skill %q is not installed", args[0])
+			if len(selected) > 0 {
+				var catalogs []string
+				for _, name := range selected {
+					if _, exists := lock.Skills[name]; exists {
+						names = append(names, name)
+						continue
 					}
-					if *dryRun {
-						return previewCatalogUpdate(command, manager, manifest, args[0])
+					if catalogVisible(manifest, name) {
+						catalogs = append(catalogs, name)
+						continue
 					}
-					refreshed, err := refreshCatalogs(manager, manifest, args[0])
-					if err != nil {
-						return err
-					}
-					for _, source := range refreshed {
-						_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
-					}
-					return nil
+					return fmt.Errorf("skill %q is not installed", name)
 				}
-				names = args
+				if len(catalogs) > 0 {
+					if *dryRun {
+						if err := previewCatalogUpdate(command, manager, manifest, catalogs); err != nil {
+							return err
+						}
+					} else {
+						refreshed, err := refreshCatalogs(manager, manifest, catalogs)
+						if err != nil {
+							return err
+						}
+						for _, source := range refreshed {
+							_, _ = fmt.Fprintf(command.OutOrStdout(), "updated catalog %s\t%s\n", source.Name, source.Commit)
+						}
+					}
+				}
 			} else {
 				if len(lock.Skills) == 0 && len(manifest.Skills) == 0 && len(manifest.Requirements) == 0 {
 					_, _ = fmt.Fprintln(command.OutOrStdout(), "update: nothing installed; nothing to update")
 					return nil
 				}
 				if *dryRun {
-					if err := previewCatalogUpdate(command, manager, manifest, ""); err != nil {
+					if err := previewCatalogUpdate(command, manager, manifest, nil); err != nil {
 						return err
 					}
 				} else {
-					refreshed, err := refreshCatalogsWarn(manager, manifest, "", command.ErrOrStderr())
+					refreshed, err := refreshCatalogsWarn(manager, manifest, nil, command.ErrOrStderr())
 					if err != nil {
 						return err
 					}
@@ -301,65 +315,19 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 	update.ValidArgsFunction = completeInstalledSkillsAndCatalogs(globalScope, projectScope)
 	_ = update.RegisterFlagCompletionFunc("target", completeTargets)
 	remove := &cobra.Command{
-		Use:   "remove <skill>",
-		Short: "Remove a managed skill",
-		Args:  cobra.ExactArgs(1),
+		Use:   "remove <skill>[,<skill>...]",
+		Short: "Remove one or more managed skills",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err
 			}
-			entry, exists := lock.Skills[args[0]]
-			if !exists {
-				return fmt.Errorf("skill %q is not installed", args[0])
-			}
-			targets, err := installer.ResolveTargets(scope, entry.Targets, "")
-			if err != nil {
-				return err
-			}
-			if *dryRun {
-				plans, planErr := installer.PlanRemove(args[0], targets, entry, *force)
-				if planErr != nil {
-					return planErr
-				}
-				commandPlans, commandErr := installer.PlanRemoveCommands(args[0], entry, *force)
-				if commandErr != nil {
-					return commandErr
-				}
-				if err := writeRemoveCopyPlans(command.OutOrStdout(), append(plans, commandPlans...)); err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "would remove lock entry %s\n", args[0])
-				if entry.EffectiveOrigin() == state.LockOriginDeclared {
-					_, _ = fmt.Fprintf(command.OutOrStdout(), "would remove requirement %s\n", args[0])
-				}
-				return nil
-			}
-			if err := installer.RemoveArtifacts(entry.Artifacts, scope.Root, *force); err != nil {
-				return err
-			}
-			if scope.Global {
-				if err := removeGlobalProjectArtifacts(&lock, args[0], *force); err != nil {
+			for _, name := range splitNameList(args) {
+				if err := removeSkill(command, scope, &manifest, &lock, name, *force, *dryRun); err != nil {
 					return err
 				}
 			}
-			if err := installer.RemoveCommands(args[0], entry.Commands, *force); err != nil {
-				return err
-			}
-			if err := installer.Remove(args[0], targets, entry, *force); err != nil {
-				return err
-			}
-			delete(lock.Skills, args[0])
-			if entry.EffectiveOrigin() == state.LockOriginDeclared {
-				delete(manifest.Requirements, args[0])
-				if err := state.SaveManifest(scope.ManifestPath, manifest); err != nil {
-					return err
-				}
-			}
-			if err := state.SaveLock(scope.LockPath, lock); err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(command.OutOrStdout(), "removed %s\n", args[0])
 			return nil
 		},
 	}
@@ -368,6 +336,65 @@ func newSkillCommands(globalScope, projectScope, force, dryRun *bool, overrideFl
 	var showFormat string
 	show := newShowCommand(globalScope, projectScope, dryRun, overrideFlags, &showFormat)
 	return []*cobra.Command{add, installCommand, list, show, update, remove}
+}
+
+// removeSkill removes one managed skill from the selected scope. It mutates the
+// in-memory manifest and lock and saves them, so a caller removing several
+// skills can loop over it and persist each change.
+func removeSkill(command *cobra.Command, scope state.Scope, manifest *state.Manifest, lock *state.Lock, name string, force, dryRun bool) error {
+	entry, exists := lock.Skills[name]
+	if !exists {
+		return fmt.Errorf("skill %q is not installed", name)
+	}
+	targets, err := installer.ResolveTargets(scope, entry.Targets, "")
+	if err != nil {
+		return err
+	}
+	out := command.OutOrStdout()
+	if dryRun {
+		plans, planErr := installer.PlanRemove(name, targets, entry, force)
+		if planErr != nil {
+			return planErr
+		}
+		commandPlans, commandErr := installer.PlanRemoveCommands(name, entry, force)
+		if commandErr != nil {
+			return commandErr
+		}
+		if err := writeRemoveCopyPlans(out, append(plans, commandPlans...)); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(out, "would remove lock entry %s\n", name)
+		if entry.EffectiveOrigin() == state.LockOriginDeclared {
+			_, _ = fmt.Fprintf(out, "would remove requirement %s\n", name)
+		}
+		return nil
+	}
+	if err := installer.RemoveArtifacts(entry.Artifacts, scope.Root, force); err != nil {
+		return err
+	}
+	if scope.Global {
+		if err := removeGlobalProjectArtifacts(lock, name, force); err != nil {
+			return err
+		}
+	}
+	if err := installer.RemoveCommands(name, entry.Commands, force); err != nil {
+		return err
+	}
+	if err := installer.Remove(name, targets, entry, force); err != nil {
+		return err
+	}
+	delete(lock.Skills, name)
+	if entry.EffectiveOrigin() == state.LockOriginDeclared {
+		delete(manifest.Requirements, name)
+		if err := state.SaveManifest(scope.ManifestPath, *manifest); err != nil {
+			return err
+		}
+	}
+	if err := state.SaveLock(scope.LockPath, *lock); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(out, "removed %s\n", name)
+	return nil
 }
 
 func removeGlobalProjectArtifacts(lock *state.Lock, skillName string, force bool) error {
@@ -637,15 +664,7 @@ func interactiveInput(input io.Reader) bool {
 // against the skills offered by the visible catalogs. Plain names pass
 // through unvalidated; resolution reports unknown names later.
 func expandSkillSelectors(manifest state.Manifest, catalogName string, args []string, overrideFlags *[]string) ([]string, error) {
-	var selectors []string
-	for _, arg := range args {
-		for part := range strings.SplitSeq(arg, ",") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				selectors = append(selectors, part)
-			}
-		}
-	}
+	selectors := splitNameList(args)
 	if len(selectors) == 0 {
 		return nil, errors.New("at least one skill name is required")
 	}

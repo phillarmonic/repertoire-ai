@@ -13,6 +13,58 @@ import (
 
 const completionDirective = cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
 
+// splitCompletionPrefix separates the part of a comma-separated list that is
+// already typed from the fragment being completed: "alpha,be" yields "alpha,"
+// and "be". A word without a comma yields an empty prefix.
+func splitCompletionPrefix(toComplete string) (string, string) {
+	index := strings.LastIndex(toComplete, ",")
+	if index < 0 {
+		return "", toComplete
+	}
+	return toComplete[:index+1], toComplete[index+1:]
+}
+
+// commaAware adapts a completion function to comma-separated argument lists. It
+// completes the fragment after the last comma and puts the already-typed prefix
+// back on every suggestion, so a command that accepts `alpha,beta` still
+// completes after the comma. Names already present before the cursor are not
+// suggested again.
+func commaAware(complete cobra.CompletionFunc) cobra.CompletionFunc {
+	return func(command *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		prefix, fragment := splitCompletionPrefix(toComplete)
+		completions, directive := complete(command, args, fragment)
+		if prefix == "" {
+			return completions, directive
+		}
+		used := commaListMembers(prefix)
+		prefixed := make([]string, 0, len(completions))
+		for _, completion := range completions {
+			value, detail, hasDetail := strings.Cut(completion, "\t")
+			if _, exists := used[value]; exists {
+				continue
+			}
+			if hasDetail {
+				prefixed = append(prefixed, prefix+value+"\t"+detail)
+				continue
+			}
+			prefixed = append(prefixed, prefix+value)
+		}
+		return prefixed, directive
+	}
+}
+
+// commaListMembers returns the non-empty, trimmed names in a completion prefix
+// such as "alpha," or "alpha,beta,".
+func commaListMembers(prefix string) map[string]struct{} {
+	members := map[string]struct{}{}
+	for part := range strings.SplitSeq(prefix, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			members[part] = struct{}{}
+		}
+	}
+	return members
+}
+
 func newCompletionCommand(dryRun *bool) *cobra.Command {
 	command := &cobra.Command{
 		Use:                   "completion <shell>",
@@ -42,11 +94,11 @@ func newCompletionCommand(dryRun *bool) *cobra.Command {
 }
 
 func completeAvailableSkills(globalScope, projectScope *bool, catalogName *string, overrideFlags *[]string) cobra.CompletionFunc {
-	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return commaAware(func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		manifest := knownManifest(*globalScope, *projectScope, "")
 		completions := availableSkillCompletions(manifest, *catalogName, toComplete, "", *overrideFlags)
 		return completions, completionDirective
-	}
+	})
 }
 
 func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete, cacheRoot string, overrideFlags []string) []string {
@@ -109,7 +161,7 @@ func availableSkillCompletions(manifest state.Manifest, catalogName, toComplete,
 }
 
 func completeInstalledSkills(globalScope, projectScope *bool) cobra.CompletionFunc {
-	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return commaAware(func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 		if err != nil {
 			return nil, completionDirective
@@ -131,11 +183,11 @@ func completeInstalledSkills(globalScope, projectScope *bool) cobra.CompletionFu
 			completions = append(completions, name+"\t"+detail)
 		}
 		return completions, completionDirective
-	}
+	})
 }
 
 func completeInstalledSkillsAndCatalogs(globalScope, projectScope *bool) cobra.CompletionFunc {
-	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return commaAware(func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		_, manifest, lock, err := loadInstallationState(*globalScope, *projectScope)
 		if err != nil {
 			return nil, completionDirective
@@ -182,7 +234,7 @@ func completeInstalledSkillsAndCatalogs(globalScope, projectScope *bool) cobra.C
 			completions = append(completions, match.value+"\t"+match.detail)
 		}
 		return completions, completionDirective
-	}
+	})
 }
 
 func completeCatalogs(globalScope, projectScope *bool, registeredOnly bool) cobra.CompletionFunc {

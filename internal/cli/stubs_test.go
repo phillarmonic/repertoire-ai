@@ -111,6 +111,40 @@ func TestStubCommandsListAndGetInProjectScope(t *testing.T) {
 	}
 }
 
+func TestStubCommandsAcceptCommaLists(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	lock := state.NewLock()
+	for _, name := range []string{"alpha", "beta"} {
+		root := stubSkillFixture(t, filepath.Join(project, ".agents", "skills", name), true)
+		digest, err := installer.Digest(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lock.Skills[name] = state.LockSkill{Digest: digest, Locations: []string{root}}
+	}
+	if err := state.SaveLock(filepath.Join(project, "repertoire.lock.json"), lock); err != nil {
+		t.Fatal(err)
+	}
+
+	listOutput := executeStubCommand(t, project, "--project", "stub", "list", "alpha,beta")
+	for _, want := range []string{"alpha/editorconfig", "beta/editorconfig"} {
+		if !strings.Contains(listOutput, want) {
+			t.Fatalf("list output missing %q:\n%s", want, listOutput)
+		}
+	}
+
+	getOutput := executeStubCommand(t, project, "--project", "stub", "get", "alpha/editorconfig,beta/editorconfig")
+	if strings.Count(getOutput, "Stub: ") != 2 {
+		t.Fatalf("get output should carry both stubs:\n%s", getOutput)
+	}
+	for _, want := range []string{"Stub: alpha/editorconfig", "Stub: beta/editorconfig"} {
+		if !strings.Contains(getOutput, want) {
+			t.Fatalf("get output missing %q:\n%s", want, getOutput)
+		}
+	}
+}
+
 func TestStubCommandsUseGlobalScopeByDefault(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

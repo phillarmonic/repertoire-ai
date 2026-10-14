@@ -50,9 +50,9 @@ type skillShowTarget struct {
 
 func newShowCommand(globalScope, projectScope, dryRun *bool, overrideFlags *[]string, format *string) *cobra.Command {
 	show := &cobra.Command{
-		Use:   "show <skill>",
-		Short: "Show where an installed skill came from and whether copies are intact",
-		Args:  cobra.ExactArgs(1),
+		Use:   "show <skill>[,<skill>...]",
+		Short: "Show where installed skills came from and whether copies are intact",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			noteDryRunNoOp(command, *dryRun)
 			resolvedFormat, err := resolveSkillListFormat(*format, command.OutOrStdout(), false)
@@ -67,11 +67,16 @@ func newShowCommand(globalScope, projectScope, dryRun *bool, overrideFlags *[]st
 			if err != nil {
 				return err
 			}
-			view, err := buildSkillShowView(scope, manifest, lock, args[0], manager)
-			if err != nil {
-				return err
+			names := splitNameList(args)
+			views := make([]skillShowView, 0, len(names))
+			for _, name := range names {
+				view, err := buildSkillShowView(scope, manifest, lock, name, manager)
+				if err != nil {
+					return err
+				}
+				views = append(views, view)
 			}
-			return writeSkillShow(command.OutOrStdout(), view, resolvedFormat)
+			return writeSkillShows(command.OutOrStdout(), views, resolvedFormat)
 		},
 	}
 	show.Flags().StringVar(format, "format", "auto", "output format: auto, table, tsv, or json")
@@ -188,6 +193,34 @@ func showFileCopyStatus(path, expectedDigest string) (string, error) {
 		return showCopyIntact, nil
 	default:
 		return showCopyModified, nil
+	}
+}
+
+// writeSkillShows writes one or more skill reports. A single skill keeps the
+// original single-object output (and single-object JSON) that existing scripts
+// parse; several skills print one block each, with a JSON array under
+// --format json.
+func writeSkillShows(output io.Writer, views []skillShowView, format skillListFormat) error {
+	if len(views) == 1 {
+		return writeSkillShow(output, views[0], format)
+	}
+	switch format {
+	case skillListFormatJSON:
+		return json.NewEncoder(output).Encode(views)
+	case skillListFormatTable, skillListFormatTSV:
+		for index, view := range views {
+			if index > 0 {
+				if _, err := fmt.Fprintln(output); err != nil {
+					return err
+				}
+			}
+			if err := writeSkillShow(output, view, format); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported list format %q", format)
 	}
 }
 

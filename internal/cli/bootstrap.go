@@ -60,7 +60,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		if managerErr != nil {
 			return managerErr
 		}
-		if previewErr := previewCatalogUpdate(command, manager, manifest, ""); previewErr != nil {
+		if previewErr := previewCatalogUpdate(command, manager, manifest, nil); previewErr != nil {
 			return previewErr
 		}
 	}
