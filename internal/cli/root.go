@@ -122,36 +122,43 @@ func newCatalogCommand(globalScope, projectScope, force, dryRun *bool, overrideF
 	_ = add.RegisterFlagCompletionFunc("name", cobra.NoFileCompletions)
 
 	remove := &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Unregister a catalog",
-		Args:  cobra.ExactArgs(1),
+		Use:   "remove <name>[,<name>...]",
+		Short: "Unregister one or more catalogs",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			scope, manifest, err := loadScope(*globalScope, *projectScope)
 			if err != nil {
 				return err
 			}
-			if _, exists := manifest.Catalogs[args[0]]; !exists {
-				return fmt.Errorf("catalog %q is not registered", args[0])
-			}
-			for skill, requirement := range manifest.Requirements {
-				if requirement.Catalog == args[0] && !*force {
-					return fmt.Errorf("catalog %q is required by %q; use --force to remove it", args[0], skill)
+			names := splitNameList(args)
+			for _, name := range names {
+				if _, exists := manifest.Catalogs[name]; !exists {
+					return fmt.Errorf("catalog %q is not registered", name)
+				}
+				for skill, requirement := range manifest.Requirements {
+					if requirement.Catalog == name && !*force {
+						return fmt.Errorf("catalog %q is required by %q; use --force to remove it", name, skill)
+					}
+				}
+				for skill, declaration := range manifest.Skills {
+					if declaration.Catalog == name && !*force {
+						return fmt.Errorf("catalog %q is required by bootstrap skill %q; use --force to remove it", name, skill)
+					}
 				}
 			}
-			for skill, declaration := range manifest.Skills {
-				if declaration.Catalog == args[0] && !*force {
-					return fmt.Errorf("catalog %q is required by bootstrap skill %q; use --force to remove it", args[0], skill)
-				}
+			for _, name := range names {
+				delete(manifest.Catalogs, name)
 			}
-			delete(manifest.Catalogs, args[0])
 			if *dryRun {
-				_, _ = fmt.Fprintf(command.OutOrStdout(), "would unregister catalog %s\n", args[0])
+				for _, name := range names {
+					_, _ = fmt.Fprintf(command.OutOrStdout(), "would unregister catalog %s\n", name)
+				}
 				return nil
 			}
 			return state.SaveManifest(scope.ManifestPath, manifest)
 		},
 	}
-	remove.ValidArgsFunction = completeCatalogs(globalScope, projectScope, true)
+	remove.ValidArgsFunction = commaAware(completeCatalogs(globalScope, projectScope, true))
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List visible catalogs",
@@ -182,9 +189,9 @@ func newCatalogCommand(globalScope, projectScope, force, dryRun *bool, overrideF
 		},
 	}
 	update := &cobra.Command{
-		Use:   "update [name]",
+		Use:   "update [name[,name...]]",
 		Short: "Refresh catalog caches",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(command *cobra.Command, args []string) error {
 			_, manifest, err := loadScope(*globalScope, *projectScope)
 			if err != nil {
@@ -194,10 +201,11 @@ func newCatalogCommand(globalScope, projectScope, force, dryRun *bool, overrideF
 			if err != nil {
 				return err
 			}
+			names := splitNameList(args)
 			if *dryRun {
-				return previewCatalogUpdate(command, manager, manifest, optionalArg(args))
+				return previewCatalogUpdate(command, manager, manifest, names)
 			}
-			sources, err := refreshCatalogs(manager, manifest, optionalArg(args))
+			sources, err := refreshCatalogs(manager, manifest, names)
 			if err != nil {
 				return err
 			}
@@ -207,7 +215,7 @@ func newCatalogCommand(globalScope, projectScope, force, dryRun *bool, overrideF
 			return nil
 		},
 	}
-	update.ValidArgsFunction = completeCatalogs(globalScope, projectScope, false)
+	update.ValidArgsFunction = commaAware(completeCatalogs(globalScope, projectScope, false))
 	catalogCommand.AddCommand(add, newCatalogInitCommand(force, dryRun), remove, list, update)
 	return catalogCommand
 }
@@ -219,24 +227,33 @@ func optionalArg(args []string) string {
 	return args[0]
 }
 
-// refreshCatalogs materializes every visible catalog, or the single catalog
-// named by name. Bulk refreshes tolerate unreachable catalogs (reporting them
-// to warningOutput) so one dead source cannot brick updates served by the
-// others; an explicitly named catalog still fails hard.
-func refreshCatalogs(manager *catalog.Manager, manifest state.Manifest, name string) ([]catalog.Materialized, error) {
-	return refreshCatalogsWarn(manager, manifest, name, nil)
+// refreshCatalogs materializes every visible catalog, or only the catalogs
+// named in names when it is non-empty. Bulk refreshes tolerate unreachable
+// catalogs (reporting them to warningOutput) so one dead source cannot brick
+// updates served by the others; an explicitly named catalog still fails hard.
+func refreshCatalogs(manager *catalog.Manager, manifest state.Manifest, names []string) ([]catalog.Materialized, error) {
+	return refreshCatalogsWarn(manager, manifest, names, nil)
 }
 
-func refreshCatalogsWarn(manager *catalog.Manager, manifest state.Manifest, name string, warningOutput io.Writer) ([]catalog.Materialized, error) {
+func refreshCatalogsWarn(manager *catalog.Manager, manifest state.Manifest, names []string, warningOutput io.Writer) ([]catalog.Materialized, error) {
+	requested := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		requested[name] = struct{}{}
+	}
+	specific := len(requested) > 0
+	found := make(map[string]struct{}, len(requested))
 	var resolved []catalog.Materialized
 	var refreshErrs []error
 	for _, source := range catalog.Sources(manifest) {
-		if name != "" && source.Name != name {
-			continue
+		if specific {
+			if _, ok := requested[source.Name]; !ok {
+				continue
+			}
+			found[source.Name] = struct{}{}
 		}
 		materialized, err := manager.Materialize(source, true)
 		if err != nil {
-			if name != "" {
+			if specific {
 				return nil, err
 			}
 			refreshErrs = append(refreshErrs, err)
@@ -247,8 +264,12 @@ func refreshCatalogsWarn(manager *catalog.Manager, manifest state.Manifest, name
 		}
 		resolved = append(resolved, materialized)
 	}
-	if name != "" && len(resolved) == 0 {
-		return nil, fmt.Errorf("catalog %q is not visible", name)
+	if specific {
+		for _, name := range names {
+			if _, ok := found[name]; !ok {
+				return nil, fmt.Errorf("catalog %q is not visible", name)
+			}
+		}
 	}
 	if len(resolved) == 0 && len(refreshErrs) > 0 {
 		return nil, refreshErrs[0]

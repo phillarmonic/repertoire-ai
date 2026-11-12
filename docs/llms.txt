@@ -1,21 +1,39 @@
 # Repertoire
 
-Repertoire is a package manager for portable AI agent skills (SKILL.md
-packages). One command installs a skill from a Git-backed catalog into the
-native skills directory of every supported coding agent (Codex, Claude Code,
-Cursor, Gemini CLI, Copilot, Windsurf, and 25 more), tracks each copy by
-digest so local edits are never overwritten, and reproduces a team's setup
-from a committed repertoire.yaml. Skills install under the home directory by
-default; --project installs into the current Git worktree. The built-in
-catalog includes a "repertoire" skill that teaches coding agents to operate
-Repertoire, write manifests, and scaffold new skill catalog repositories.
+> Repertoire installs an agent skill into every coding agent you use and pins it
+> with a lockfile you commit. A skill is a `SKILL.md` package; a catalog is a Git
+> repository; the lock records the catalog commit and a content digest per
+> target, so `repertoire update` refreshes the copies it owns and refuses one you
+> edited by hand.
 
-Documentation: https://phillarmonic.github.io/repertoire-ai/
-Glossary: https://phillarmonic.github.io/repertoire-ai/glossary/
-Set up a project or team: https://phillarmonic.github.io/repertoire-ai/automation/
-Let your agent drive Repertoire: https://phillarmonic.github.io/repertoire-ai/agent-skill/
-Command reference: https://phillarmonic.github.io/repertoire-ai/commands/
-Private and company catalogs: https://phillarmonic.github.io/repertoire-ai/private-repositories/
-Troubleshooting: https://phillarmonic.github.io/repertoire-ai/troubleshooting/
-Supported targets: https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/
-GitHub: https://github.com/phillarmonic/repertoire-ai
+Repertoire supports 30 agent targets, including Claude Code, Codex, Cursor,
+GitHub Copilot, Gemini CLI, Windsurf and OpenCode. It installs under the home
+directory by default, or into the current Git worktree with `--project`. It
+stores no tokens, sends no telemetry, and works with private catalogs over the
+Git credentials you already have.
+
+## Start here
+
+- [Home](https://phillarmonic.github.io/repertoire-ai/): what Repertoire is, the update refusal as a transcript, install on Windows, Linux, macOS or from source, and five minutes to a first lock.
+- [The skill lockfile](https://phillarmonic.github.io/repertoire-ai/concepts/lockfile/): what `repertoire.lock.json` records, exactly what the content digest covers, and why an update refuses an edited copy.
+- [Repertoire vs copy-paste](https://phillarmonic.github.io/repertoire-ai/vs-copy-paste/): the comparison against copying folders and against a shared skills repository, including when copying is the better answer.
+
+## Guides
+
+- [Set up a project or team](https://phillarmonic.github.io/repertoire-ai/automation/): commit a manifest, then bootstrap the same skills on a new machine or in CI.
+- [Let your agent drive Repertoire](https://phillarmonic.github.io/repertoire-ai/agent-skill/): the built-in `repertoire` skill, which lets a coding agent install skills, write manifests and scaffold catalogs.
+- [Private and company catalogs](https://phillarmonic.github.io/repertoire-ai/private-repositories/): publish skills from a private Git repository, with loose catalogs and overrides.
+- [Troubleshooting](https://phillarmonic.github.io/repertoire-ai/troubleshooting/): what each error message means, and what `repertoire doctor` checks.
+
+## Reference
+
+- [Command reference](https://phillarmonic.github.io/repertoire-ai/commands/): every command, flag and edge case.
+- [Manifests and state](https://phillarmonic.github.io/repertoire-ai/concepts/manifests/): `repertoire.yaml`, the lock file, and how declared state differs from installed state.
+- [Catalogs](https://phillarmonic.github.io/repertoire-ai/concepts/catalogs/): catalog layout, loose catalogs, and source-qualified skill IDs.
+- [Targets and security](https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/): the 30 target directories, trust blocks, signed commits and digest signatures.
+- [Glossary](https://phillarmonic.github.io/repertoire-ai/glossary/): skill, catalog, lock file, managed copy, provenance and the other terms in one place.
+
+## Project
+
+- [GitHub](https://github.com/phillarmonic/repertoire-ai): source, releases and issues.
+- [Contributing](https://phillarmonic.github.io/repertoire-ai/contributing/): build and test Repertoire itself.

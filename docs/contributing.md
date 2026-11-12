@@ -1,3 +1,7 @@
+---
+description: "How to build, test and verify Repertoire locally: Go 1.27, Drun tasks, golangci-lint, gosec and the strict Zensical docs gate."
+---
+
 # Contributing
 
 Repertoire requires Go 1.27, Drun, `golangci-lint`, `gosec`, and the

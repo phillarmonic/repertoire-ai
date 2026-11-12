@@ -4,7 +4,7 @@
 
 version: 2.0
 
-project "repertoire-ai" version "1.10.0":
+project "repertoire-ai" version "1.12.0":
 	requires tools:
 		go >= "1.27"
 		golangci-lint provision
@@ -61,6 +61,11 @@ task "docs" means "Runs the Zensical documentation":
         uv
     run "uv run zensical serve"
 
+task "docs:build" means "Builds the documentation with a strict gate":
+    requires tools:
+        uv
+    run "uv run zensical build --clean --strict"
+
 task "ci" mode "ci" means "Run all required project checks":
 	call task "vuln"
 	call task "vet"
@@ -68,6 +73,7 @@ task "ci" mode "ci" means "Run all required project checks":
 	call task "test"
 	call task "build"
 	call task "sec"
+	call task "docs:build"
 
 task "changelog" means "Generates the changelog for the project":
     given $version as string matching semver_optional_v

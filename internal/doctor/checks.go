@@ -750,6 +750,22 @@ func (globalSkillHealth) audit(env *Env) ([]Issue, error) {
 				modified++
 			}
 		}
+		// Command files are single files rather than directories, so they need
+		// the file-aware digest: the directory walker reports the empty-input
+		// digest for a file and would call every command locally modified.
+		for _, command := range entry.Commands {
+			exists, matches, err := installer.DigestFileMatches(command.Destination, command.Digest)
+			if err != nil {
+				return nil, err
+			}
+			if !exists {
+				missing++
+				continue
+			}
+			if !matches {
+				modified++
+			}
+		}
 		if missing == 0 && modified == 0 {
 			continue
 		}
@@ -807,8 +823,13 @@ func reinstallGlobalSkill(env *Env, name string) error {
 	if err != nil {
 		return err
 	}
+	commands, err := installer.InstallCommands(resolved, targets, entry.Commands, true)
+	if err != nil {
+		return err
+	}
 	entry.Locations = locations
 	entry.TargetDigests = digests
+	entry.Commands = commands
 	entry.Digest = resolved.Digest
 	env.GlobalLock.Skills[name] = entry
 	return env.saveGlobalLock()

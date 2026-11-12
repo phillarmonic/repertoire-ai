@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - master
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pages: write
@@ -19,8 +23,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv sync --group dev
-      - run: uv run zensical build --clean
+      - run: uv sync --locked --group dev
+      - run: uv run zensical build --clean --strict
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site

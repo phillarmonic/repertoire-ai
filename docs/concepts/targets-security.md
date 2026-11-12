@@ -1,3 +1,7 @@
+---
+description: "Every agent target Repertoire installs into, where the project and global roots live, and what the validated copy and trust block do and do not protect."
+---
+
 # Targets and security
 
 Repertoire copies a validated skill directory into one or more agent-specific skill roots. By default those roots are
@@ -5,6 +9,12 @@ under the home directory (Global root). Use `--project` for the Project root col
 existing client configuration or skill directories, and in global scope also well-known CLIs on `PATH`. An explicit
 target creates its skills directory when needed. The special `--target all` value expands to every target in the table,
 including clients that are not currently detected.
+
+A skill whose frontmatter declares `disable-model-invocation: true` is meant to be invoked explicitly rather than
+loaded by the model. OpenCode keeps those apart from skills, in a `command` directory it offers in the same palette as
+its built-in commands, so a slash-only skill is installed there as well as in its skill root. The skill directory is
+kept because skills carry companions — references, scripts, licences — that a single command file has nowhere to put.
+Every other target installs skills only, and a target that gains a command layout must be verified before it is added.
 
 | Target                | Project root                                   | Global root                                          |
 |-----------------------|------------------------------------------------|------------------------------------------------------|
@@ -29,7 +39,7 @@ including clients that are not currently detected.
 | `kilo`                | `.config/kilo/skills`                          | `~/.config/kilo/skills`                              |
 | `kimi`                | `.kimi-code/skills`                            | `$KIMI_CODE_HOME/skills` or `~/.kimi-code/skills`    |
 | `kiro`                | `.kiro/skills`                                 | `~/.kiro/skills`                                     |
-| `opencode`            | `.opencode/skills`                             | `~/.config/opencode/skills`                          |
+| `opencode`            | `.opencode/skills`                             | `$XDG_CONFIG_HOME/opencode/skills` or `~/.config/opencode/skills` |
 | `openclaw`            | `skills`                                       | `$OPENCLAW_STATE_DIR/skills` or `~/.openclaw/skills` |
 | `pi`                  | `.pi/agent/skills`                             | `~/.pi/agent/skills`                                 |
 | `roo`                 | `.roo/skills`                                  | `~/.roo/skills`                                      |

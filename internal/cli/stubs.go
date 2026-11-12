@@ -26,35 +26,40 @@ func newStubCommand(globalScope, projectScope, dryRun *bool) *cobra.Command {
 
 	var raw bool
 	get := &cobra.Command{
-		Use:   "get <skill>/<stub>",
-		Short: "Show an agent how to use an installed stub",
-		Args:  cobra.ExactArgs(1),
+		Use:   "get <skill>/<stub>[,<skill>/<stub>...]",
+		Short: "Show an agent how to use one or more installed stubs",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			noteDryRunNoOp(command, *dryRun)
 			_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err
 			}
-			resolved, err := resolveStub(lock, args[0])
-			if err != nil {
-				return err
-			}
-			if raw {
-				content, err := os.ReadFile(resolved.AssetPath)
+			out := command.OutOrStdout()
+			for _, id := range splitNameList(args) {
+				resolved, err := resolveStub(lock, id)
 				if err != nil {
-					return fmt.Errorf("read stub %q asset: %w", resolved.ID, err)
+					return err
 				}
-				_, err = command.OutOrStdout().Write(content)
-				return err
+				if raw {
+					content, err := os.ReadFile(resolved.AssetPath)
+					if err != nil {
+						return fmt.Errorf("read stub %q asset: %w", resolved.ID, err)
+					}
+					if _, err := out.Write(content); err != nil {
+						return err
+					}
+					continue
+				}
+				_, _ = fmt.Fprintf(
+					out,
+					"Stub: %s\nDescription: %s\nAsset: %s\nInstructions:\n%s\n",
+					resolved.ID,
+					strings.TrimSpace(resolved.Definition.Description),
+					resolved.AssetPath,
+					strings.TrimSpace(resolved.Definition.Instructions),
+				)
 			}
-			_, _ = fmt.Fprintf(
-				command.OutOrStdout(),
-				"Stub: %s\nDescription: %s\nAsset: %s\nInstructions:\n%s\n",
-				resolved.ID,
-				strings.TrimSpace(resolved.Definition.Description),
-				resolved.AssetPath,
-				strings.TrimSpace(resolved.Definition.Instructions),
-			)
 			return nil
 		},
 	}
@@ -62,21 +67,24 @@ func newStubCommand(globalScope, projectScope, dryRun *bool) *cobra.Command {
 	get.ValidArgsFunction = completeInstalledStubs(globalScope, projectScope)
 
 	list := &cobra.Command{
-		Use:   "list [skill]",
+		Use:   "list [skill[,skill...]]",
 		Short: "List stubs exposed by installed skills",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(command *cobra.Command, args []string) error {
 			noteDryRunNoOp(command, *dryRun)
 			_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 			if err != nil {
 				return err
 			}
-			names := sortedInstalledSkillNames(lock)
-			if len(args) == 1 {
-				if _, exists := lock.Skills[args[0]]; !exists {
-					return fmt.Errorf("skill %q is not installed", args[0])
+			names := splitNameList(args)
+			if len(names) == 0 {
+				names = sortedInstalledSkillNames(lock)
+			} else {
+				for _, name := range names {
+					if _, exists := lock.Skills[name]; !exists {
+						return fmt.Errorf("skill %q is not installed", name)
+					}
 				}
-				names = args
 			}
 			for _, name := range names {
 				root, err := intactSkillRoot(name, lock.Skills[name])
@@ -163,13 +171,13 @@ func sortedInstalledSkillNames(lock state.Lock) []string {
 }
 
 func completeInstalledStubs(globalScope, projectScope *bool) cobra.CompletionFunc {
-	return func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return commaAware(func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		_, _, lock, err := loadInstallationState(*globalScope, *projectScope)
 		if err != nil {
 			return nil, completionDirective
 		}
 		return installedStubCompletions(lock, toComplete), completionDirective
-	}
+	})
 }
 
 func installedStubCompletions(lock state.Lock, toComplete string) []string {

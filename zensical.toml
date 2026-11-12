@@ -1,15 +1,21 @@
 [project]
 site_name = "Repertoire"
 site_url = "https://phillarmonic.github.io/repertoire-ai/"
-site_description = "A package manager for agent skills. Named catalogs, a lock with content digests, and a manifest you commit so every laptop and CI job gets the same skills."
+site_description = "Repertoire installs an agent skill into every coding agent you use and pins it with a lockfile you commit: a digest per target, a manifest in the repository, no telemetry."
 site_author = "Phillarmonic"
 repo_url = "https://github.com/phillarmonic/repertoire-ai"
 repo_name = "phillarmonic/repertoire-ai"
 copyright = "Copyright &copy; 2026 Phillarmonic"
-extra_css = ["stylesheets/shiki.css"]
-extra_javascript = ["javascripts/shiki.mjs"]
+extra_css = [
+    "stylesheets/phillarmonic.css",
+    "stylesheets/shiki.css",
+]
+extra_javascript = [
+    { path = "javascripts/shiki.mjs", type = "module" },
+]
 nav = [
     { "Home" = "index.md" },
+    { "Repertoire vs copy-paste" = "vs-copy-paste.md" },
     { "Set up a project or team" = "automation.md" },
     { "Let your agent drive Repertoire" = "agent-skill.md" },
     { "Command reference" = "commands.md" },
@@ -17,6 +23,7 @@ nav = [
     { "Troubleshooting" = "troubleshooting.md" },
     { "Glossary" = "glossary.md" },
     { "Concepts" = [
+        { "The skill lockfile" = "concepts/lockfile.md" },
         { "Manifests and state" = "concepts/manifests.md" },
         { "Catalogs" = "concepts/catalogs.md" },
         { "Targets and security" = "concepts/targets-security.md" },
@@ -28,14 +35,42 @@ nav = [
 [project.theme]
 variant = "modern"
 language = "en"
+logo = "assets/phillarmonic-symbol.png"
+favicon = "assets/favicon.png"
 features = [
     "content.code.copy",
     "navigation.instant",
     "navigation.sections",
+    "navigation.tracking",
+    "search.highlight",
 ]
 
-[project.theme.icon]
-logo = "lucide/library"
+[project.theme.font]
+text = "Inter"
+code = "JetBrains Mono"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+
+[project.theme.palette.toggle]
+icon = "lucide/sun-moon"
+name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+
+[project.theme.palette.toggle]
+icon = "lucide/sun"
+name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+
+[project.theme.palette.toggle]
+icon = "lucide/moon"
+name = "Switch to system preference"
 
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
@@ -59,13 +94,20 @@ custom_fences = [
     { name = "yml", class = "language-yml", format = "pymdownx.superfences.fence_code_format" },
     { name = "markdown", class = "language-markdown", format = "pymdownx.superfences.fence_code_format" },
     { name = "text", class = "language-text", format = "pymdownx.superfences.fence_code_format" },
+    { name = "json", class = "language-json", format = "pymdownx.superfences.fence_code_format" },
+    { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
 ]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
 [project.markdown_extensions.pymdownx.tasklist]
 custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]
 [project.markdown_extensions.zensical_glossary]
 glossary_file = "glossary.md"
 heading_level = 2
 first_only = false
 base_url = "https://phillarmonic.github.io/repertoire-ai/glossary/"
+
+[project.validation]
+invalid_links = true
+invalid_link_anchors = true

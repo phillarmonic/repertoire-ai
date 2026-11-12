@@ -14,8 +14,8 @@ permissions:
   contents: write
 
 env:
-  GOSEC_VERSION: v2.29.0
-  GOVULNCHECK_VERSION: v1.7.0
+  GOSEC_VERSION: v2.30.0
+  GOVULNCHECK_VERSION: v1.9.0
 
 jobs:
   release:
@@ -44,7 +44,7 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           install-only: true
 
       - name: Restore security scanners
@@ -52,7 +52,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin
-          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod') }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
 
       - name: Install security scanners
         if: steps.security-tools-cache.outputs.cache-hit != 'true'
