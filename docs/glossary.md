@@ -1,6 +1,6 @@
 ---
 title: Glossary
-description: Definitions of the terms Repertoire uses: skill, catalog, catalog trust, loose catalog, target, scope, manifest, lock file, managed copy, source-qualified ID, provenance, and dry run.
+description: "Definitions of the terms Repertoire uses: skill, catalog, catalog trust, loose catalog, target, scope, manifest, lock file, managed copy, source-qualified ID, provenance, and dry run."
 ---
 
 # Glossary

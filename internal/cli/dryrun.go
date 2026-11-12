@@ -95,22 +95,36 @@ func previewCatalogAdd(
 	return nil
 }
 
-func previewCatalogUpdate(command *cobra.Command, manager *catalog.Manager, manifest state.Manifest, name string) error {
+// previewCatalogUpdate prints the catalogs a refresh would touch. With an empty
+// names slice it covers every visible catalog; otherwise it covers only the
+// named ones and fails when a requested name is not visible.
+func previewCatalogUpdate(command *cobra.Command, manager *catalog.Manager, manifest state.Manifest, names []string) error {
 	out := command.OutOrStdout()
-	found := false
+	requested := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		requested[name] = struct{}{}
+	}
+	specific := len(requested) > 0
+	found := make(map[string]struct{}, len(requested))
 	for _, source := range catalog.Sources(manifest) {
-		if name != "" && source.Name != name {
-			continue
+		if specific {
+			if _, ok := requested[source.Name]; !ok {
+				continue
+			}
+			found[source.Name] = struct{}{}
 		}
-		found = true
 		if !manager.HasCachedClone(source) {
 			_, _ = fmt.Fprintf(out, "would clone %s\n", catalog.RedactSource(catalog.NormalizeSource(source.Registration.Source)))
 			continue
 		}
 		_, _ = fmt.Fprintf(out, "would refresh catalog %s\n", source.Name)
 	}
-	if name != "" && !found {
-		return fmt.Errorf("catalog %q is not visible", name)
+	if specific {
+		for _, name := range names {
+			if _, ok := found[name]; !ok {
+				return fmt.Errorf("catalog %q is not visible", name)
+			}
+		}
 	}
 	return nil
 }

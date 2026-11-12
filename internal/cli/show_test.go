@@ -53,6 +53,44 @@ func TestWriteSkillShowTableListsIntegrity(t *testing.T) {
 	}
 }
 
+func TestWriteSkillShowsMultipleSkills(t *testing.T) {
+	t.Parallel()
+	first := sampleShowView()
+	second := sampleShowView()
+	second.Name = "other"
+	views := []skillShowView{first, second}
+
+	var jsonOutput bytes.Buffer
+	if err := writeSkillShows(&jsonOutput, views, skillListFormatJSON); err != nil {
+		t.Fatal(err)
+	}
+	var decoded []skillShowView
+	if err := json.Unmarshal(jsonOutput.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode JSON: %v\n%s", err, jsonOutput.String())
+	}
+	if len(decoded) != 2 || decoded[0].Name != "demo" || decoded[1].Name != "other" {
+		t.Fatalf("JSON array = %+v", decoded)
+	}
+
+	var tsvOutput bytes.Buffer
+	if err := writeSkillShows(&tsvOutput, views, skillListFormatTSV); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(tsvOutput.String(), "name\tdemo") != 1 || strings.Count(tsvOutput.String(), "name\tother") != 1 {
+		t.Fatalf("TSV blocks:\n%s", tsvOutput.String())
+	}
+
+	// A single skill keeps the original single-object JSON shape.
+	var single bytes.Buffer
+	if err := writeSkillShows(&single, []skillShowView{first}, skillListFormatJSON); err != nil {
+		t.Fatal(err)
+	}
+	var object skillShowView
+	if err := json.Unmarshal(single.Bytes(), &object); err != nil {
+		t.Fatalf("single JSON should stay an object: %v\n%s", err, single.String())
+	}
+}
+
 func TestBuildSkillShowViewReportsPerTargetIntegrity(t *testing.T) {
 	t.Parallel()
 	project := t.TempDir()

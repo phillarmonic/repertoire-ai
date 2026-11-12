@@ -2,137 +2,164 @@
   <img src="docs/images/repertoire500.png" alt="Repertoire logo" width="250">
 </p>
 
-# Repertoire
+# The lockfile for agent skills
 
-**The `apt-get` for AI agent skills.**
+Repertoire installs a skill into every coding agent you use, then pins it with a
+lockfile you commit. The same skills arrive on every laptop and CI job, and an
+edit you made by hand is never overwritten.
 
-Docs at: [phillarmonic.github.io/repertoire-ai](https://phillarmonic.github.io/repertoire-ai/)
-
-Repertoire is a package manager for agent skills: named catalogs, a lock with
-content digests, and a manifest you commit so every laptop and CI job gets the
-same skills. It never overwrites edits you made by hand and never phones home.
-
-A *skill* is a folder with a `SKILL.md` file that teaches an AI coding agent how
-to do something: review code against your style guide, write docs for your
-static site generator, use an internal tool. Codex, Claude Code, Cursor, Gemini
-CLI, Copilot and the rest all read the same format, but each one looks for
-skills in a different directory.
-
-```shell
+```bash
 repertoire add zensical --target all
 ```
 
-That one line:
+That line finds `zensical` in a skill catalog, checks the package, copies it into
+each agent's own skills directory, and records a content digest per target.
+`repertoire update` refreshes the copies it owns and refuses the ones you
+changed.
 
-- finds `zensical` in a skill **catalog** (a Git repository of skills),
-- checks that the package is well formed,
-- copies it into each agent's own skills folder,
-- records what was installed so `repertoire update` can refresh it safely.
+[Install](#install) · [Documentation](https://phillarmonic.github.io/repertoire-ai/) · [Why a lockfile](#why-a-lockfile)
 
-## Why Repertoire
+## Why a lockfile
 
-- **One skill, every agent.** Install once; Repertoire fans the skill out to
-  [30+ agents and harnesses](https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/),
-  each in its native layout.
-- **Named catalogs.** Skills resolve from a catalog you registered, including
-  source-qualified IDs such as `github.com/phillarmonic/ai-skills/zensical`.
-- **Safe updates.** Every installed copy is tracked by content digest. If you
-  changed a file locally, Repertoire refuses to replace or delete it unless you
-  pass `--force`.
-- **Reproducible teams and CI.** Commit a `repertoire.yaml` and run
-  `repertoire bootstrap` or `repertoire sync` so every laptop and job gets the
-  same set.
-- **Private by default.** Catalogs use your normal Git credentials. Repertoire
-  never stores tokens and never sends telemetry.
+Copying a `SKILL.md` folder works once. It does not survive a second agent, a
+teammate, or a CI job.
 
-## Two ways to use it
+| | Copy-paste | A skills repo | Repertoire |
+| --- | --- | --- | --- |
+| Installs into 30+ agents | one at a time | one at a time | one command |
+| Records what was installed | no | no | manifest and lock |
+| Notices a changed skill | no | only if committed | digest per target |
+| Refuses to overwrite your edit | n/a | n/a | yes, without `--force` |
+| Reproduces on a new machine | no | partly | `repertoire bootstrap` |
+| Works with a private catalog | n/a | yes | yes, over your Git credentials |
+| Verifies a signature over each skill | no | no | optional, per catalog |
 
-For yourself, `repertoire add` installs a skill under your home directory and
-remembers it so `update` can keep it current.
-
-For a team, commit `repertoire.yaml` and have each contributor (and CI) run
-`repertoire bootstrap`.
+A *skill* is a folder with a `SKILL.md` that teaches an agent how to do
+something. Codex, Claude Code, Cursor, Gemini CLI, Copilot and the rest read the
+same format and look in different directories. That is the whole problem, and it
+is a package-management problem.
 
 ## Install
+
+Linux and macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.sh | bash
 ```
 
-Or with Go 1.27 or newer:
+Windows: download `repertoire-setup-<version>.exe` from the
+[latest release](https://github.com/phillarmonic/repertoire-ai/releases/latest),
+or run the installer script in PowerShell:
 
-```shell
+```powershell
+irm https://raw.githubusercontent.com/phillarmonic/repertoire-ai/master/install.ps1 | iex
+```
+
+Go 1.27 or newer:
+
+```bash
 go install github.com/phillarmonic/repertoire-ai/cmd/repertoire@latest
 ```
 
-Windows installers, pinned versions, and custom install directories are covered in
-[Install](https://phillarmonic.github.io/repertoire-ai/#install). Check and update
-the binary any time with `repertoire --version` and `repertoire --self-update`.
+## Five minutes to a lockfile
 
-## Quick start
-
-```shell
-# See what the built-in catalog offers
+```bash
+# What the built-in catalog offers
 repertoire list --available
 
-# Install a skill into every agent on this machine
+# Install into every supported agent
 repertoire add zensical --target all
 
-# Later: pull newer versions of everything you installed
+# What Repertoire now manages, and where each copy came from
+repertoire show zensical
+```
+
+`show` prints the catalog, the commit, the digest, and the integrity of every
+copy. That output is the point of the tool.
+
+## Prove it does not overwrite you
+
+Edit an installed skill, then update:
+
+```bash
+echo "my local note" >> ~/.claude/skills/zensical/SKILL.md
 repertoire update
 ```
 
-Skills install under your home directory by default, so they are available in
-every project. Add `--project` to install into the current Git repository instead.
+`update` stops and exits 1 when a copy was edited locally, naming the skill and
+the target. Pass `--force` when you mean it. This is the behaviour that separates
+a package manager from a copier, and it takes about twenty seconds to check.
 
-## Set up a team or project
+## A team, in one committed file
 
-Commit a `repertoire.yaml` that lists the skills a project needs. Anyone who
-clones the repository (or any CI job) then runs:
-
-```shell
-repertoire bootstrap
+```yaml
+# repertoire.yaml
+schema: 1
+skills:
+  zensical:
+    catalog: phillarmonic
+  repertoire:
+    catalog: phillarmonic
 ```
 
-and gets the same skills in the same agents. See
-[Set up a project or team](https://phillarmonic.github.io/repertoire-ai/automation/)
-for the manifest format, private catalogs, and keeping installs current.
+```bash
+repertoire bootstrap   # on a new machine or in CI
+repertoire sync        # same, after fetching catalog changes
+```
 
-## Let your agent drive Repertoire
+## Catalogs
 
-```shell
+A catalog is a Git repository with a `repertoire.yaml`. Point at your existing
+repository and it works even without one: a source with no manifest is read as a
+[loose catalog](https://phillarmonic.github.io/repertoire-ai/concepts/catalogs/),
+and any directory holding a valid `SKILL.md` becomes a skill.
+
+```bash
+repertoire catalog add git@github.com:example/private-skills.git --name company
+repertoire catalog init            # scaffold a new catalog repository
+```
+
+Catalogs use your normal Git credentials. Repertoire stores no tokens and sends
+no telemetry.
+
+## Signed skills
+
+A catalog can require signed commits, and a trusted skill ships
+`REPERTOIRE.digest.asc`, a detached signature over its content digest.
+Verification runs locally in a temporary keyring, imports only the keys named in
+the trust block, and never contacts a keyserver. A failed check stops `add`,
+`install`, `update` and `bootstrap` before the lock is written.
+
+## Let your agent drive it
+
+```bash
 repertoire add repertoire --target all
 ```
 
-With the `repertoire` skill installed, ask your agent in plain language:
-"install the `zensical` skill for Codex and Claude", "create a private skill
-catalog repository for our team", or "add a `repertoire.yaml` to this project".
-The agent knows the commands, the manifest formats, and the safety rules, and
-can scaffold a complete new catalog repository from scratch. See
-[Let your agent drive Repertoire](https://phillarmonic.github.io/repertoire-ai/agent-skill/).
+Then ask the agent to install a skill, write a `repertoire.yaml`, or scaffold a
+private catalog. The skill knows the commands and the safety rules.
 
 ## Which command do I want?
 
-- Install a skill and remember it: `repertoire add <skill>`
-- Install from a Git URL or local repo: `repertoire add <git-url>`
-- Start a project manifest without installing: `repertoire init`
-- Inspect where an installed skill came from: `repertoire show <skill>`
-- Scaffold a new catalog repository: `repertoire catalog init`
-- Preview a mutating command without writing: add `--dry-run`
-- Reinstall or repair skills already declared: `repertoire install`
-- Pull newer versions: `repertoire update`
-- Install everything a project declares (new machine, CI): `repertoire bootstrap`
-- Same, but fetch catalog changes first: `repertoire sync`
-- Something looks broken: `repertoire doctor`, then `repertoire doctor --fix`
-- Use a private or local catalog: `repertoire catalog add <source>`
-- Remove a skill: `repertoire remove <skill>`
+| I want to | Command |
+| --- | --- |
+| Install a skill and remember it | `repertoire add <skill>` |
+| Install from a Git URL or a local path | `repertoire add <git-url>` |
+| Start a manifest without installing | `repertoire init` |
+| See where an installed skill came from | `repertoire show <skill>` |
+| Scaffold a catalog repository | `repertoire catalog init` |
+| Preview a change | add `--dry-run` |
+| Repair what is declared | `repertoire install` |
+| Pull newer versions | `repertoire update` |
+| Set up a new machine or CI | `repertoire bootstrap` |
+| Diagnose a broken install | `repertoire doctor` |
 
 ## Supported agents
 
-Agent Skills (`.agents`), Aider, Amp, Antigravity, Claude Code, Cline, CodeBuddy,
-Codex, GitHub Copilot, Cursor, Devin, Factory Droid, DeepSeek Harness, Gemini CLI,
-Hermes, Junie, Kilo Code, Kimi Code, Kiro, OpenClaw, OpenCode, Pi, Roo Code, Trae,
-VS Code, Windsurf. The full list of target names and install paths is in
+Agent Skills, Aider, Amp, Antigravity, Claude Code, Cline, CodeBuddy, Codex,
+GitHub Copilot, Cursor, Devin, Factory Droid, DeepSeek Harness, Gemini CLI,
+Hermes, Junie, Kilo Code, Kimi Code, Kiro, OpenClaw, OpenCode, Pi, Roo Code,
+Trae, VS Code, Windsurf, and more. The full target table is in
 [Targets and security](https://phillarmonic.github.io/repertoire-ai/concepts/targets-security/).
 
 ## Documentation
@@ -152,14 +179,20 @@ Full documentation lives at
 
 Browse the docs locally with `xdrun docs`.
 
+## What it does not do
+
+- It does not host skills. A catalog is a Git repository you control.
+- It does not run or sandbox a skill. A skill is instructions; the agent acts.
+- It does not manage `CLAUDE.md`, `AGENTS.md` or settings files, except files a
+  skill itself ships.
+- Signatures are opt-in per catalog. Without a trust block, a digest still
+  detects change, but it does not establish who published the change.
+
 ## Development
 
-```shell
-# Run the full local verification pipeline
+```bash
 xdrun ci
-
-# Build the documentation with strict validation
 uv run zensical build --clean --strict
 ```
 
-See [Contributing](https://phillarmonic.github.io/repertoire-ai/contributing/) to get started.
+See [Contributing](https://phillarmonic.github.io/repertoire-ai/contributing/).

@@ -1,19 +1,36 @@
 ---
-icon: lucide/library
-description: A package manager for agent skills. Named catalogs, a lock with content digests, and a manifest you commit so every laptop and CI job gets the same skills.
+description: "Repertoire installs an agent skill into every coding agent you use and pins it with a lockfile you commit: a digest per target, a manifest in the repository, no telemetry."
 ---
 
 <p align="center">
   <img src="images/repertoire500.png" alt="Repertoire logo" width="250">
 </p>
 
-# Repertoire
+# The lockfile for agent skills
 
-**The `apt-get` for AI agent skills.**
+Repertoire installs a skill into every coding agent you use, then pins it with a
+lockfile you commit. Every laptop and CI job gets the same skills, and an edit
+you made by hand is never overwritten.
 
-Repertoire is a package manager for agent skills: named catalogs, a lock with
-content digests, and a manifest you commit so every laptop and CI job gets the
-same skills. It never overwrites edits you made by hand and never phones home.
+```text
+$ repertoire add zensical --target all
+added zensical from catalog phillarmonic (claude,codex)
+
+$ echo "my local note" >> ~/.claude/skills/zensical/SKILL.md
+$ repertoire update
+error: install "zensical" to claude: target is unmanaged or locally modified; use --force to replace it
+$ echo $?
+1
+```
+
+| Targets | Recorded | Telemetry |
+| --- | --- | --- |
+| 30 agent directories | catalog, commit, and a digest per target | none |
+
+`update` compares the bytes it installed against the bytes on disk. When they
+differ it stops, names the target and exits non-zero, so a CI job fails instead
+of quietly shipping somebody's local edit. [The skill lockfile](concepts/lockfile.md)
+is the page that spells out what is recorded and what the digest covers.
 
 A *skill* is a folder with a `SKILL.md` file that teaches an AI coding agent how
 to do something: review code against your style guide, write docs for your
@@ -21,27 +38,45 @@ static site generator, use an internal tool. Codex, Claude Code, Cursor, Gemini
 CLI, Copilot and many others all read the same format, but each one looks for
 skills in a different directory.
 
-```bash
-repertoire add zensical --target all
-```
-
-That one line finds `zensical` in a skill catalog, checks that the package is
-well formed, copies it into each agent's own skills folder, and records what
-was installed so a later `repertoire update` can refresh it safely.
-
 ## Why a package manager and not a copier
 
-Copying a `SKILL.md` into an agent folder is enough for a one-off try. Repertoire
-treats skills as packages instead:
+If you have used `apt-get`, the model is familiar. Copying a `SKILL.md` into an
+agent folder is enough for a one-off try. Repertoire treats skills as packages
+instead:
 
 - A **catalog** is a named Git source. Skills resolve by catalog and by
   [source-qualified ID](glossary.md), so two catalogs can both offer `review`
   without a silent pick.
 - A **lock file** records the catalog commit and a content digest per target.
   `update` and `remove` refuse to touch a copy you edited by hand unless you
-  pass `--force`.
+  pass `--force`. See [The skill lockfile](concepts/lockfile.md).
 - A committed **manifest** (`repertoire.yaml`) plus `bootstrap` or `sync`
   reproduces the same set on a new laptop and in CI.
+
+## What it replaces
+
+[Repertoire vs copy-paste](vs-copy-paste.md) has the full comparison. The short
+version:
+
+| | Copying folders | Repertoire |
+| --- | --- | --- |
+| Installs into 30 targets | one at a time | one command |
+| Records what was installed | no | manifest and lock |
+| Notices a copy that changed | no | digest per target |
+| Reproduces on a new machine | no | `repertoire bootstrap` |
+| Needs no tooling at all | **yes** | no |
+
+The last row is the one to read before adopting anything.
+
+## What it does not do
+
+- It does not host skills. A catalog is a Git repository you control.
+- It does not run or sandbox a skill. A skill is instructions, and the agent
+  acts on them.
+- It does not manage `CLAUDE.md`, `AGENTS.md` or settings files, except files a
+  skill itself ships.
+- Signatures are opt-in per catalog. Without a [trust block](concepts/targets-security.md),
+  a digest still detects change; it does not establish who published it.
 
 ## Coming from a one-off skill installer
 
@@ -199,6 +234,10 @@ covers and what it will refuse to do.
 
 ## Next steps
 
+- [The skill lockfile](concepts/lockfile.md): what is recorded, what the digest
+  covers, and what `update` refuses.
+- [Repertoire vs copy-paste](vs-copy-paste.md): the comparison, and when copying
+  is the right answer.
 - [Set up a project or team](automation.md): commit a `repertoire.yaml` so
   every contributor and CI job gets the same skills.
 - [Private and company catalogs](private-repositories.md): publish your own

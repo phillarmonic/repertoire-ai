@@ -503,6 +503,65 @@ func TestAddCommaListAndGlobEndToEnd(t *testing.T) {
 	}
 }
 
+func TestCommaListsAcrossCommandsEndToEnd(t *testing.T) {
+	project := t.TempDir()
+	runCommand(t, project, "git", "init", "-q")
+	catalogRoot := filepath.Join(t.TempDir(), "team-skills")
+	writeSkillCatalog(t, catalogRoot, true, "alpha", "beta", "gamma")
+
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "team")
+
+	output := runCommand(t, project, binary, "--project", "install", "alpha,beta", "--catalog", "team", "--target", "agents")
+	for _, want := range []string{"installed alpha", "installed beta"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("install output missing %q:\n%s", want, output)
+		}
+	}
+
+	// One comma list refreshes the named catalog; the duplicate is deduplicated.
+	output = runCommand(t, project, binary, "--project", "catalog", "update", "team,team")
+	if !strings.Contains(output, "team\t") {
+		t.Fatalf("catalog update output:\n%s", output)
+	}
+
+	output = runCommand(t, project, binary, "--project", "update", "alpha,beta")
+	for _, want := range []string{"updated alpha", "updated beta"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("update output missing %q:\n%s", want, output)
+		}
+	}
+
+	showOutput := runCommand(t, project, binary, "--project", "show", "alpha,beta", "--format", "tsv")
+	for _, want := range []string{"name\talpha", "name\tbeta"} {
+		if !strings.Contains(showOutput, want) {
+			t.Fatalf("show output missing %q:\n%s", want, showOutput)
+		}
+	}
+
+	failure := runCommandWithEnvError(t, project, os.Environ(), binary, "--project", "update", "missing,alpha")
+	if !strings.Contains(failure, `skill "missing" is not installed`) {
+		t.Fatalf("expected missing-skill error:\n%s", failure)
+	}
+	failure = runCommandWithEnvError(t, project, os.Environ(), binary, "--project", "catalog", "update", "missing,team")
+	if !strings.Contains(failure, `catalog "missing" is not visible`) {
+		t.Fatalf("expected missing-catalog error:\n%s", failure)
+	}
+
+	runCommand(t, project, binary, "--project", "remove", "alpha,beta")
+	if output = runCommand(t, project, binary, "--project", "list"); strings.TrimSpace(output) != "" {
+		t.Fatalf("expected empty list after comma remove, got %q", output)
+	}
+
+	runCommand(t, project, binary, "--project", "catalog", "add", catalogRoot, "--name", "second")
+	runCommand(t, project, binary, "--project", "catalog", "remove", "team,second")
+	if listed := runCommand(t, project, binary, "--project", "catalog", "list"); strings.Contains(listed, "team") || strings.Contains(listed, "second") {
+		t.Fatalf("catalogs were not removed:\n%s", listed)
+	}
+}
+
 func TestOneShotAddFromSourceEndToEnd(t *testing.T) {
 	binary := testBinaryPath(t)
 	moduleRoot := filepath.Clean(filepath.Join("..", ".."))

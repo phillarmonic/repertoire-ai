@@ -8,13 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-### Changed
+- Slash-only skills are installed as commands for the `opencode` target. A skill
+  whose frontmatter declares `disable-model-invocation: true` is meant to be
+  invoked explicitly, but OpenCode offers every skill it finds to the model —
+  its user-invoked entries live in a `command` directory instead. Such a skill
+  is now written there too (`~/.config/opencode/command/<name>.md`, or
+  `.opencode/command/` in a project), carrying the skill's description and body.
+  When the skill declares `argument-hint`, the command template names
+  `$ARGUMENTS`, because OpenCode substitutes the typed text only where the
+  template asks for it. The skill directory is still installed, so companion
+  files stay reachable. Removal, `--dry-run`, `show` and `doctor --fix` all
+  account for the command file.
 
-### Deprecated
-
-### Removed
+- Commands that take a skill or catalog name accept a comma-separated list as
+  well as several arguments. `install`, `update`, `remove`, `show`,
+  `stub list`, `stub get`, `catalog update`, and `catalog remove` now treat
+  `repertoire catalog update phillarmonic,andy` as two catalogs instead of one
+  name containing a comma. `add` already behaved this way, and shell
+  completion keeps working after the comma.
 
 ### Fixed
+
+- Reading a skill's invocation fields no longer rejects spells the convention
+  allows. `argument-hint: [target]` is a YAML sequence unless the author quotes
+  it, and the flag may be written as a quoted string; a strict field turned
+  either into an invalid-frontmatter error, which fails the skill outright.
+
+- The `opencode` target follows `XDG_CONFIG_HOME`. OpenCode resolves its
+  configuration directory from that variable rather than hardcoding
+  `~/.config`, so a global install on a machine that sets it wrote skills to
+  `~/.config/opencode/skills` — a directory OpenCode never reads. The global
+  root is now `$XDG_CONFIG_HOME/opencode/skills` when the variable is set and
+  `~/.config/opencode/skills` otherwise; the project root is unchanged.
+  `devin`, `kilo` and `amp` keep their fixed `~/.config` paths, because their
+  clients' handling has not been verified and moving the path for a client that
+  does hardcode `~/.config` would break it in the same way.
 
 ### Security
 

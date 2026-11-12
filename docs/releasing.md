@@ -1,3 +1,7 @@
+---
+description: "How a Repertoire release is cut: a semantic-version tag, cross-compiled binaries, checksums and the release workflow."
+---
+
 # Releasing
 
 Repertoire releases are built from semantic-version tags such as `v1.0.0`.

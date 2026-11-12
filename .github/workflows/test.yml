@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 env:
-  GOSEC_VERSION: v2.29.0
-  GOVULNCHECK_VERSION: v1.7.0
+  GOSEC_VERSION: v2.30.0
+  GOVULNCHECK_VERSION: v1.9.0
 
 jobs:
   quality:
@@ -58,7 +58,7 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           install-only: true
 
       - name: Restore security scanners
@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin
-          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod') }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
 
       - name: Install security scanners
         if: steps.security-tools-cache.outputs.cache-hit != 'true'
@@ -82,6 +82,12 @@ jobs:
       - name: Install GnuPG
         shell: bash
         run: bash ./scripts/ci-install-gpg.sh
+
+      # ci builds the docs, and the docs task requires uv.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
       - name: Run CI
         run: xdrun ci
@@ -131,7 +137,7 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.15.0
           install-only: true
           skip-cache: true
 
@@ -140,7 +146,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/go/bin
-          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
+          key: security-tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod') }}-${{ env.GOSEC_VERSION }}-${{ env.GOVULNCHECK_VERSION }}
 
       - name: Install security scanners
         if: steps.security-tools-cache.outputs.cache-hit != 'true'

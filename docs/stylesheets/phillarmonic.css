@@ -1,0 +1,169 @@
+/*
+ * Phillarmonic visual identity for Zensical.
+ *
+ * The palette is the Phillarmonic colour system, mapped onto the semantic
+ * variables Zensical's modern theme consumes. Nothing here invents a colour:
+ * every value comes from visual-identity/phillarmonic/color-palette, and the
+ * mapping is the one documented in the zensical-phillarmonic skill.
+ *
+ * Two deliberate choices:
+ *
+ * - The header, footer and page are canvas surfaces, not brand-blue ones.
+ *   The identity reserves blue for interaction, so the shell stays quiet and
+ *   links, focus and selection carry the colour.
+ * - Dark mode is designed rather than inverted: it uses the deep blue-grey
+ *   canvas and its own muted and border values.
+ */
+
+/* Light */
+[data-md-color-scheme="default"] {
+  color-scheme: light;
+
+  --md-primary-fg-color: #ffffff;
+  --md-primary-fg-color--light: #f2f6fb;
+  --md-primary-fg-color--dark: #d9e3ee;
+  --md-primary-bg-color: #17212b;
+  --md-primary-bg-color--light: #506174;
+
+  --md-accent-fg-color: #285fca;
+  --md-accent-fg-color--transparent: #285fca1a;
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+
+  --md-default-fg-color: #17212b;
+  --md-default-fg-color--light: #506174;
+  --md-default-fg-color--lighter: #7a8ba1;
+  --md-default-fg-color--lightest: #d9e3ee;
+  --md-default-bg-color: #ffffff;
+  --md-default-bg-color--light: #ffffffd9;
+  --md-default-bg-color--lighter: #ffffff8a;
+  --md-default-bg-color--lightest: #ffffff42;
+
+  --md-typeset-color: #17212b;
+  --md-typeset-a-color: #2858a7;
+  --md-typeset-table-color: #d9e3ee;
+  --md-typeset-table-color--light: #d9e3ee80;
+  --md-typeset-mark-color: #285fca33;
+  --md-typeset-kbd-color: #f2f6fb;
+  --md-typeset-kbd-accent-color: #ffffff;
+  --md-typeset-kbd-border-color: #d9e3ee;
+
+  --md-code-fg-color: #17212b;
+  --md-code-bg-color: #f2f6fb;
+  --md-code-bg-color--light: #f2f6fbb3;
+  --md-code-bg-color--lighter: #f2f6fb80;
+
+  --md-admonition-fg-color: #17212b;
+  --md-admonition-bg-color: #f2f6fb;
+
+  --md-footer-fg-color: #506174;
+  --md-footer-fg-color--light: #506174cc;
+  --md-footer-fg-color--lighter: #7a8ba1;
+  --md-footer-bg-color: #f2f6fb;
+  --md-footer-bg-color--dark: #101b2b;
+
+  --md-shadow-z1: 0 0.05rem 0.25rem #17212b14, 0 0 0.05rem #17212b0a;
+  --md-shadow-z2: 0 0.1rem 0.5rem #17212b1f, 0 0 0.05rem #17212b14;
+  --md-shadow-z3: 0 0.2rem 1rem #17212b29, 0 0 0.05rem #17212b1f;
+}
+
+/* Dark */
+[data-md-color-scheme="slate"] {
+  color-scheme: dark;
+
+  --md-primary-fg-color: #0e1623;
+  --md-primary-fg-color--light: #152131;
+  --md-primary-fg-color--dark: #0b121d;
+  --md-primary-bg-color: #e7eef8;
+  --md-primary-bg-color--light: #b2c2d5;
+
+  --md-accent-fg-color: #568df0;
+  --md-accent-fg-color--transparent: #568df01f;
+  --md-accent-bg-color: #081426;
+  --md-accent-bg-color--light: #081426b3;
+
+  --md-default-fg-color: #e7eef8;
+  --md-default-fg-color--light: #b2c2d5;
+  --md-default-fg-color--lighter: #6d829a;
+  --md-default-fg-color--lightest: #35475d;
+  --md-default-bg-color: #0e1623;
+  --md-default-bg-color--light: #0e1623d9;
+  --md-default-bg-color--lighter: #0e16238a;
+  --md-default-bg-color--lightest: #0e162342;
+
+  --md-typeset-color: #e7eef8;
+  --md-typeset-a-color: #8bb8ff;
+  --md-typeset-table-color: #35475d;
+  --md-typeset-table-color--light: #35475d80;
+  --md-typeset-mark-color: #568df040;
+  --md-typeset-kbd-color: #152131;
+  --md-typeset-kbd-accent-color: #1c2b3e;
+  --md-typeset-kbd-border-color: #35475d;
+
+  --md-code-fg-color: #e7eef8;
+  --md-code-bg-color: #152131;
+  --md-code-bg-color--light: #152131b3;
+  --md-code-bg-color--lighter: #15213180;
+
+  --md-admonition-fg-color: #e7eef8;
+  --md-admonition-bg-color: #152131;
+
+  --md-footer-fg-color: #b2c2d5;
+  --md-footer-fg-color--light: #b2c2d5cc;
+  --md-footer-fg-color--lighter: #6d829a;
+  --md-footer-bg-color: #152131;
+  --md-footer-bg-color--dark: #0b121d;
+
+  --md-shadow-z1: 0 0.05rem 0.25rem #00000040, 0 0 0.05rem #0000001f;
+  --md-shadow-z2: 0 0.1rem 0.5rem #00000059, 0 0 0.05rem #00000029;
+  --md-shadow-z3: 0 0.2rem 1rem #00000073, 0 0 0.05rem #00000033;
+}
+
+/*
+ * The identity's mandatory interaction rules: a visible 3px focus ring at a
+ * 3px offset, and motion collapsed when the reader asks for less of it.
+ */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--md-accent-fg-color);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/*
+ * The header card carries the Phillarmonic mark at the same optical size as
+ * the theme's own logo slot, and keeps a plain link as its fallback: the
+ * facts below it are filled in by javascripts/repo-card.mjs and are absent
+ * when that cannot reach the GitHub API.
+ */
+.md-header .md-logo img,
+.md-header .md-logo svg {
+  height: 1.3rem;
+  width: 1.3rem;
+}
+
+.md-source__facts {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Zensical 0.1.x lays a table out as inline-block, so a short table occupies
+ * its content width and reads as an unfinished column. Fill the column
+ * instead; the theme's wrapper keeps horizontal scrolling on narrow screens.
+ */
+.md-typeset .md-typeset__table {
+  display: block;
+  width: 100%;
+}
+
+.md-typeset .md-typeset__table table {
+  display: table;
+  width: 100%;
+}

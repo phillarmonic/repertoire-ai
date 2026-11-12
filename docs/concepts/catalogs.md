@@ -1,3 +1,7 @@
+---
+description: "What a catalog is in Repertoire: a Git repository with a repertoire.yaml catalog section, how the built-in phillarmonic catalog resolves, and what a loose catalog gives up."
+---
+
 # Catalogs
 
 A catalog is a Git repository with a `repertoire.yaml` catalog section. The

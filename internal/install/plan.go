@@ -113,6 +113,31 @@ func classifyInstallCopy(destination, previousDigest, desiredDigest string, forc
 	return SkillCopyRefuseUnmanaged, nil
 }
 
+// classifyInstallCommand mirrors classifyInstallCopy for a destination that is a
+// single file. The directory classifier compares with Digest, which walks the
+// entries below a root and so reports the empty-input digest for a file — every
+// managed command would look locally modified.
+func classifyInstallCommand(destination, previousDigest, desiredDigest string, force bool) (SkillCopyAction, error) {
+	exists, matches, err := DigestFileMatches(destination, previousDigest)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return SkillCopyInstall, nil
+	}
+	managedUnchanged := previousDigest != "" && matches
+	if managedUnchanged && previousDigest == desiredDigest {
+		return SkillCopySkip, nil
+	}
+	if force || managedUnchanged {
+		return SkillCopyReplace, nil
+	}
+	if previousDigest != "" {
+		return SkillCopyRefuseModified, nil
+	}
+	return SkillCopyRefuseUnmanaged, nil
+}
+
 // InstallConflictError is the error a real install returns when a destination
 // is unmanaged or locally modified.
 func InstallConflictError(name, target string) error {

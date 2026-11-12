@@ -255,9 +255,8 @@ func validateSkill(root, expectedName string, requireMatchingDirectory bool) err
 }
 
 func catalogSkillLeaf(name string) string {
-	index := strings.LastIndex(name, "/")
-	if index < 0 {
-		return name
+	if _, leaf, found := strings.CutLast(name, "/"); found {
+		return leaf
 	}
-	return name[index+1:]
+	return name
 }

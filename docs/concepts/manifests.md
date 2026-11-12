@@ -1,3 +1,7 @@
+---
+description: "The repertoire.yaml manifest format: schema version, catalog registrations, bootstrap skills and declared requirements in one human-edited file."
+---
+
 # Manifests and state
 
 Repertoire uses one human-edited YAML format for catalogs, catalog

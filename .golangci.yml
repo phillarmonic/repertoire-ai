@@ -56,6 +56,12 @@ linters:
         linters:
           - gosec
 
+      # A table-test struct is a literal in the test body, so its field order is
+      # chosen for readability and the analyzer's "optimal" size is not reachable
+      # without renaming fields. Field order in the production structs is kept.
+      - path: _test\.go
+        text: fieldalignment
+
 formatters:
   enable:
     - gofumpt
