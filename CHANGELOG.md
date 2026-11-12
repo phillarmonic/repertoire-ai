@@ -54,6 +54,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.11.0] - 2026-09-25
+
+### Added
+
+- Trust blocks on catalogs. A registration may name armored public key files
+  with the fingerprint each file must match; materializing the catalog then
+  verifies the checked-out commit with `git verify-commit` through a temporary
+  keyring, so the personal GnuPG keyring is neither read nor written and no
+  keyserver is contacted. A registration with no `trust` block loads and
+  installs exactly as before, and the manifest schema stays at `1`.
+
+- A detached signature per skill. A trusted catalog skill may carry
+  `REPERTOIRE.digest.asc`, a signature over the same content digest the lock
+  records, and either declared key may sign it. The signature file is not part
+  of the hash, so adding it does not change the digest. A changed skill, a
+  missing signature, a fingerprint that does not match, a commit signed by none
+  of the declared keys, or a missing `gpg` fails materialize, names the
+  catalog, the skill and the commit, and leaves the lock unchanged.
+
+- `docs/concepts/manifests.md` and `docs/concepts/targets-security.md`, which
+  document the trust fields and what a trust block does and does not protect.
+
 ## [1.10.0] - 2026-09-16
 
 ### Added
