@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Fixed
+
+### Security
+
+## [1.12.0] - 2026-11-12
+
+### Added
+
 - Slash-only skills are installed as commands for the `opencode` target. A skill
   whose frontmatter declares `disable-model-invocation: true` is meant to be
   invoked explicitly, but OpenCode offers every skill it finds to the model —
