@@ -321,12 +321,15 @@ skills:
 
 	t.Run("legacy bootstrap manifest is migrated into repertoire.yaml", func(t *testing.T) {
 		project, _, environment := bootstrapEnvironment(t)
-		catalogRoot := createBootstrapCatalog(t, "local", map[string]string{"legacy-demo": "v1"})
+		catalogRoot := createBootstrapCatalog(t, "local", map[string]string{
+			"legacy-demo":   "v1",
+			"code-reviewer": "review-v1",
+		})
 		if err := os.WriteFile(filepath.Join(project, "repertoire.yaml"), []byte(`schema: 1
 requirements:
   code-reviewer:
-    catalog: company
-    targets: [codex]
+    catalog: local
+    targets: [agents]
 `), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -352,8 +355,10 @@ skills:
 		if !strings.Contains(manifestBody, "legacy-demo:") || !strings.Contains(manifestBody, "code-reviewer:") {
 			t.Fatalf("migrated manifest lost declarations:\n%s", manifestBody)
 		}
-		if _, err := os.Stat(filepath.Join(project, ".agents", "skills", "legacy-demo", "SKILL.md")); err != nil {
-			t.Fatalf("migrated skill was not installed: %v", err)
+		for _, skill := range []string{"legacy-demo", "code-reviewer"} {
+			if _, err := os.Stat(filepath.Join(project, ".agents", "skills", skill, "SKILL.md")); err != nil {
+				t.Fatalf("migrated %s was not installed: %v", skill, err)
+			}
 		}
 	})
 
@@ -657,4 +662,50 @@ func globalConfigRoot(home string) string {
 		return filepath.Join(home, "Library", "Application Support", "repertoire")
 	}
 	return filepath.Join(home, "config", "repertoire")
+}
+
+// A project whose manifest declares requirements, which is what
+// `repertoire add --project` writes, must bootstrap on a fresh clone. Before
+// this test the manifest looked empty to bootstrap: it wrote the starter
+// skills list over it and then failed on target detection.
+func TestBootstrapInstallsDeclaredRequirements(t *testing.T) {
+	binary := testBinaryPath(t)
+	moduleRoot := filepath.Clean(filepath.Join("..", ".."))
+	runCommand(t, moduleRoot, "go", "build", "-o", binary, "./cmd/repertoire")
+
+	project, _, environment := bootstrapEnvironment(t)
+	catalogRoot := createBootstrapCatalog(t, "local", map[string]string{"demo": "v1"})
+	manifest := `schema: 1
+catalogs:
+  local:
+    source: ` + catalogRoot + `
+requirements:
+  demo:
+    catalog: local
+    targets: [agents]
+`
+	writeBootstrapFile(t, project, manifest)
+
+	output := runCommandWithEnv(t, project, environment, binary, "bootstrap")
+	if !strings.Contains(output, "bootstrapped demo (project)") {
+		t.Fatalf("bootstrap output:\n%s", output)
+	}
+	skill := filepath.Join(project, ".agents", "skills", "demo", "SKILL.md")
+	assertContainsFile(t, skill, "v1")
+	if after := readFileForTest(t, filepath.Join(project, "repertoire.yaml")); after != manifest {
+		t.Fatalf("bootstrap rewrote a requirements manifest:\n%s", after)
+	}
+
+	if err := os.RemoveAll(filepath.Dir(skill)); err != nil {
+		t.Fatal(err)
+	}
+	runCommandWithEnv(t, project, environment, binary, "bootstrap")
+	if _, err := os.Stat(skill); err != nil {
+		t.Fatalf("bootstrap did not restore a missing requirement: %v", err)
+	}
+
+	syncOutput := runCommandWithEnv(t, project, environment, binary, "sync")
+	if !strings.Contains(syncOutput, "synced demo (project)") {
+		t.Fatalf("sync output:\n%s", syncOutput)
+	}
 }

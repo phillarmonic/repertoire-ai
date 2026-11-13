@@ -724,20 +724,86 @@ type globalSkillHealth struct{}
 func (globalSkillHealth) id() string { return "global-skill-health" }
 
 func (globalSkillHealth) audit(env *Env) ([]Issue, error) {
+	return skillHealthIssues(
+		env.GlobalLock.Skills,
+		scopeGlobal,
+		globalSkillHealth{}.id(),
+		func(_ string, entry state.LockSkill) ([]string, error) { return entry.Locations, nil },
+	)
+}
+
+// projectSkillHealth: project-scope skills whose install locations are missing
+// or whose content digest no longer matches the project lock. A checkout whose
+// copies were never restored used to report "no issues found" while `show`
+// listed every target as missing.
+type projectSkillHealth struct{}
+
+func (projectSkillHealth) id() string { return "project-skill-health" }
+
+func (projectSkillHealth) audit(env *Env) ([]Issue, error) {
+	if !env.HasProject {
+		return nil, nil
+	}
+	// A project lock belongs to a checkout, so its recorded locations are the
+	// paths of whichever clone wrote it. Resolve the target paths against this
+	// checkout instead, the same way `show` does, or a second clone looks
+	// healthy while every copy it describes is absent.
+	return skillHealthIssues(
+		env.ProjectLock.Skills,
+		scopeProject,
+		projectSkillHealth{}.id(),
+		func(name string, entry state.LockSkill) ([]string, error) {
+			// Entries recorded without copies (an artifact-only fixture, or a
+			// declaration that never installed) have nothing to check here;
+			// manifest drift owns those.
+			if len(entry.Locations) == 0 {
+				return nil, nil
+			}
+			if len(entry.Targets) == 0 {
+				return entry.Locations, nil
+			}
+			targets, err := installer.ResolveTargets(env.ProjectScope, entry.Targets, "")
+			if err != nil {
+				return nil, err
+			}
+			locations := make([]string, 0, len(targets))
+			seen := map[string]bool{}
+			for _, target := range targets {
+				location := installer.SkillInstallPath(name, target)
+				if seen[location] {
+					continue
+				}
+				seen[location] = true
+				locations = append(locations, location)
+			}
+			return locations, nil
+		},
+	)
+}
+
+func skillHealthIssues(
+	entries map[string]state.LockSkill,
+	scope, check string,
+	locationsFor func(string, state.LockSkill) ([]string, error),
+) ([]Issue, error) {
 	var issues []Issue
-	names := make([]string, 0, len(env.GlobalLock.Skills))
-	for name := range env.GlobalLock.Skills {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		entry := env.GlobalLock.Skills[name]
+		entry := entries[name]
 		expected := map[string]bool{entry.Digest: true}
 		for _, digest := range entry.TargetDigests {
 			expected[digest] = true
 		}
+		locations, err := locationsFor(name, entry)
+		if err != nil {
+			return nil, err
+		}
 		var missing, modified int
-		for _, location := range entry.Locations {
+		for _, location := range locations {
 			exists, matches, err := installer.DigestMatches(location, expected)
 			if err != nil {
 				return nil, err
@@ -770,17 +836,17 @@ func (globalSkillHealth) audit(env *Env) ([]Issue, error) {
 			continue
 		}
 		issues = append(issues, Issue{
-			Check:   globalSkillHealth{}.id(),
-			Scope:   scopeGlobal,
+			Check:   check,
+			Scope:   scope,
 			Subject: name,
-			Detail:  globalSkillHealthDetail(missing, modified),
+			Detail:  skillHealthDetail(missing, modified),
 			Remedy:  "run repertoire doctor --fix",
 		})
 	}
 	return issues, nil
 }
 
-func globalSkillHealthDetail(missing, modified int) string {
+func skillHealthDetail(missing, modified int) string {
 	switch {
 	case missing == 1 && modified == 0:
 		return "installed location is missing"
@@ -804,6 +870,61 @@ func (globalSkillHealth) fix(env *Env, issues []Issue) error {
 		}
 	}
 	return nil
+}
+
+func (projectSkillHealth) fix(env *Env, issues []Issue) error {
+	repaired := map[string]bool{}
+	for _, issue := range issues {
+		name := issue.Subject
+		if repaired[name] {
+			continue
+		}
+		repaired[name] = true
+		if err := reinstallProjectSkill(env, name); err != nil {
+			return fmt.Errorf("reinstall %q in the project: %w (run repertoire sync)", name, err)
+		}
+	}
+	return nil
+}
+
+func reinstallProjectSkill(env *Env, name string) error {
+	entry, exists := env.ProjectLock.Skills[name]
+	if !exists {
+		return fmt.Errorf("skill %q is not installed in the project", name)
+	}
+	resolved, err := env.resolveSkill(env.ProjectManifest, name, entry.Catalog)
+	if err != nil {
+		return err
+	}
+	targets, err := installer.ResolveTargets(env.ProjectScope, entry.Targets, "")
+	if err != nil {
+		return err
+	}
+	locations, digests, err := installer.SkillWithDigests(resolved, targets, &entry, true)
+	if err != nil {
+		return err
+	}
+	artifacts, err := installer.InstallArtifacts(
+		installer.ProjectArtifacts(resolved, entry.Hooks),
+		targets,
+		env.ProjectScope.Root,
+		entry.Artifacts,
+		true,
+	)
+	if err != nil {
+		return err
+	}
+	commands, err := installer.InstallCommands(resolved, targets, entry.Commands, true)
+	if err != nil {
+		return err
+	}
+	entry.Locations = locations
+	entry.TargetDigests = digests
+	entry.Artifacts = artifacts
+	entry.Commands = commands
+	entry.Digest = resolved.Digest
+	env.ProjectLock.Skills[name] = entry
+	return env.saveProjectLock()
 }
 
 func reinstallGlobalSkill(env *Env, name string) error {

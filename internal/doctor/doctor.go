@@ -75,6 +75,7 @@ var checks = []check{
 	manifestDrift{},
 	staleProjectEntries{},
 	globalSkillHealth{},
+	projectSkillHealth{},
 }
 
 // Run audits the environment and, when fix is true, repairs what it can.

@@ -171,7 +171,20 @@ repertoire add zensical --target all
 Installs `zensical` into every supported agent and records it as something you
 want kept installed. Drop `--target all` to install only into agents Repertoire
 detects on your machine, or name agents explicitly with
-`--target codex --target claude`.
+`--target codex --target claude`. On a machine with no agent installed nothing
+is detected, so the first install names `--target all`.
+
+That first command writes a lock under your home directory, which is right for
+one machine and wrong for a team. To put the manifest and the lock in the
+repository, run it from the Git root with `--project`:
+
+```bash
+repertoire --project add zensical --target all
+```
+
+Commit `repertoire.yaml` and `repertoire.lock.json`. A teammate clones the
+repository and runs `repertoire bootstrap` to get the same skills into their
+own agent directories.
 
 To install from a repository you have not registered yet:
 

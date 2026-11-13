@@ -73,17 +73,12 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 	var globalLock state.Lock
 	globalLoaded := false
 
-	names := make([]string, 0, len(manifest.Skills))
-	for name := range manifest.Skills {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		declaration := manifest.Skills[name]
+	for _, declaration := range bootstrapDeclarations(manifest) {
+		name := declaration.name
 		scope := projectScope
 		lock := &projectLock
 		protectGlobal := false
-		if declaration.Scope == state.BootstrapScopeGlobal {
+		if declaration.scope == state.BootstrapScopeGlobal {
 			if !globalLoaded {
 				globalScope, err = state.ResolveScope(state.ScopeOptions{Global: true, Directory: projectScope.Root})
 				if err != nil {
@@ -100,7 +95,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			protectGlobal = true
 		}
 		hooks := hookChoiceNo
-		if declaration.Hooks {
+		if declaration.hooks {
 			hooks = hookChoiceYes
 		}
 		if _, err := installManaged(
@@ -110,8 +105,8 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 			nil,
 			lock,
 			name,
-			declaration.Catalog,
-			declaration.Targets,
+			declaration.catalog,
+			declaration.targets,
 			state.LockOriginBootstrap,
 			force,
 			false,
@@ -122,7 +117,7 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		); err != nil {
 			return err
 		}
-		if declaration.Scope == state.BootstrapScopeGlobal && !dryRun {
+		if declaration.scope == state.BootstrapScopeGlobal && !dryRun {
 			entry := globalLock.Skills[name]
 			if err := installBootstrapProjectArtifacts(
 				projectScope,
@@ -130,9 +125,9 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 				manifest,
 				&globalLock,
 				name,
-				declaration.Catalog,
+				declaration.catalog,
 				entry.Targets,
-				declaration.Hooks,
+				declaration.hooks,
 				force,
 				overrideFlags,
 			); err != nil {
@@ -146,9 +141,61 @@ func runBootstrap(command *cobra.Command, globalFlag, projectFlag, force, refres
 		if refresh {
 			action = "synced"
 		}
-		_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s (%s)\n", action, name, declaration.Scope)
+		_, _ = fmt.Fprintf(command.OutOrStdout(), "%s %s (%s)\n", action, name, declaration.scope)
 	}
 	return nil
+}
+
+// bootstrapDeclaration is one skill bootstrap installs, flattened from either
+// manifest section. A requirements entry is what `repertoire add --project`
+// writes, so bootstrap has to install it or a fresh clone of such a project
+// installs nothing.
+type bootstrapDeclaration struct {
+	name    string
+	catalog string
+	scope   string
+	targets []string
+	hooks   bool
+}
+
+func bootstrapDeclarations(manifest state.Manifest) []bootstrapDeclaration {
+	names := make([]string, 0, len(manifest.Skills))
+	for name := range manifest.Skills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	declarations := make([]bootstrapDeclaration, 0, len(names)+len(manifest.Requirements))
+	declared := make(map[string]bool, len(names))
+	for _, name := range names {
+		skill := manifest.Skills[name]
+		declarations = append(declarations, bootstrapDeclaration{
+			name:    name,
+			catalog: skill.Catalog,
+			scope:   skill.Scope,
+			targets: skill.Targets,
+			hooks:   skill.Hooks,
+		})
+		declared[name] = true
+	}
+	required := make([]string, 0, len(manifest.Requirements))
+	for name := range manifest.Requirements {
+		required = append(required, name)
+	}
+	sort.Strings(required)
+	for _, name := range required {
+		if declared[name] {
+			continue
+		}
+		requirement := manifest.Requirements[name]
+		declarations = append(declarations, bootstrapDeclaration{
+			name:    name,
+			catalog: requirement.Catalog,
+			scope:   state.BootstrapScopeProject,
+			targets: requirement.Targets,
+			hooks:   requirement.Hooks,
+		})
+	}
+	return declarations
 }
 
 func installBootstrapProjectArtifacts(
@@ -269,6 +316,13 @@ func ensureBootstrapSkills(command *cobra.Command, manifest *state.Manifest, man
 		return nil
 	}
 
+	// A manifest with declared requirements is not empty. `add --project`
+	// writes requirements, so writing a starter skills list here would bury
+	// the project's own declaration.
+	if len(manifest.Requirements) > 0 {
+		return nil
+	}
+
 	if refresh {
 		return fmt.Errorf("%s declares no bootstrap skills", filepath.Base(manifestPath))
 	}
@@ -349,6 +403,13 @@ func refreshBootstrapCatalogs(manifest state.Manifest, overrideFlags *[]string) 
 			refreshAll = true
 		} else {
 			used[skill.Catalog] = struct{}{}
+		}
+	}
+	for _, requirement := range manifest.Requirements {
+		if requirement.Catalog == "" {
+			refreshAll = true
+		} else {
+			used[requirement.Catalog] = struct{}{}
 		}
 	}
 	manager, err := newCatalogManager("", *overrideFlags)
