@@ -115,7 +115,9 @@ repertoire --project add graphify --target codex --with-hooks
 
 Where `add` declares a new requirement, `install` (re)installs what is already
 declared. With no argument it installs every requirement in the selected
-scope, repairing any managed copy that is missing or broken.
+scope, repairing any managed copy that is missing or broken. Put `--project`
+first to select the project scope; without it the command reads the global
+manifest, so a project requirement is left alone.
 
 ```bash
 repertoire install
@@ -257,7 +259,10 @@ when the directory basename is not a valid catalog name.
 
 From a Git worktree, `bootstrap` installs every skill in the `skills` section
 of the project `repertoire.yaml` into its declared scope and targets, without
-fetching. `sync` does the same after refreshing the tracking catalogs.
+fetching. It also installs the `requirements` section, which is what
+`repertoire --project add` writes, so a project set up with `add` reproduces on
+a fresh clone through the same command. `sync` does the same after refreshing
+the tracking catalogs.
 
 ```bash
 repertoire bootstrap

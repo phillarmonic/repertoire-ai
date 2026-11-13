@@ -21,7 +21,7 @@ each problem with a suggested remedy. `repertoire doctor --fix` applies those
 remedies. See [`doctor`](commands.md#doctor-diagnose-and-repair) for the
 escalation path from there.
 
-## `no supported agent clients detected; use --target`
+## `no supported agent clients detected; use --target <name> or --target all`
 
 **What it means.** You ran `add` without `--target`, and Repertoire could not
 find any agent on this machine (no known configuration directory, no known CLI

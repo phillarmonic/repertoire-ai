@@ -77,7 +77,7 @@ func ResolveTargets(scope state.Scope, requested []string, home string) ([]Targe
 		result = append(result, newTarget(scope, home, name, root))
 	}
 	if len(result) == 0 {
-		return nil, errors.New("no supported agent clients detected; use --target")
+		return nil, errors.New("no supported agent clients detected; use --target <name> or --target all")
 	}
 	return deduplicateTargets(result), nil
 }

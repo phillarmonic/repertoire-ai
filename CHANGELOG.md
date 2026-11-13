@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `repertoire bootstrap` and `sync` install the `requirements` section of a
+  project manifest. A project set up with `repertoire --project add` writes its
+  skills there, and a fresh clone used to see an empty manifest: it replaced
+  the file with the starter list and then failed on target detection. The same
+  command now restores a missing copy as well.
+
+- `repertoire doctor` audits project-scope installs. A checkout whose agent
+  directories were never restored reported `no issues found` while `show`
+  listed every target as missing. The new `project-skill-health` check reports
+  it, and `doctor --fix` reinstalls the missing copy.
+
+- The error `add` prints when no agent client is detected names a usable value.
+  It said `use --target`, which leaves the reader to guess the names; it now
+  says `use --target <name> or --target all`, and the quickstart shows the
+  `--project` form that writes a lock you can commit.
+
 ### Security
 
 ## [1.12.0] - 2026-11-12

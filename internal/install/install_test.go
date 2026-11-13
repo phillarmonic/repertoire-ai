@@ -218,6 +218,17 @@ func TestDetectsGlobalTargetsFromCommands(t *testing.T) {
 	}
 }
 
+// A machine with no agent client installed and no --target flag used to print
+// "use --target", which names no usable value. The first error a reader sees
+// should name the one flag value that always works.
+func TestMissingTargetErrorNamesAll(t *testing.T) {
+	project := t.TempDir()
+	_, err := ResolveTargets(state.Scope{Root: project}, nil, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "--target all") {
+		t.Fatalf("missing-target error should name --target all, got %v", err)
+	}
+}
+
 func TestResolveAllTargets(t *testing.T) {
 	project := t.TempDir()
 	targets, err := ResolveTargets(state.Scope{Root: project}, []string{"all"}, t.TempDir())

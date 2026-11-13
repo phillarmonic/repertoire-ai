@@ -100,6 +100,12 @@ roots. `--project` reads `repertoire.yaml` and `repertoire.lock.json` from the
 current Git worktree root and installs into project-local agent directories.
 `--global` makes the default explicit. The two flags cannot be combined.
 
+A requirements entry is what `repertoire --project add` writes, and it lives in
+the project manifest only under `--project`; the same command without the flag
+writes to the global manifest. A fresh clone installs the project entries with
+`repertoire bootstrap`, or with `repertoire --project install` when the entry
+already has a lock record.
+
 The optional `hooks` field records whether optional managed project artifacts
 should be installed with a declared requirement. Catalog-provided project
 instructions are installed independently of this setting. The lock file is generated

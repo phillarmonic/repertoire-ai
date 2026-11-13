@@ -783,3 +783,77 @@ func TestDoctorGlobalCommandHealth(t *testing.T) {
 		t.Fatalf("command was not restored: %v", err)
 	}
 }
+
+// Project-scope installs were never audited, so a checkout whose copies were
+// deleted reported "no issues found" while `show` listed every target as
+// missing. The project lock needs the same health check as the global one.
+func TestDoctorProjectSkillHealth(t *testing.T) {
+	skillRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte("---\nname: demo\ndescription: Test\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := installer.Digest(skillRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := installer.ResolvedSkill{Name: "demo", Root: skillRoot, Digest: digest}
+	env := doctorEnvironment(t, resolved)
+	env.ProjectManifest.Skills["demo"] = state.BootstrapSkill{
+		Scope:   state.BootstrapScopeProject,
+		Targets: []string{"agents"},
+	}
+	targets := []installer.Target{{Name: "agents", Root: filepath.Join(env.ProjectScope.Root, ".agents", "skills")}}
+	locations, digests, err := installer.SkillWithDigests(resolved, targets, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.ProjectLock.Skills["demo"] = state.LockSkill{
+		Catalog: "test", Targets: []string{"agents"}, Locations: locations,
+		TargetDigests: digests, Digest: digest,
+	}
+	if saveErr := env.saveProjectLock(); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	healthy, err := Run(env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(healthy.Issues) != 0 {
+		t.Fatalf("healthy project reported issues: %+v", healthy.Issues)
+	}
+
+	// A clone carries the origin machine's absolute locations. Move the copy
+	// there, the way another checkout would have it, and leave this worktree
+	// empty: the recorded path is healthy, the resolved one is not.
+	elsewhere := filepath.Join(t.TempDir(), "demo")
+	if renameErr := os.Rename(locations[0], elsewhere); renameErr != nil {
+		t.Fatal(renameErr)
+	}
+	entry := env.ProjectLock.Skills["demo"]
+	entry.Locations = []string{elsewhere}
+	env.ProjectLock.Skills["demo"] = entry
+	if saveErr := env.saveProjectLock(); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+	report, err := Run(env, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Issues) != 1 || report.Issues[0].Check != "project-skill-health" ||
+		report.Issues[0].Scope != scopeProject || report.Issues[0].Subject != "demo" ||
+		report.Issues[0].Detail != "installed location is missing" {
+		t.Fatalf("report = %+v", report.Issues)
+	}
+
+	fixed, err := Run(env, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fixed.Issues) != 0 {
+		t.Fatalf("residual = %+v", fixed.Issues)
+	}
+	if _, err := os.Stat(filepath.Join(locations[0], "SKILL.md")); err != nil {
+		t.Fatalf("reinstalled project skill missing: %v", err)
+	}
+}
