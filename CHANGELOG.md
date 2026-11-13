@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [1.12.1] - 2026-11-13
+
+### Added
+
+### Fixed
+
 - `repertoire bootstrap` and `sync` install the `requirements` section of a
   project manifest. A project set up with `repertoire --project add` writes its
   skills there, and a fresh clone used to see an empty manifest: it replaced
